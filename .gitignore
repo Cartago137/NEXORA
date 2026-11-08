@@ -1,0 +1,39 @@
+# Operating systems
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors and IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Build outputs
+build/
+out/
+dist/
+.gradle/
+.cxx/
+.externalNativeBuild/
+
+# Android / Gradle local files
+local.properties
+*.jks
+*.keystore
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Generated artifacts
+*.apk
+*.aab
+*.aar
