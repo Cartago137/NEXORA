@@ -52,3 +52,8 @@ There is no runnable application yet. Start with the architecture and roadmap do
 ## Legal and preservation note
 
 NEXORA is intended to run user-provided game files. The project will not distribute commercial ROMs, copyrighted game assets, or proprietary BIOS files. Any third-party emulator core or library must be reviewed for license compatibility before integration.
+
+
+## Implementation status
+
+The initial Android app shell is being developed on the `foundation/android-app-shell` branch. It contains a Kotlin/Compose starter screen and a minimal C++/JNI bridge. It is not yet a playable emulator, and the mGBA core has not yet been linked into the Android build. See [the app shell milestone](docs/ANDROID_APP_SHELL.md) and [the Android integration plan](docs/ANDROID_INTEGRATION_PLAN.md).
