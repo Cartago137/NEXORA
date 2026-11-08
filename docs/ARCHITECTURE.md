@@ -27,7 +27,7 @@ Emulation abstraction
   └── Core capability reporting
 
 System modules
-  └── GBA core integration (first system)
+  └── mGBA integration (GBA; native C/C++)
 
 Platform services
   ├── File access and permissions
@@ -36,7 +36,7 @@ Platform services
   └── Local networking
 ```
 
-This is a conceptual boundary map, not a commitment to a specific programming language, framework, or folder layout. Those choices must be validated before implementation.
+This is a conceptual boundary map. The selected GBA core is mGBA, integrated in the native C/C++ layer. The Android application/UI framework and language, and the exact native integration/build approach, must still be validated before implementation.
 
 ## 3. Emulator core contract
 
@@ -98,9 +98,8 @@ Deleting a custom folder should not delete the games assigned to it. Pinned and 
 
 The following are intentionally unresolved:
 
-- application framework and language;
-- GBA core and integration method;
-- native versus managed boundary;
+- Android application/UI framework and language;
+- exact mGBA version, build configuration, and native integration method;
 - rendering and audio pipeline;
 - persistence technology;
 - multiplayer transport and synchronization design;
