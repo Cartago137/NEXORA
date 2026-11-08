@@ -72,3 +72,13 @@ This file records decisions and important constraints. Update it when a decision
 
 **Consequence:** The Android application/UI language and framework remain a separate decision. The native boundary and build pipeline must be validated with a small Android prototype.
 
+
+## ADR-008 — Kotlin and Jetpack Compose for the Android app
+
+**Status:** Accepted
+
+**Decision:** Use Kotlin for Android application logic and Jetpack Compose for the user interface. Use Android NDK, CMake, and JNI for the native C/C++ layer containing mGBA.
+
+**Reason:** This uses Android's standard native integration path while keeping the interface and platform services separate from the emulator core.
+
+**Consequence:** The first implementation targets Android. The UI framework is not assumed to be the future framework for any other platform. Native mGBA integration must be validated independently; this decision does not mean mGBA already builds on Android out of the box.
