@@ -52,12 +52,23 @@ This file records decisions and important constraints. Update it when a decision
 
 **Consequence:** Prototype each connection mode early enough to discover technical limitations. Do not claim compatibility until verified.
 
-## ADR-006 — Framework and emulator core remain undecided
+## ADR-006 — mGBA as the GBA emulation core
 
-**Status:** Open
+**Status:** Accepted
 
-**Decision:** Do not commit to a framework, language, or GBA core until options have been compared and a small technical prototype has been built.
+**Decision:** Use mGBA as NEXORA's Game Boy Advance emulation core.
 
-**Reason:** A premature choice could create avoidable rewrites or license conflicts.
+**Reason:** The project has selected mGBA for GBA emulation.
 
-**Next step:** Compare viable Android application stacks and GBA core options for performance, maintainability, licensing, and integration complexity.
+**Consequence:** Integrate mGBA behind the stable emulator-core abstraction. Verify the exact version, build configuration, license obligations, and supported capabilities before shipping.
+
+## ADR-007 — Native emulation integration in C/C++
+
+**Status:** Accepted
+
+**Decision:** Use C/C++ for the native emulation/integration layer, working with mGBA's predominantly C codebase.
+
+**Reason:** This keeps the GBA core integration in the native layer and supports the performance-sensitive emulation path.
+
+**Consequence:** The Android application/UI language and framework remain a separate decision. The native boundary and build pipeline must be validated with a small Android prototype.
+
