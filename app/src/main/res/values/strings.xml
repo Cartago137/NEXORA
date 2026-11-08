@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">NEXORA</string>
+    <string name="brand_name">NEXORA</string>
+    <string name="game_library">GAME LIBRARY</string>
+    <string name="home_headline">Your games. Your world.</string>
+    <string name="home_subtitle">A new home for your handheld game collection.</string>
+    <string name="your_library">YOUR LIBRARY</string>
+    <string name="no_games_yet">No games yet</string>
+    <string name="library_empty_description">Your game collection will appear here when you add your own game files.</string>
+</resources>
