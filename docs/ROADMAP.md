@@ -79,3 +79,20 @@ This roadmap separates product goals from verified implementation. A phase is co
 ## Release discipline
 
 Do not mark a feature complete because a screen or placeholder exists. Require a working implementation, tests on supported devices, documented limitations, and a review of relevant licenses.
+
+
+## Current implementation checkpoint — Android app shell
+
+**Status:** Scaffold committed on branch `foundation/android-app-shell`; build verification pending.
+
+Completed in this checkpoint:
+- Kotlin + Jetpack Compose Android app shell.
+- English and Spanish resource files.
+- Native C++ shared-library target built through CMake/NDK.
+- Minimal JNI status call to verify the native bridge.
+
+Next:
+1. Open/sync the project in Android Studio and resolve any toolchain issues.
+2. Build and install the shell on an ARM64 Android device.
+3. Integrate the pinned mGBA source into the Android native build.
+4. Prove ROM loading, frame output, audio, and input before implementing the full library experience.
