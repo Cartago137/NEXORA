@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">NEXORA</string>
+    <string name="brand_name">NEXORA</string>
+    <string name="game_library">BIBLIOTECA DE JUEGOS</string>
+    <string name="home_headline">Tus juegos. Tu mundo.</string>
+    <string name="home_subtitle">Un nuevo hogar para tu colección de juegos portátiles.</string>
+    <string name="your_library">TU BIBLIOTECA</string>
+    <string name="no_games_yet">Todavía no hay juegos</string>
+    <string name="library_empty_description">Tu colección aparecerá aquí cuando añadas tus propios archivos de juego.</string>
+</resources>
