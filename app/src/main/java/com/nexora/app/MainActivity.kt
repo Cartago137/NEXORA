@@ -20,6 +20,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -72,14 +73,14 @@ private fun NexoraHome(nativeStatus: String) {
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "NEXORA",
+                        text = stringResource(R.string.brand_name),
                         color = NexoraText,
                         fontSize = 27.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 4.sp
                     )
                     Text(
-                        text = "GAME LIBRARY",
+                        text = stringResource(R.string.game_library),
                         color = NexoraMuted,
                         fontSize = 10.sp,
                         letterSpacing = 2.5.sp
@@ -89,13 +90,13 @@ private fun NexoraHome(nativeStatus: String) {
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Your games. Your world.",
+                    text = stringResource(R.string.home_headline),
                     color = NexoraText,
                     fontSize = 25.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "A new home for your handheld game collection.",
+                    text = stringResource(R.string.home_subtitle),
                     color = NexoraMuted,
                     fontSize = 14.sp
                 )
@@ -113,14 +114,14 @@ private fun NexoraHome(nativeStatus: String) {
                 Text("YOUR LIBRARY", color = NexoraPink, fontSize = 11.sp, letterSpacing = 2.sp)
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    text = "No games yet",
+                    text = stringResource(R.string.no_games_yet),
                     color = NexoraText,
                     fontSize = 21.sp,
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "Your game collection will appear here when you add your own game files.",
+                    text = stringResource(R.string.library_empty_description),
                     color = NexoraMuted,
                     fontSize = 13.sp
                 )
