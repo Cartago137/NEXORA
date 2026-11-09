@@ -19,14 +19,23 @@ object NativeBridge {
      */
     external fun nativeLoadRom(path: String): Int
 
-    /** Runs one GBA frame and returns 240x160 ARGB pixels, or null if stopped. */
-    external fun nativeRunFrame(): IntArray?
+    /** Runs one GBA frame into a reusable 240x160 ARGB pixel buffer. */
+    external fun nativeRunFrame(output: IntArray): Boolean
+
+    /** Opens or creates the per-game battery save file through mGBA. */
+    external fun nativeLoadBatterySave(path: String): Boolean
 
     /** Reads interleaved stereo PCM samples at 44.1 kHz; returns sample frames. */
     external fun nativeReadAudio(output: ShortArray): Int
 
-    /** Sets the active GBA key bitmask. */
+    /** Replaces the active GBA key bitmask. */
     external fun nativeSetKeys(keys: Int)
+
+    /** Adds a pressed key without releasing other simultaneously held keys. */
+    external fun nativeAddKeys(keys: Int)
+
+    /** Releases only the supplied key bits. */
+    external fun nativeClearKeys(keys: Int)
 
     /** Stops the active session and releases the native core. */
     external fun nativeUnloadRom()
