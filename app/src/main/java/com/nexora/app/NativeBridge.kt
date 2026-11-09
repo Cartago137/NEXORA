@@ -25,7 +25,10 @@ object NativeBridge {
     /** Opens or creates the per-game battery save file through mGBA. */
     external fun nativeLoadBatterySave(path: String): Boolean
 
-    /** Reads interleaved stereo PCM samples at 44.1 kHz; returns sample frames. */
+    /** Returns the native PCM sample rate used by the active mGBA core. */
+    external fun nativeGetAudioSampleRate(): Int
+
+    /** Reads interleaved stereo PCM samples at the active core's sample rate. */
     external fun nativeReadAudio(output: ShortArray): Int
 
     /** Replaces the active GBA key bitmask. */
