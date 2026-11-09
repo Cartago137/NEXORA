@@ -1,8 +1,14 @@
 package com.nexora.app
 
+import android.content.Intent
 import android.os.Bundle
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,10 +21,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
+import java.util.Locale
 
 private val NexoraBackground = Color(0xFF100B18)
 private val NexoraPanel = Color(0xFF1D1428)
@@ -41,21 +53,123 @@ private enum class NexoraTab { HOME, LIBRARY, HISTORY, SETTINGS }
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Hide the Android status bar (clock, notifications, battery and signal).
+        // The system navigation gesture/bar remains available.
+        window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+
         setContent {
+            var games by remember { mutableStateOf(GameLibraryStore.load(this@MainActivity)) }
+            var libraryMessage by remember { mutableStateOf<String?>(null) }
+
+            val romPicker = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.OpenDocument()
+            ) { uri ->
+                if (uri != null) {
+                    val accepted = runCatching {
+                        contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    }.isSuccess
+
+                    val displayName = contentResolver.query(
+                        uri,
+                        arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+                        null,
+                        null,
+                        null
+                    )?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                            val name = if (nameIndex >= 0) cursor.getString(nameIndex) else null
+                            val size = if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) {
+                                cursor.getLong(sizeIndex)
+                            } else 0L
+                            (name ?: uri.lastPathSegment ?: "GBA game") to size
+                        } else {
+                            (uri.lastPathSegment ?: "GBA game") to 0L
+                        }
+                    } ?: ((uri.lastPathSegment ?: "GBA game") to 0L)
+
+                    val extension = displayName.first.substringAfterLast('.', "").lowercase(Locale.ROOT)
+                    if (extension !in setOf("gba", "agb", "bin")) {
+                        libraryMessage = getString(R.string.unsupported_rom_format)
+                        if (accepted) {
+                            runCatching {
+                                contentResolver.releasePersistableUriPermission(
+                                    uri,
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                )
+                            }
+                        }
+                    } else if (games.any { it.uri == uri.toString() }) {
+                        libraryMessage = getString(R.string.game_already_added)
+                    } else {
+                        val entry = GameEntry(displayName.first, uri.toString(), displayName.second)
+                        games = games + entry
+                        GameLibraryStore.save(this@MainActivity, games)
+                        libraryMessage = getString(R.string.game_added_success)
+                    }
+                }
+            }
+
             MaterialTheme {
                 val nativeStatus = remember {
                     runCatching { NativeBridge.nativeStatus() }
-                        .getOrElse { "Native bridge could not be loaded." }
+                        .getOrElse { getString(R.string.native_bridge_unavailable) }
                 }
-                NexoraApp(nativeStatus)
+
+                NexoraApp(
+                    nativeStatus = nativeStatus,
+                    games = games,
+                    libraryMessage = libraryMessage,
+                    onImportGame = { romPicker.launch(arrayOf("*/*")) },
+                    onClearLibraryMessage = { libraryMessage = null },
+                    onRemoveGame = { game, deleteOriginal ->
+                        val removedSuccessfully = if (deleteOriginal) {
+                            runCatching {
+                                DocumentsContract.deleteDocument(
+                                    contentResolver,
+                                    android.net.Uri.parse(game.uri)
+                                )
+                            }.getOrDefault(false)
+                        } else {
+                            true
+                        }
+
+                        if (removedSuccessfully) {
+                            runCatching {
+                                contentResolver.releasePersistableUriPermission(
+                                    android.net.Uri.parse(game.uri),
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                )
+                            }
+                            games = games.filterNot { it.uri == game.uri }
+                            GameLibraryStore.save(this@MainActivity, games)
+                            libraryMessage = null
+                        }
+                        removedSuccessfully
+                    }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun NexoraApp(nativeStatus: String) {
+private fun NexoraApp(
+    nativeStatus: String,
+    games: List<GameEntry>,
+    libraryMessage: String?,
+    onImportGame: () -> Unit,
+    onClearLibraryMessage: () -> Unit,
+    onRemoveGame: (GameEntry, Boolean) -> Boolean
+) {
     var selectedTab by remember { mutableStateOf(NexoraTab.HOME) }
+    var gamePendingRemoval by remember { mutableStateOf<GameEntry?>(null) }
+    var removalFailed by remember { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize(), color = NexoraBackground) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -91,8 +205,20 @@ private fun NexoraApp(nativeStatus: String) {
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when (selectedTab) {
-                    NexoraTab.HOME -> HomeScreen(onOpenLibrary = { selectedTab = NexoraTab.LIBRARY })
-                    NexoraTab.LIBRARY -> LibraryScreen()
+                    NexoraTab.HOME -> HomeScreen(
+                        onImportGame = onImportGame,
+                        onOpenLibrary = { selectedTab = NexoraTab.LIBRARY }
+                    )
+                    NexoraTab.LIBRARY -> LibraryScreen(
+                        games = games,
+                        message = libraryMessage,
+                        onImportGame = onImportGame,
+                        onClearMessage = onClearLibraryMessage,
+                        onRemoveGame = { game ->
+                            removalFailed = false
+                            gamePendingRemoval = game
+                        }
+                    )
                     NexoraTab.HISTORY -> HistoryScreen()
                     NexoraTab.SETTINGS -> SettingsScreen(nativeStatus)
                 }
@@ -101,10 +227,65 @@ private fun NexoraApp(nativeStatus: String) {
             BottomNavigation(selectedTab = selectedTab, onSelect = { selectedTab = it })
         }
     }
+
+    gamePendingRemoval?.let { game ->
+        AlertDialog(
+            onDismissRequest = {
+                gamePendingRemoval = null
+                removalFailed = false
+            },
+            containerColor = NexoraPanel,
+            title = {
+                Text(stringResource(R.string.remove_game_title), color = NexoraText)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(R.string.remove_game_question, game.name),
+                        color = NexoraMuted
+                    )
+                    if (removalFailed) {
+                        Text(
+                            stringResource(R.string.delete_original_failed),
+                            color = NexoraPink,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (onRemoveGame(game, true)) {
+                        gamePendingRemoval = null
+                    } else {
+                        removalFailed = true
+                    }
+                }) {
+                    Text(stringResource(R.string.remove_and_delete), color = NexoraPink)
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        onRemoveGame(game, false)
+                        gamePendingRemoval = null
+                    }) {
+                        Text(stringResource(R.string.remove_only), color = NexoraText)
+                    }
+                    TextButton(onClick = {
+                        gamePendingRemoval = null
+                        removalFailed = false
+                    }) {
+                        Text(stringResource(R.string.cancel), color = NexoraMuted)
+                    }
+                }
+            }
+        )
+    }
 }
 
 @Composable
-private fun HomeScreen(onOpenLibrary: () -> Unit) {
+private fun HomeScreen(onImportGame: () -> Unit, onOpenLibrary: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -154,7 +335,7 @@ private fun HomeScreen(onOpenLibrary: () -> Unit) {
                 modifier = Modifier.weight(1f),
                 symbol = "＋",
                 title = stringResource(R.string.add_games),
-                onClick = onOpenLibrary
+                onClick = onImportGame
             )
             QuickAction(
                 modifier = Modifier.weight(1f),
@@ -182,13 +363,91 @@ private fun QuickAction(modifier: Modifier, symbol: String, title: String, onCli
 }
 
 @Composable
-private fun LibraryScreen() {
-    EmptyScreen(
-        eyebrow = stringResource(R.string.library_label),
-        title = stringResource(R.string.no_games_yet),
-        description = stringResource(R.string.library_empty_description),
-        symbol = "▦"
-    )
+private fun LibraryScreen(
+    games: List<GameEntry>,
+    message: String?,
+    onImportGame: () -> Unit,
+    onClearMessage: () -> Unit,
+    onRemoveGame: (GameEntry) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.library_label), color = NexoraText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.library_game_count, games.size), color = NexoraMuted, fontSize = 12.sp)
+            }
+            Button(onClick = onImportGame) {
+                Text(stringResource(R.string.add_games))
+            }
+        }
+
+        if (message != null) {
+            Text(
+                text = message,
+                color = NexoraPink,
+                fontSize = 12.sp,
+                modifier = Modifier.clickable(onClick = onClearMessage)
+            )
+        }
+
+        if (games.isEmpty()) {
+            EmptyScreen(
+                eyebrow = stringResource(R.string.library_label),
+                title = stringResource(R.string.no_games_yet),
+                description = stringResource(R.string.library_empty_description),
+                symbol = "▦"
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(games, key = { it.uri }) { game ->
+                    GameLibraryRow(game = game, onRemove = { onRemoveGame(game) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GameLibraryRow(game: GameEntry, onRemove: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(NexoraPanel, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .background(NexoraPanelLight, RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("GBA", color = NexoraPurple, fontSize = 11.sp, fontWeight = FontWeight.Black)
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(game.name, color = NexoraText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(formatFileSize(game.sizeBytes), color = NexoraMuted, fontSize = 11.sp)
+        }
+        TextButton(onClick = onRemove) {
+            Text(stringResource(R.string.remove), color = NexoraPink)
+        }
+    }
+}
+
+private fun formatFileSize(bytes: Long): String {
+    if (bytes <= 0L) return "—"
+    val megabytes = bytes / (1024.0 * 1024.0)
+    return String.format(Locale.getDefault(), "%.1f MB", megabytes)
 }
 
 @Composable
