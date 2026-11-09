@@ -475,11 +475,13 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
     var frameVersion by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(gameName) {
-        // Open Android's stereo output independently from the emulation loop.
+        // Match Android's output stream to the PCM rate supplied by mGBA.
+        val outputSampleRate = NativeBridge.nativeGetAudioSampleRate()
+            .takeIf { it > 0 } ?: 32_768
         val audioTrack = runCatching {
             withContext(Dispatchers.IO) {
                 val minimumBufferBytes = AudioTrack.getMinBufferSize(
-                    44_100,
+                    outputSampleRate,
                     AudioFormat.CHANNEL_OUT_STEREO,
                     AudioFormat.ENCODING_PCM_16BIT
                 )
@@ -497,7 +499,7 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
                     )
                     .setAudioFormat(
                         AudioFormat.Builder()
-                            .setSampleRate(44_100)
+                            .setSampleRate(outputSampleRate)
                             .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                             .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
                             .build()
