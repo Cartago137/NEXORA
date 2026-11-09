@@ -1,6 +1,7 @@
 package com.nexora.app
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
+import java.io.File
 import java.util.Locale
 
 private val NexoraBackground = Color(0xFF100B18)
@@ -51,6 +53,45 @@ private val NexoraMuted = Color(0xFFB7AFC2)
 private enum class NexoraTab { HOME, LIBRARY, HISTORY, SETTINGS }
 
 class MainActivity : ComponentActivity() {
+
+    private var activeRomCacheFile: File? = null
+
+    private fun loadGame(game: GameEntry, onResult: (Int) -> Unit) {
+        Thread {
+            val extension = game.name.substringAfterLast('.', "gba").lowercase(Locale.ROOT)
+            val cachedRom = File(cacheDir, "nexora-${System.nanoTime()}.$extension")
+            val copied = runCatching {
+                val source = contentResolver.openInputStream(Uri.parse(game.uri))
+                    ?: error("The selected document could not be opened.")
+                source.use { input ->
+                    cachedRom.outputStream().use { output -> input.copyTo(output) }
+                }
+            }.isSuccess
+
+            val status = if (copied) {
+                runCatching { NativeBridge.nativeLoadRom(cachedRom.absolutePath) }.getOrDefault(-1)
+            } else {
+                -2
+            }
+
+            runOnUiThread {
+                // nativeLoadRom replaces any previous session before loading the new ROM.
+                activeRomCacheFile?.delete()
+                activeRomCacheFile = if (status == 4) cachedRom else null
+                if (status != 4) cachedRom.delete()
+                onResult(status)
+            }
+        }.start()
+    }
+
+    override fun onDestroy() {
+        if (isFinishing) {
+            runCatching { NativeBridge.nativeUnloadRom() }
+            activeRomCacheFile?.delete()
+            activeRomCacheFile = null
+        }
+        super.onDestroy()
+    }
 
     private fun releaseDocumentAccess(uri: android.net.Uri) {
         val readWriteFlags =
@@ -77,6 +118,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             var games by remember { mutableStateOf(GameLibraryStore.load(this@MainActivity)) }
             var libraryMessage by remember { mutableStateOf<String?>(null) }
+            var isLoadingGame by remember { mutableStateOf(false) }
 
             val romPicker = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.OpenDocument()
@@ -145,7 +187,20 @@ class MainActivity : ComponentActivity() {
                     nativeStatus = nativeStatus,
                     games = games,
                     libraryMessage = libraryMessage,
+                    isLoadingGame = isLoadingGame,
                     onImportGame = { romPicker.launch(arrayOf("*/*")) },
+                    onPlayGame = { game ->
+                        isLoadingGame = true
+                        loadGame(game) { status ->
+                            isLoadingGame = false
+                            libraryMessage = when (status) {
+                                4 -> getString(R.string.game_loaded_success)
+                                -2 -> getString(R.string.game_file_copy_failed)
+                                0, 1, 2, 3 -> getString(R.string.game_load_failed)
+                                else -> getString(R.string.native_bridge_unavailable)
+                            }
+                        }
+                    },
                     onClearLibraryMessage = { libraryMessage = null },
                     onRemoveGame = { game, deleteOriginal ->
                         val removedSuccessfully = if (deleteOriginal) {
@@ -178,7 +233,9 @@ private fun NexoraApp(
     nativeStatus: Int,
     games: List<GameEntry>,
     libraryMessage: String?,
+    isLoadingGame: Boolean,
     onImportGame: () -> Unit,
+    onPlayGame: (GameEntry) -> Unit,
     onClearLibraryMessage: () -> Unit,
     onRemoveGame: (GameEntry, Boolean) -> Boolean
 ) {
@@ -230,7 +287,9 @@ private fun NexoraApp(
                     NexoraTab.LIBRARY -> LibraryScreen(
                         games = games,
                         message = libraryMessage,
+                        isLoadingGame = isLoadingGame,
                         onImportGame = onImportGame,
+                        onPlayGame = onPlayGame,
                         onClearMessage = onClearLibraryMessage,
                         onRemoveGame = { game ->
                             removalFailed = false
@@ -384,7 +443,9 @@ private fun QuickAction(modifier: Modifier, symbol: String, title: String, onCli
 private fun LibraryScreen(
     games: List<GameEntry>,
     message: String?,
+    isLoadingGame: Boolean,
     onImportGame: () -> Unit,
+    onPlayGame: (GameEntry) -> Unit,
     onClearMessage: () -> Unit,
     onRemoveGame: (GameEntry) -> Unit
 ) {
@@ -428,7 +489,12 @@ private fun LibraryScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(games, key = { it.uri }) { game ->
-                    GameLibraryRow(game = game, onRemove = { onRemoveGame(game) })
+                    GameLibraryRow(
+                        game = game,
+                        isLoading = isLoadingGame,
+                        onPlay = { onPlayGame(game) },
+                        onRemove = { onRemoveGame(game) }
+                    )
                 }
             }
         }
@@ -436,7 +502,12 @@ private fun LibraryScreen(
 }
 
 @Composable
-private fun GameLibraryRow(game: GameEntry, onRemove: () -> Unit) {
+private fun GameLibraryRow(
+    game: GameEntry,
+    isLoading: Boolean,
+    onPlay: () -> Unit,
+    onRemove: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -457,7 +528,10 @@ private fun GameLibraryRow(game: GameEntry, onRemove: () -> Unit) {
             Text(game.name, color = NexoraText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Text(formatFileSize(game.sizeBytes), color = NexoraMuted, fontSize = 11.sp)
         }
-        TextButton(onClick = onRemove) {
+        TextButton(onClick = onPlay, enabled = !isLoading) {
+            Text(stringResource(R.string.load_game), color = NexoraPurple)
+        }
+        TextButton(onClick = onRemove, enabled = !isLoading) {
             Text(stringResource(R.string.remove), color = NexoraPink)
         }
     }
