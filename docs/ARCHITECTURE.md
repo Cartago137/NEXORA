@@ -94,15 +94,17 @@ Deleting a custom folder should not delete the games assigned to it. Pinned and 
 - Add automated tests around library behavior, input mapping, save management, and core integration.
 - Record third-party licenses and notices before shipping dependencies.
 
-## 8. Open technical decisions
+## 8. Remaining technical decisions
 
-The following are intentionally unresolved:
+The Android application framework and language (Kotlin + Jetpack Compose), native integration approach (C/C++ + JNI + NDK/CMake), selected GBA core (pinned mGBA 0.10.5), and minimum Android version (API 26) have been selected.
 
-- Android application/UI framework and language;
-- exact mGBA version, build configuration, and native integration method;
-- rendering and audio pipeline;
-- persistence technology;
+The following implementation details remain open and must be validated:
+
+- final video presentation strategy and frame-buffer reuse/performance;
+- Android audio output, buffering, latency, and lifecycle behavior;
+- battery-backed save storage and save-state format/versioning;
+- pause/resume and process-death recovery;
 - multiplayer transport and synchronization design;
-- minimum Android version and device performance targets.
+- physical-device performance targets and supported-device matrix.
 
-Resolve these with small prototypes and documented trade-offs rather than guessing early.
+Resolve these with small prototypes, repeatable tests, and documented trade-offs rather than assuming compatibility.
