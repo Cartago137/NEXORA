@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, "foundation/**"]
+    branches: [main]
   workflow_dispatch:
 
 # Keep only the newest build for each branch/PR ref. This avoids a backlog of
