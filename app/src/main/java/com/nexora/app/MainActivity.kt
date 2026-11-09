@@ -464,20 +464,30 @@ private fun PlayerScreen(
     batterySaveWarning: Boolean,
     onExit: () -> Unit
 ) {
-    var frame by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
-    // Diagnostic build: audio is temporarily disabled to isolate the crash.
-    // Pause frame execution whenever the app is not in the foreground.
+    var frameReady by remember { mutableStateOf(false) }
+    var frameError by remember { mutableStateOf(false) }
+    var frameVersion by remember { mutableIntStateOf(0) }
+    val pixelBuffer = remember { IntArray(240 * 160) }
+    val frameBitmap = remember {
+        Bitmap.createBitmap(240, 160, Bitmap.Config.ARGB_8888)
+    }
+    val frameImage = remember { frameBitmap.asImageBitmap() }
 
+    // Diagnostic build: audio is temporarily disabled to isolate the crash.
+    // Reuse both the Java pixel array and Android bitmap to reduce frame allocations.
     LaunchedEffect(gameName, isActivityResumed) {
         if (!isActivityResumed) return@LaunchedEffect
         while (isActive) {
-            val pixels = withContext(Dispatchers.Default) {
-                runCatching { NativeBridge.nativeRunFrame() }.getOrNull()
+            val rendered = withContext(Dispatchers.Default) {
+                runCatching { NativeBridge.nativeRunFrame(pixelBuffer) }.getOrDefault(false)
             }
-            if (pixels != null && pixels.size == 240 * 160) {
-                frame = Bitmap.createBitmap(
-                    pixels, 240, 160, Bitmap.Config.ARGB_8888
-                ).asImageBitmap()
+            if (rendered) {
+                frameBitmap.setPixels(pixelBuffer, 0, 240, 0, 0, 240, 160)
+                frameReady = true
+                frameVersion++
+            } else {
+                frameError = true
+                break
             }
             delay(16)
         }
@@ -512,10 +522,16 @@ private fun PlayerScreen(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
-            if (frame != null) {
+            if (frameError) {
+                Text(
+                    stringResource(R.string.emulation_frame_failed),
+                    color = NexoraPink,
+                    fontSize = 13.sp
+                )
+            } else if (frameReady) {
                 Image(
-                    bitmap = frame!!,
-                    contentDescription = "Tela do jogo GBA",
+                    bitmap = frameImage,
+                    contentDescription = "$gameName frame $frameVersion",
                     modifier = Modifier.fillMaxWidth(),
                     contentScale = ContentScale.Fit
                 )
