@@ -2,9 +2,9 @@ name: Android build
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, recovery/stable-launch-shell]
   push:
-    branches: [main]
+    branches: [main, recovery/stable-launch-shell, feature/multi-game-playback]
   workflow_dispatch:
 
 # Keep only the newest build for each branch/PR ref. This avoids a backlog of
