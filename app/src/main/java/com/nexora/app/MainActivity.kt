@@ -494,11 +494,13 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
             return@LaunchedEffect
         }
 
+        var audioTrack: AudioTrack? = null
+        var audioJob: kotlinx.coroutines.Job? = null
         try {
         // Match Android's output stream to the PCM rate supplied by mGBA.
         val outputSampleRate = NativeBridge.nativeGetAudioSampleRate()
             .takeIf { it > 0 } ?: 32_768
-        val audioTrack = runCatching {
+        val createdAudioTrack = runCatching {
             withContext(Dispatchers.IO) {
                 val minimumBufferBytes = AudioTrack.getMinBufferSize(
                     outputSampleRate,
@@ -533,10 +535,11 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                     }
             }
         }.getOrNull()
+        audioTrack = createdAudioTrack
 
         // mGBA produces audio while frames run; this worker drains it without
         // blocking the Compose/UI thread or slowing down video frame pacing.
-        val audioJob = if (audioTrack != null) {
+        audioJob = if (createdAudioTrack != null) {
             launch(Dispatchers.IO) {
                 val audioSamples = ShortArray(4_096)
                 while (isActive) {
@@ -548,7 +551,7 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                         val sampleCount = sampleFrames * 2
                         var offset = 0
                         while (offset < sampleCount && isActive) {
-                            val written = audioTrack.write(
+                            val written = createdAudioTrack.write(
                                 audioSamples,
                                 offset,
                                 sampleCount - offset,
