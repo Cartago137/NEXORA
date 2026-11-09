@@ -60,11 +60,14 @@ NEXORA/
 - Android document picker accepts user-selected `.gba`, `.agb`, and `.bin` files.
 - Library entries and persistable document permissions are stored across app restarts.
 - Removing a library entry offers a separate option to delete the original document; deletion is never silent.
-- Pinned mGBA 0.10.5 builds as a separate Android shared library; the JNI smoke test creates and initializes a GBA core.
+- Pinned mGBA 0.10.5 builds as a separate Android shared library; JNI validates ROM headers, initializes and resets the GBA core, and exposes frame/input calls.
+- Experimental framebuffer rendering and simultaneous touchscreen inputs; the diagnostic build currently runs without audio.
+- Per-game battery-save files are connected to mGBA, pending physical-device persistence testing.
+- ROM cache copies are limited to 64 MiB.
 
 ## Build and test status
 
-The project is built by GitHub Actions on the `foundation/android-app-shell` branch. A successful CI build proves that the APK compiles, not that gameplay is stable. The current runtime path still needs physical-device validation; audio is disabled, battery saves and save states are not implemented, and multiplayer remains a future milestone.
+The project is built by GitHub Actions on the `foundation/android-app-shell` branch. A successful CI build proves that the APK compiles, not that gameplay is stable. The current runtime path still needs physical-device validation; audio is disabled, battery-save persistence is not yet verified, save states are not implemented, and multiplayer remains a future milestone.
 
 ## Legal and preservation note
 
