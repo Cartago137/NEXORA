@@ -1,6 +1,8 @@
 package com.nexora.app
 
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.graphics.Bitmap
 import android.media.AudioAttributes
 import android.media.AudioFormat
@@ -28,11 +30,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +52,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
@@ -181,7 +187,13 @@ class MainActivity : ComponentActivity() {
             window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
         }
 
+        val previousCrashReport = runCatching {
+            File(filesDir, "last_crash.txt").takeIf { it.exists() }?.readText()
+        }.getOrNull()
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+
         setContent {
+            var showCrashReport by remember { mutableStateOf(!previousCrashReport.isNullOrBlank()) }
             var games by remember { mutableStateOf(GameLibraryStore.load(this@MainActivity)) }
             var libraryMessage by remember { mutableStateOf<String?>(null) }
             var isLoadingGame by remember { mutableStateOf(false) }
@@ -295,6 +307,43 @@ class MainActivity : ComponentActivity() {
                         removedSuccessfully
                     }
                 )
+
+                if (showCrashReport && !previousCrashReport.isNullOrBlank()) {
+                    AlertDialog(
+                        onDismissRequest = { showCrashReport = false },
+                        containerColor = NexoraPanel,
+                        title = { Text("Relatório da falha anterior", color = NexoraText) },
+                        text = {
+                            Column(
+                                modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())
+                            ) {
+                                Text(
+                                    "O Android registrou uma falha na execução anterior. Copie o texto abaixo e cole nesta conversa.",
+                                    color = NexoraMuted,
+                                    fontSize = 12.sp
+                                )
+                                Spacer(Modifier.height(10.dp))
+                                Text(previousCrashReport, color = NexoraText, fontSize = 10.sp)
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                clipboard.setPrimaryClip(
+                                    ClipData.newPlainText("NEXORA crash report", previousCrashReport)
+                                )
+                                runCatching { File(filesDir, "last_crash.txt").delete() }
+                                showCrashReport = false
+                            }) {
+                                Text("COPIAR RELATÓRIO", color = NexoraPink)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showCrashReport = false }) {
+                                Text("FECHAR", color = NexoraMuted)
+                            }
+                        }
+                    )
+                }
             }
         }
     }
