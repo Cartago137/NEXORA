@@ -146,7 +146,7 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
     logInfo("ROM load stage 5: core initialized; applying frontend configuration.");
     mCoreOptions options{};
     // Leave headroom in the emulator mixer to reduce harsh/clipped output.
-    options.volume = 0xC0;
+    options.volume = 0x60;
     options.useBios = false;
     // No BIOS file is bundled or supplied in this milestone. Explicitly skip
     // the BIOS boot path so the CPU starts at the cartridge entry point.
@@ -154,8 +154,9 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
     mCoreConfigLoadDefaults(&core->config, &options);
     mCoreLoadForeignConfig(core, &core->config);
     core->setVideoBuffer(core, gVideoBuffer.data(), kGbaWidth);
-    // Give the resampler room to absorb short Android scheduling delays.
-    core->setAudioBufferSize(core, 4096);
+    // Keep mGBA's normal audio queue size; an oversized queue adds latency
+    // without improving the steady frame cadence on Android.
+    core->setAudioBufferSize(core, 2048);
     logInfo("ROM load stage 6: video buffer configured.");
 
     logInfo("ROM load stage 7: passing ROM to mGBA.");
