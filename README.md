@@ -2,7 +2,7 @@
 
 NEXORA is an Android-first Game Boy Advance emulator project, designed around a distinctive console-inspired experience and an architecture that can grow to support additional systems.
 
-> **Current status:** the Android app and pinned mGBA 0.10.5 native library compile together in CI. An experimental gameplay path now loads a ROM, resets the core, runs frames, displays the framebuffer, and accepts multitouch input. Audio is temporarily disabled for crash isolation; battery saves and physical-device stability are not yet verified. This is not yet a release-ready playable build.
+> **Current status:** the Android app and pinned mGBA 0.10.5 native library compile together in CI. An experimental gameplay path now loads a ROM, resets the core, runs frames, displays the framebuffer, and accepts multitouch input. Audio is temporarily disabled for crash isolation; battery-save persistence and physical-device stability are not yet verified. This is not yet a release-ready playable build.
 
 ## Product direction
 
