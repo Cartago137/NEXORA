@@ -1,6 +1,7 @@
 package com.nexora.app
 
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
@@ -10,8 +11,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,12 +38,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import java.io.File
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 
 private val NexoraBackground = Color(0xFF100B18)
 private val NexoraPanel = Color(0xFF1D1428)
@@ -84,12 +94,14 @@ class MainActivity : ComponentActivity() {
         }.start()
     }
 
+    private fun unloadGame() {
+        runCatching { NativeBridge.nativeUnloadRom() }
+        activeRomCacheFile?.delete()
+        activeRomCacheFile = null
+    }
+
     override fun onDestroy() {
-        if (isFinishing) {
-            runCatching { NativeBridge.nativeUnloadRom() }
-            activeRomCacheFile?.delete()
-            activeRomCacheFile = null
-        }
+        if (isFinishing) unloadGame()
         super.onDestroy()
     }
 
@@ -193,15 +205,20 @@ class MainActivity : ComponentActivity() {
                         isLoadingGame = true
                         loadGame(game) { status ->
                             isLoadingGame = false
-                            libraryMessage = when (status) {
-                                4 -> getString(R.string.game_loaded_success)
-                                -2 -> getString(R.string.game_file_copy_failed)
-                                0, 1, 2, 3 -> getString(R.string.game_load_failed)
-                                else -> getString(R.string.native_bridge_unavailable)
+                            if (status == 4) {
+                                activeGameName = game.name
+                                libraryMessage = null
+                            } else {
+                                libraryMessage = when (status) {
+                                    -2 -> getString(R.string.game_file_copy_failed)
+                                    0, 1, 2, 3 -> getString(R.string.game_load_failed)
+                                    else -> getString(R.string.native_bridge_unavailable)
+                                }
                             }
                         }
                     },
                     onClearLibraryMessage = { libraryMessage = null },
+                    onExitGame = { unloadGame() },
                     onRemoveGame = { game, deleteOriginal ->
                         val removedSuccessfully = if (deleteOriginal) {
                             runCatching {
@@ -237,9 +254,11 @@ private fun NexoraApp(
     onImportGame: () -> Unit,
     onPlayGame: (GameEntry) -> Unit,
     onClearLibraryMessage: () -> Unit,
+    onExitGame: () -> Unit,
     onRemoveGame: (GameEntry, Boolean) -> Boolean
 ) {
     var selectedTab by remember { mutableStateOf(NexoraTab.HOME) }
+    var activeGameName by remember { mutableStateOf<String?>(null) }
     var gamePendingRemoval by remember { mutableStateOf<GameEntry?>(null) }
     var removalFailed by remember { mutableStateOf(false) }
 
@@ -276,7 +295,15 @@ private fun NexoraApp(
             }
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                when (selectedTab) {
+                if (activeGameName != null) {
+                    PlayerScreen(
+                        gameName = activeGameName!!,
+                        onExit = {
+                            onExitGame()
+                            activeGameName = null
+                        }
+                    )
+                } else when (selectedTab) {
                     NexoraTab.HOME -> HomeScreen(
                         onImportGame = {
                             selectedTab = NexoraTab.LIBRARY
@@ -301,7 +328,9 @@ private fun NexoraApp(
                 }
             }
 
-            BottomNavigation(selectedTab = selectedTab, onSelect = { selectedTab = it })
+            if (activeGameName == null) {
+                BottomNavigation(selectedTab = selectedTab, onSelect = { selectedTab = it })
+            }
         }
     }
 
@@ -358,6 +387,107 @@ private fun NexoraApp(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
+    var frame by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+
+    LaunchedEffect(gameName) {
+        while (isActive) {
+            val pixels = withContext(Dispatchers.Default) {
+                runCatching { NativeBridge.nativeRunFrame() }.getOrNull()
+            }
+            if (pixels != null && pixels.size == 240 * 160) {
+                frame = Bitmap.createBitmap(
+                    pixels, 240, 160, Bitmap.Config.ARGB_8888
+                ).asImageBitmap()
+            }
+            delay(16)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(Color.Black).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(gameName, color = NexoraText, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            TextButton(onClick = {
+                NativeBridge.nativeSetKeys(0)
+                onExit()
+            }) {
+                Text("SAIR", color = NexoraPink)
+            }
+        }
+
+        Box(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            if (frame != null) {
+                Image(
+                    bitmap = frame!!,
+                    contentDescription = "Tela do jogo GBA",
+                    modifier = Modifier.fillMaxWidth(),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Text("Iniciando jogo…", color = NexoraMuted)
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                GbaControl("↑", 1 shl 6)
+                Row {
+                    GbaControl("←", 1 shl 5)
+                    GbaControl("↓", 1 shl 7)
+                    GbaControl("→", 1 shl 4)
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                GbaControl("B", 1 shl 1)
+                GbaControl("A", 1 shl 0)
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            GbaControl("SELECT", 1 shl 2, compact = true)
+            GbaControl("START", 1 shl 3, compact = true)
+            GbaControl("L", 1 shl 9, compact = true)
+            GbaControl("R", 1 shl 8, compact = true)
+        }
+    }
+}
+
+@Composable
+private fun GbaControl(label: String, keyMask: Int, compact: Boolean = false) {
+    Box(
+        modifier = Modifier
+            .padding(3.dp)
+            .size(width = if (compact) 58.dp else 52.dp, height = if (compact) 38.dp else 52.dp)
+            .background(NexoraPanelLight, RoundedCornerShape(14.dp))
+            .pointerInput(keyMask) {
+                detectTapGestures(onPress = {
+                    NativeBridge.nativeSetKeys(keyMask)
+                    tryAwaitRelease()
+                    NativeBridge.nativeSetKeys(0)
+                })
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = NexoraText, fontSize = if (compact) 9.sp else 16.sp, fontWeight = FontWeight.Bold)
     }
 }
 
