@@ -44,10 +44,9 @@ jobs:
       - name: Encrypt keystore for safe download
         shell: bash
         run: |
-          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 \
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 -md sha256 \
             -in "$RUNNER_TEMP/nexora-upload.jks" \
-            -out "$RUNNER_TEMP/nexora-upload.jks.enc" \\
-            -md sha1
+            -out "$RUNNER_TEMP/nexora-upload.jks.enc" \
             -pass env:NEXORA_KEY_EXPORT_PASSWORD
           test -s "$RUNNER_TEMP/nexora-upload.jks.enc"
 
