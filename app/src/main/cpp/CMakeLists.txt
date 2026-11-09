@@ -35,7 +35,7 @@ if(NOT TARGET mgba)
     message(FATAL_ERROR "The pinned mGBA source did not create the expected 'mgba' target.")
 endif()
 
-set_target_properties(mgba PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(mgba PROPERTIES POSITION_INDEPENDENT_CODE ON VERSION "" SOVERSION "")
 
 add_library(
     nexora_native
