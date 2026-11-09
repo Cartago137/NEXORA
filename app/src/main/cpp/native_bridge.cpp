@@ -28,8 +28,8 @@ void unloadActiveCore() {
         gRomLoaded = false;
     }
 
+    // mGBA's GBA deinit implementation releases the core allocation itself.
     gActiveCore->deinit(gActiveCore);
-    std::free(gActiveCore);
     gActiveCore = nullptr;
 }
 
@@ -55,8 +55,7 @@ Java_com_nexora_app_NativeBridge_nativeStatus(JNIEnv* /* env */, jobject /* inst
         std::free(core);
         return 1;
     }
-    core->deinit(core);
-    std::free(core);
+    // deinit() owns and frees the GBA core allocation.
     return 2;
 }
 
@@ -95,8 +94,7 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
     }
     if (!core->loadROM(core, rom)) {
         rom->close(rom);
-        core->deinit(core);
-        std::free(core);
+        // deinit() owns and frees the GBA core allocation.
         return 3;
     }
 
@@ -165,8 +163,11 @@ Java_com_nexora_app_NativeBridge_nativeReadAudio(
     }
 
     if (available > 0) {
-        blip_read_samples(left, samples, available, 1);
-        blip_read_samples(right, samples + 1, available, 1);
+        // The destination is interleaved stereo: L, R, L, R...
+        // A stride of 2 is essential; stride 1 overwrites the other channel
+        // and writes beyond the Java array's allocated sample region.
+        blip_read_samples(left, samples, available, 2);
+        blip_read_samples(right, samples + 1, available, 2);
     }
 
     env->ReleaseShortArrayElements(output, samples, 0);
