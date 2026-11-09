@@ -17,6 +17,9 @@
     <string name="game_loaded_success">ROM loaded by mGBA! Next we will display video and connect audio and controls.</string>
     <string name="game_load_failed">This ROM could not be loaded. Check that the file is valid and compatible.</string>
     <string name="game_file_copy_failed">The selected file could not be read. Check its access permission.</string>
+    <string name="game_file_too_large">This ROM is larger than the 64 MiB limit supported by this version.</string>
+    <string name="import_summary">Import complete: %1$d added, %2$d already present, %3$d unsupported, %4$d without access.</string>
+    <string name="emulation_frame_failed">Emulation stopped. Exit the game and try loading it again.</string>
     <string name="no_games_yet">No games yet</string>
     <string name="library_empty_description">Add your Game Boy Advance files to start your collection.</string>
     <string name="history_label">Recently played</string>
