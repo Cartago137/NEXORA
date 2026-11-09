@@ -22,6 +22,9 @@ object NativeBridge {
     /** Runs one GBA frame and returns 240x160 ARGB pixels, or null if stopped. */
     external fun nativeRunFrame(): IntArray?
 
+    /** Reads interleaved stereo PCM samples at 44.1 kHz; returns sample frames. */
+    external fun nativeReadAudio(output: ShortArray): Int
+
     /** Sets the active GBA key bitmask. */
     external fun nativeSetKeys(keys: Int)
 
