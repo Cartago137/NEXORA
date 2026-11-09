@@ -2,7 +2,7 @@
 
 NEXORA is an Android-first Game Boy Advance emulator project, designed around a distinctive console-inspired experience and an architecture that can grow to support additional systems.
 
-> **Current status:** the Android app shell builds in CI. The current development milestone adds full-screen presentation and a persistent library for user-selected GBA ROM files. The mGBA core is not yet integrated, so games are not playable yet.
+> **Current status:** the Android app and pinned mGBA 0.10.5 native library now compile together in CI. The app has full-screen presentation and a persistent library for user-selected GBA ROM files. ROM loading and gameplay are still being implemented, so games are not playable yet.
 
 ## Product direction
 
@@ -60,7 +60,7 @@ NEXORA/
 - Android document picker accepts user-selected `.gba`, `.agb`, and `.bin` files.
 - Library entries and persistable document permissions are stored across app restarts.
 - Removing a library entry offers a separate option to delete the original document; deletion is never silent.
-- C++/JNI native bridge builds, but it is still a placeholder and does not run mGBA.
+- Pinned mGBA 0.10.5 builds as a separate Android shared library; the JNI smoke test creates and initializes a GBA core.
 
 ## Build and test status
 
@@ -68,4 +68,4 @@ The project is built by GitHub Actions on the `foundation/android-app-shell` bra
 
 ## Legal and preservation note
 
-NEXORA is intended to run user-provided game files. The project will not distribute commercial ROMs, copyrighted game assets, or proprietary BIOS files. Any third-party emulator core or library must be reviewed for license compatibility before integration.
+NEXORA is intended to run user-provided game files. The project will not distribute commercial ROMs, copyrighted game assets, or proprietary BIOS files. Any third-party emulator core or library must be reviewed for license compatibility before release. See [third-party notices](docs/THIRD_PARTY_NOTICES.md); full license texts are included in the app assets.
