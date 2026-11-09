@@ -30,6 +30,7 @@ The branch also had independent input and safety issues. Those have been correct
 | NEX-13 | High | The frame loop did not expose a useful UI error if JNI returned no frame; the screen could remain on its startup placeholder. | Add an explicit player error state and actionable message for a failed frame/native session. Native SIGSEGVs still require Logcat because Kotlin exception handling cannot catch a process-level native fault. | Open |
 | NEX-14 | High | CI previously compiled the APK but did not test emulator runtime behavior or a physical device. | Keep CI as a compile gate, then validate installation, ROM load, first frame, controls, pause/resume, rotation, and long-session stability on the target ARM64 phone. | Open / release blocker |
 | NEX-15 | Medium | Enabling both push and pull-request events for the same feature branch created duplicate CI runs. | Use pull-request events for feature-branch validation and push events for main only; share a branch-name concurrency key so repeated PR updates replace older runs. | Fixed in workflow; verify on the next PR update |
+| NEX-16 | Critical | The frontend disabled BIOS loading but left `skipBios` false. With no BIOS image available, mGBA could enter the BIOS boot path instead of starting the cartridge directly. | Explicitly set `mCoreOptions.skipBios = true` for the BIOS-free frontend. Add detailed native log markers for ROM setup, save loading, and the first frame. | Fixed in source; awaiting device validation |
 
 ## Build and repository observations
 
