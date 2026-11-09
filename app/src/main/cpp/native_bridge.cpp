@@ -21,9 +21,14 @@ mCore* gActiveCore = nullptr;
 bool gRomLoaded = false;
 uint64_t gFrameCount = 0;
 std::array<color_t, kGbaWidth * kGbaHeight> gVideoBuffer{};
+std::array<jint, kGbaWidth * kGbaHeight> gAndroidPixelBuffer{};
 
 void logInfo(const char* message) {
     __android_log_write(ANDROID_LOG_INFO, kLogTag, message);
+}
+
+void logError(const char* message) {
+    __android_log_write(ANDROID_LOG_ERROR, kLogTag, message);
 }
 
 void unloadActiveCore() {
@@ -56,11 +61,13 @@ extern "C"
 JNIEXPORT jint JNICALL
 Java_com_nexora_app_NativeBridge_nativeStatus(JNIEnv* /* env */, jobject /* instance */) {
     std::lock_guard<std::mutex> lock(gCoreMutex);
+    logInfo("ROM load stage 3: ROM size accepted; creating mGBA core.");
     mCore* core = mCoreCreate(mPLATFORM_GBA);
     if (core == nullptr) {
         return 0;
     }
 
+    logInfo("ROM load stage 4: GBA ROM header accepted; initializing core.");
     mCoreInitConfig(core, nullptr);
     if (!core->init(core)) {
         mCoreConfigDeinit(&core->config);
@@ -88,6 +95,7 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
     }
 
     std::lock_guard<std::mutex> lock(gCoreMutex);
+    logInfo("ROM load stage 1: opening cached ROM.");
     unloadActiveCore();
 
     VFile* rom = VFileOpen(nativePath, O_RDONLY);
@@ -96,6 +104,7 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
         return 2;
     }
 
+    logInfo("ROM load stage 2: cached ROM opened.");
     const off_t romSize = rom->size(rom);
     if (romSize < 0xC0 || romSize > kMaxRomBytes) {
         rom->close(rom);
@@ -126,13 +135,16 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
 
     // Match mGBA's own frontend setup order: configure output before loading
     // the ROM, then reset the core after the cartridge has been attached.
+    logInfo("ROM load stage 5: core initialized; applying frontend configuration.");
     mCoreOptions options{};
     options.volume = 0x100;
     options.useBios = false;
     mCoreConfigLoadDefaults(&core->config, &options);
     mCoreLoadForeignConfig(core, &core->config);
     core->setVideoBuffer(core, gVideoBuffer.data(), kGbaWidth);
+    logInfo("ROM load stage 6: video buffer configured.");
 
+    logInfo("ROM load stage 7: passing ROM to mGBA.");
     if (!core->loadROM(core, rom)) {
         rom->close(rom);
         mCoreConfigDeinit(&core->config);
@@ -140,11 +152,13 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
         return 3;
     }
 
+    logInfo("ROM load stage 8: ROM loaded; resetting CPU and video pipeline.");
     core->reset(core);
+    logInfo("ROM load stage 9: reset complete; publishing active core.");
     gActiveCore = core;
     gRomLoaded = true;
     gFrameCount = 0;
-    logInfo("GBA core initialized, ROM loaded, video configured, and core reset.");
+    logInfo("ROM load complete: GBA core is ready for frame execution.");
     return 4;
 }
 
@@ -163,23 +177,27 @@ Java_com_nexora_app_NativeBridge_nativeRunFrame(
     }
 
     if (gFrameCount == 0) {
-        logInfo("Starting first GBA frame.");
+        logInfo("Frame stage 1: entering the first mGBA runFrame call.");
     }
     gActiveCore->runFrame(gActiveCore);
-
-    std::array<jint, kGbaWidth * kGbaHeight> pixels{};
-    for (size_t i = 0; i < gVideoBuffer.size(); ++i) {
-        pixels[i] = toAndroidArgb(gVideoBuffer[i]);
+    if (gFrameCount == 0) {
+        logInfo("Frame stage 2: first mGBA runFrame call returned.");
     }
 
-    env->SetIntArrayRegion(output, 0, kGbaWidth * kGbaHeight, pixels.data());
+    for (size_t i = 0; i < gVideoBuffer.size(); ++i) {
+        gAndroidPixelBuffer[i] = toAndroidArgb(gVideoBuffer[i]);
+    }
+
+    env->SetIntArrayRegion(output, 0, kGbaWidth * kGbaHeight, gAndroidPixelBuffer.data());
     if (env->ExceptionCheck()) {
         return JNI_FALSE;
     }
     ++gFrameCount;
 
     if (gFrameCount == 1) {
-        logInfo("First GBA frame completed and copied to the Android framebuffer.");
+        logInfo("Frame stage 3: first GBA frame copied to the Android framebuffer.");
+    } else if (gFrameCount == 60) {
+        logInfo("Frame stage 4: 60 frames completed successfully.");
     }
     return JNI_TRUE;
 }
@@ -199,8 +217,10 @@ Java_com_nexora_app_NativeBridge_nativeLoadBatterySave(
     }
 
     std::lock_guard<std::mutex> lock(gCoreMutex);
+    logInfo("Battery-save stage 1: attempting to open the per-game save file.");
     const bool loaded = gActiveCore != nullptr && gRomLoaded
         && mCoreLoadSaveFile(gActiveCore, nativePath, false);
+    logInfo(loaded ? "Battery-save stage 2: save file loaded." : "Battery-save stage 2: no existing save file loaded.");
     env->ReleaseStringUTFChars(path, nativePath);
     return loaded ? JNI_TRUE : JNI_FALSE;
 }
