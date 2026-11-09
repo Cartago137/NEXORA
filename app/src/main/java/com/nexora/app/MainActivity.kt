@@ -175,7 +175,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun NexoraApp(
-    nativeStatus: String,
+    nativeStatus: Int,
     games: List<GameEntry>,
     libraryMessage: String?,
     onImportGame: () -> Unit,
