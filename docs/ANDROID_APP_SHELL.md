@@ -11,7 +11,7 @@
 - Separate removal actions: remove only from the library, or request deletion of the original document.
 - Android NDK + CMake native shared-library target.
 - mGBA 0.10.5 pinned to upstream commit `26b7884bc25a5933960f3cdcd98bac1ae14d42e2`, compiled as a separate shared library for Android.
-- JNI smoke test that creates and initializes the mGBA GBA core and reports a localized status in the Settings screen.
+- JNI integration for mGBA core initialization and loading/unloading a user-selected GBA ROM from an app-private cached copy.
 - ARM64 Android and x86_64 emulator build targets.
 - Third-party license texts for mGBA, blip_buf, and inih included in app assets.
 
@@ -21,12 +21,12 @@ The GitHub Actions workflow successfully assembled a debug APK with the pinned m
 
 ## What is not included yet
 
-- Loading a selected ROM into mGBA.
-- Emulation frame loop, rendered game video, audio output, touch controls, physical controller mapping, and save data.
+- Running emulation frames and presenting a game screen.
+- Rendered game video, audio output, touch controls, physical controller mapping, and save data.
 - Search, folders, favorites, pinned games, batch actions, and play history.
 - Physical-device validation of full-screen behavior, persisted file access, and runtime loading of the mGBA shared library.
 
-This is a working application foundation and a native-core build milestone, not yet a playable emulator.
+The native bridge can now open a user-selected ROM in mGBA, but the app does not yet run frames or display/play the game. This remains a loading milestone, not a playable emulator.
 
 ## Build environment
 
