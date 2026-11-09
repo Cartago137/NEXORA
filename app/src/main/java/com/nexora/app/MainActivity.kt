@@ -77,7 +77,19 @@ class MainActivity : ComponentActivity() {
                 val source = contentResolver.openInputStream(Uri.parse(game.uri))
                     ?: error("The selected document could not be opened.")
                 source.use { input ->
-                    cachedRom.outputStream().use { output -> input.copyTo(output) }
+                    cachedRom.outputStream().use { output ->
+                        val buffer = ByteArray(16 * 1024)
+                        var totalBytes = 0L
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            totalBytes += count
+                            require(totalBytes <= 64L * 1024L * 1024L) {
+                                "The selected ROM is larger than the supported 64 MiB limit."
+                            }
+                            output.write(buffer, 0, count)
+                        }
+                    }
                 }
             }.isSuccess
 
