@@ -31,7 +31,7 @@ The GitHub Actions workflow successfully assembled a debug APK with the pinned m
 - Search, folders, favorites, pinned games, batch actions, and play history.
 - Physical-device validation of full-screen behavior, persisted file access, and runtime loading of the mGBA shared library.
 
-The native bridge now attempts to run frames and display the GBA framebuffer. The core setup sequence has been corrected to configure video before ROM loading and reset the core after loading. However, this is still an experimental diagnostic milestone: audio is temporarily disabled, battery saves are not implemented, and successful CI compilation does not prove stable gameplay on a physical phone. Do not label this a finished playable release until the test ROM runs reliably on-device.
+The native bridge now validates GBA ROM headers, configures video before ROM loading, resets the core, runs frames, and accepts multitouch input. A per-game battery-save file is opened through mGBA. This remains an experimental diagnostic milestone: audio is temporarily disabled, save persistence has not been verified on a physical phone, and successful CI compilation does not prove stable gameplay. Do not label this a finished playable release until the test ROM runs reliably on-device.
 
 ## Build environment
 
