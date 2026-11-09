@@ -17,7 +17,9 @@ Bring the selected mGBA core into NEXORA on Android without coupling the GBA imp
 
 ## Android application foundation
 
-The current app has a Compose shell, four navigation destinations, Portuguese and English resources, and a full-screen window that hides the Android status bar.
+The current app has a Compose shell, four navigation destinations, Portuguese and English resources, a full-screen window that hides the Android status bar, and a persistent SAF-based library for user-selected ROM documents.
+
+The upstream mGBA 0.10.5 source is now pinned to commit `26b7884bc25a5933960f3cdcd98bac1ae14d42e2` and compiled as a separate shared library in the Android CMake build. CI successfully assembles the APK with this native dependency. The JNI status smoke test creates and initializes an mGBA GBA core, but runtime execution on a physical Android device still needs verification. ROM loading and the frame/audio/input pipeline are not implemented yet.
 
 The library foundation now uses Android's Storage Access Framework document picker. It stores the selected document URI, display name, file size, and persistable read permission. The original file is not copied or moved. Removal from the library is separate from the optional request to delete the original document.
 
