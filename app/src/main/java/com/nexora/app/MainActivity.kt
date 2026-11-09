@@ -269,7 +269,7 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 libraryMessage = null
                             }
-                            onLoaded(status)
+                            onLoaded(status, saveLoaded)
                         }
                     },
                     onClearLibraryMessage = { libraryMessage = null },
@@ -308,13 +308,14 @@ private fun NexoraApp(
     libraryMessage: String?,
     isLoadingGame: Boolean,
     onImportGame: () -> Unit,
-    onPlayGame: (GameEntry, (Int) -> Unit) -> Unit,
+    onPlayGame: (GameEntry, (Int, Boolean) -> Unit) -> Unit,
     onClearLibraryMessage: () -> Unit,
     onExitGame: () -> Unit,
     onRemoveGame: (GameEntry, Boolean) -> Boolean
 ) {
     var selectedTab by remember { mutableStateOf(NexoraTab.HOME) }
     var activeGameName by remember { mutableStateOf<String?>(null) }
+    var batterySaveWarning by remember { mutableStateOf(false) }
     var gamePendingRemoval by remember { mutableStateOf<GameEntry?>(null) }
     var removalFailed by remember { mutableStateOf(false) }
 
@@ -355,9 +356,11 @@ private fun NexoraApp(
                     PlayerScreen(
                         gameName = activeGameName!!,
                         isActivityResumed = isActivityResumed,
+                        batterySaveWarning = batterySaveWarning,
                         onExit = {
                             onExitGame()
                             activeGameName = null
+                            batterySaveWarning = false
                         }
                     )
                 } else when (selectedTab) {
@@ -374,8 +377,11 @@ private fun NexoraApp(
                         isLoadingGame = isLoadingGame,
                         onImportGame = onImportGame,
                         onPlayGame = { game ->
-                            onPlayGame(game) { status ->
-                                if (status == 4) activeGameName = game.name
+                            onPlayGame(game) { status, saveLoaded ->
+                                if (status == 4) {
+                                    activeGameName = game.name
+                                    batterySaveWarning = !saveLoaded
+                                }
                             }
                         },
                         onClearMessage = onClearLibraryMessage,
@@ -455,6 +461,7 @@ private fun NexoraApp(
 private fun PlayerScreen(
     gameName: String,
     isActivityResumed: Boolean,
+    batterySaveWarning: Boolean,
     onExit: () -> Unit
 ) {
     var frame by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
@@ -491,6 +498,14 @@ private fun PlayerScreen(
             }) {
                 Text("SAIR", color = NexoraPink)
             }
+        }
+
+        if (batterySaveWarning) {
+            Text(
+                stringResource(R.string.battery_save_unavailable),
+                color = NexoraPink,
+                fontSize = 11.sp
+            )
         }
 
         Box(
