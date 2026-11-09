@@ -7,6 +7,7 @@
 #include <mgba-util/vfs.h>
 
 #include <array>
+#include <algorithm>
 #include <fcntl.h>
 #include <cstdlib>
 #include <mutex>
@@ -144,7 +145,8 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
     // the ROM, then reset the core after the cartridge has been attached.
     logInfo("ROM load stage 5: core initialized; applying frontend configuration.");
     mCoreOptions options{};
-    options.volume = 0x100;
+    // Leave headroom in the emulator mixer to reduce harsh/clipped output.
+    options.volume = 0xC0;
     options.useBios = false;
     // No BIOS file is bundled or supplied in this milestone. Explicitly skip
     // the BIOS boot path so the CPU starts at the cartridge entry point.
@@ -152,6 +154,8 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
     mCoreConfigLoadDefaults(&core->config, &options);
     mCoreLoadForeignConfig(core, &core->config);
     core->setVideoBuffer(core, gVideoBuffer.data(), kGbaWidth);
+    // Give the resampler room to absorb short Android scheduling delays.
+    core->setAudioBufferSize(core, 4096);
     logInfo("ROM load stage 6: video buffer configured.");
 
     logInfo("ROM load stage 7: passing ROM to mGBA.");
@@ -280,7 +284,8 @@ Java_com_nexora_app_NativeBridge_nativeReadAudio(
     }
 
     const jsize capacityFrames = env->GetArrayLength(output) / 2;
-    int available = blip_samples_avail(left);
+    // Both channels must advance equally to preserve stereo alignment.
+    int available = std::min(blip_samples_avail(left), blip_samples_avail(right));
     if (available > capacityFrames) {
         available = capacityFrames;
     }
@@ -297,6 +302,21 @@ Java_com_nexora_app_NativeBridge_nativeReadAudio(
     const int rightRead = blip_read_samples(right, samples + 1, leftRead, 2);
     env->ReleaseShortArrayElements(output, samples, 0);
     return rightRead < leftRead ? rightRead : leftRead;
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_nexora_app_NativeBridge_nativeClearAudio(
+    JNIEnv* /* env */, jobject /* instance */
+) {
+    std::lock_guard<std::mutex> lock(gCoreMutex);
+    if (gActiveCore == nullptr || !gRomLoaded || gActiveCore->getAudioChannel == nullptr) {
+        return;
+    }
+    blip_t* left = gActiveCore->getAudioChannel(gActiveCore, 0);
+    blip_t* right = gActiveCore->getAudioChannel(gActiveCore, 1);
+    if (left != nullptr) blip_clear(left);
+    if (right != nullptr) blip_clear(right);
 }
 
 extern "C"
