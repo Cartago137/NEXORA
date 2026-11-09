@@ -53,7 +53,6 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 
 private val NexoraBackground = Color(0xFF100B18)
