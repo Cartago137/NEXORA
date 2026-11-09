@@ -51,9 +51,9 @@ import androidx.compose.ui.res.stringResource
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 
 private val NexoraBackground = Color(0xFF100B18)
@@ -442,9 +442,11 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
                 runCatching { NativeBridge.nativeReadAudio(samples) }.getOrDefault(0)
             }
             if (frames > 0) {
-                audioTrack.write(
-                    samples, 0, frames * 2, AudioTrack.WRITE_BLOCKING
-                )
+                withContext(Dispatchers.IO) {
+                    audioTrack.write(
+                        samples, 0, frames * 2, AudioTrack.WRITE_BLOCKING
+                    )
+                }
             } else {
                 delay(4)
             }
