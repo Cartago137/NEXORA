@@ -7,8 +7,10 @@ import android.media.AudioFormat
 import android.media.AudioTrack
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import android.view.WindowInsets
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -138,9 +140,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Hide the Android status bar (clock, notifications, battery and signal).
-        // The system navigation gesture/bar remains available.
-        window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        // Hide only the Android status bar; keep system navigation available.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.insetsController?.hide(WindowInsets.Type.statusBars())
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        }
 
         setContent {
             var games by remember { mutableStateOf(GameLibraryStore.load(this@MainActivity)) }
@@ -733,6 +739,7 @@ private fun SettingsScreen(nativeStatus: Int) {
         Spacer(Modifier.height(4.dp))
         Text(stringResource(R.string.technical_status), color = NexoraPink, fontSize = 10.sp, letterSpacing = 1.5.sp)
         val statusText = when (nativeStatus) {
+            -1 -> stringResource(R.string.native_status_not_checked)
             2 -> stringResource(R.string.native_core_ready)
             1 -> stringResource(R.string.native_core_init_failed)
             0 -> stringResource(R.string.native_core_create_failed)
