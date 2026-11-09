@@ -149,11 +149,17 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
 }
 
 extern "C"
-JNIEXPORT jintArray JNICALL
-Java_com_nexora_app_NativeBridge_nativeRunFrame(JNIEnv* env, jobject /* instance */) {
+JNIEXPORT jboolean JNICALL
+Java_com_nexora_app_NativeBridge_nativeRunFrame(
+    JNIEnv* env, jobject /* instance */, jintArray output
+) {
+    if (output == nullptr || env->GetArrayLength(output) < kGbaWidth * kGbaHeight) {
+        return JNI_FALSE;
+    }
+
     std::lock_guard<std::mutex> lock(gCoreMutex);
     if (gActiveCore == nullptr || !gRomLoaded) {
-        return nullptr;
+        return JNI_FALSE;
     }
 
     if (gFrameCount == 0) {
@@ -166,17 +172,16 @@ Java_com_nexora_app_NativeBridge_nativeRunFrame(JNIEnv* env, jobject /* instance
         pixels[i] = toAndroidArgb(gVideoBuffer[i]);
     }
 
-    jintArray result = env->NewIntArray(kGbaWidth * kGbaHeight);
-    if (result == nullptr) {
-        return nullptr;
+    env->SetIntArrayRegion(output, 0, kGbaWidth * kGbaHeight, pixels.data());
+    if (env->ExceptionCheck()) {
+        return JNI_FALSE;
     }
-    env->SetIntArrayRegion(result, 0, kGbaWidth * kGbaHeight, pixels.data());
     ++gFrameCount;
 
     if (gFrameCount == 1) {
         logInfo("First GBA frame completed and copied to the Android framebuffer.");
     }
-    return result;
+    return JNI_TRUE;
 }
 
 extern "C"
