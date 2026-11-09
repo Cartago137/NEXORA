@@ -136,6 +136,9 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
     mCoreOptions options{};
     options.volume = 0x100;
     options.useBios = false;
+    // No BIOS file is bundled or supplied in this milestone. Explicitly skip
+    // the BIOS boot path so the CPU starts at the cartridge entry point.
+    options.skipBios = true;
     mCoreConfigLoadDefaults(&core->config, &options);
     mCoreLoadForeignConfig(core, &core->config);
     core->setVideoBuffer(core, gVideoBuffer.data(), kGbaWidth);
