@@ -1,0 +1,65 @@
+name: Create NEXORA signing key
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  create-signing-key:
+    runs-on: ubuntu-latest
+    env:
+      NEXORA_STORE_PASSWORD: ${{ secrets.NEXORA_STORE_PASSWORD }}
+      NEXORA_KEY_PASSWORD: ${{ secrets.NEXORA_KEY_PASSWORD }}
+      NEXORA_KEY_EXPORT_PASSWORD: ${{ secrets.NEXORA_KEY_EXPORT_PASSWORD }}
+    steps:
+      - name: Check required signing passwords
+        shell: bash
+        run: |
+          test -n "$NEXORA_STORE_PASSWORD" || { echo "::error::Missing NEXORA_STORE_PASSWORD repository secret"; exit 1; }
+          test -n "$NEXORA_KEY_PASSWORD" || { echo "::error::Missing NEXORA_KEY_PASSWORD repository secret"; exit 1; }
+          test -n "$NEXORA_KEY_EXPORT_PASSWORD" || { echo "::error::Missing NEXORA_KEY_EXPORT_PASSWORD repository secret"; exit 1; }
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Generate persistent NEXORA upload keystore
+        shell: bash
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$RUNNER_TEMP/nexora-upload.jks" \
+            -storetype JKS \
+            -storepass "$NEXORA_STORE_PASSWORD" \
+            -keypass "$NEXORA_KEY_PASSWORD" \
+            -alias nexora-upload \
+            -keyalg RSA -keysize 4096 -validity 10000 \
+            -dname "CN=NEXORA, OU=Android, O=NEXORA, L=Unknown, ST=Unknown, C=BR" \
+            -noprompt
+          test -s "$RUNNER_TEMP/nexora-upload.jks"
+
+      - name: Encrypt keystore for safe download
+        shell: bash
+        run: |
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 \
+            -in "$RUNNER_TEMP/nexora-upload.jks" \
+            -out "$RUNNER_TEMP/nexora-upload.jks.enc" \
+            -pass env:NEXORA_KEY_EXPORT_PASSWORD
+          test -s "$RUNNER_TEMP/nexora-upload.jks.enc"
+
+      - name: Upload encrypted keystore artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-encrypted-signing-key
+          path: ${{ runner.temp }}/nexora-upload.jks.enc
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove plaintext keystore
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/nexora-upload.jks"
