@@ -593,85 +593,162 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
         }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().background(Color.Black).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize().background(Color.Black)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(gameName, color = NexoraText, fontSize = 13.sp, modifier = Modifier.weight(1f))
-            TextButton(onClick = {
-                NativeBridge.nativeSetKeys(0)
-                onExit()
-            }) {
-                Text("SAIR", color = NexoraPink)
-            }
-        }
+        val isLandscape = maxWidth > maxHeight
 
-        Box(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            when {
-                frameError -> Text(
-                    stringResource(R.string.emulation_frame_failed),
-                    color = NexoraPink,
-                    fontSize = 13.sp
-                )
-                frameReady -> BoxWithConstraints(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+        if (isLandscape) {
+            // In landscape, reserve most of the width for the 3:2 game image
+            // and move the controls to a side panel instead of stacking them below.
+            Row(
+                modifier = Modifier.fillMaxSize().padding(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Column(
+                    modifier = Modifier.weight(0.74f).fillMaxSize()
                 ) {
-                    // Fit the 3:2 GBA image inside the available area in both
-                    // orientations. Never stretch or crop it when the phone rotates.
-                    val fittedWidth = minOf(maxWidth, maxHeight * 1.5f)
-                    Canvas(
-                        modifier = Modifier
-                            .width(fittedWidth)
-                            .aspectRatio(1.5f)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(34.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Snapshot reads inside Canvas invalidate drawing on each new frame.
-                        frameVersion.let { /* Snapshot read invalidates this draw scope. */ }
-                        drawImage(
-                            image = frameImage,
-                            dstSize = IntSize(size.width.toInt(), size.height.toInt()),
-                            filterQuality = FilterQuality.None
+                        Text(
+                            gameName,
+                            color = NexoraText,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1
                         )
+                        TextButton(onClick = {
+                            NativeBridge.nativeSetKeys(0)
+                            onExit()
+                        }) {
+                            Text("SAIR", color = NexoraPink)
+                        }
+                    }
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        GameFrame(frameError, frameReady, frameVersion, frameImage)
                     }
                 }
-                else -> Text("Iniciando jogo…", color = NexoraMuted)
-            }
-        }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                GbaControl("↑", 1 shl 6)
-                Row {
-                    GbaControl("←", 1 shl 5)
-                    GbaControl("↓", 1 shl 7)
-                    GbaControl("→", 1 shl 4)
+                Column(
+                    modifier = Modifier.weight(0.26f).fillMaxSize(),
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        GbaControl("↑", 1 shl 6)
+                        Row {
+                            GbaControl("←", 1 shl 5)
+                            GbaControl("↓", 1 shl 7)
+                            GbaControl("→", 1 shl 4)
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GbaControl("B", 1 shl 1)
+                        GbaControl("A", 1 shl 0)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        GbaControl("SELECT", 1 shl 2, compact = true)
+                        GbaControl("START", 1 shl 3, compact = true)
+                        Row {
+                            GbaControl("L", 1 shl 9, compact = true)
+                            GbaControl("R", 1 shl 8, compact = true)
+                        }
+                    }
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                GbaControl("B", 1 shl 1)
-                GbaControl("A", 1 shl 0)
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(gameName, color = NexoraText, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = {
+                        NativeBridge.nativeSetKeys(0)
+                        onExit()
+                    }) {
+                        Text("SAIR", color = NexoraPink)
+                    }
+                }
+
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    GameFrame(frameError, frameReady, frameVersion, frameImage)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        GbaControl("↑", 1 shl 6)
+                        Row {
+                            GbaControl("←", 1 shl 5)
+                            GbaControl("↓", 1 shl 7)
+                            GbaControl("→", 1 shl 4)
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GbaControl("B", 1 shl 1)
+                        GbaControl("A", 1 shl 0)
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    GbaControl("SELECT", 1 shl 2, compact = true)
+                    GbaControl("START", 1 shl 3, compact = true)
+                    GbaControl("L", 1 shl 9, compact = true)
+                    GbaControl("R", 1 shl 8, compact = true)
+                }
             }
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
+    }
+
+
+@Composable
+private fun GameFrame(
+    frameError: Boolean,
+    frameReady: Boolean,
+    frameVersion: Int,
+    frameImage: androidx.compose.ui.graphics.ImageBitmap
+) {
+    when {
+        frameError -> Text(
+            stringResource(R.string.emulation_frame_failed),
+            color = NexoraPink,
+            fontSize = 13.sp
+        )
+        frameReady -> BoxWithConstraints(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-            GbaControl("SELECT", 1 shl 2, compact = true)
-            GbaControl("START", 1 shl 3, compact = true)
-            GbaControl("L", 1 shl 9, compact = true)
-            GbaControl("R", 1 shl 8, compact = true)
+            // Use the whole available area while preserving the GBA's native 3:2 ratio.
+            val fittedWidth = minOf(maxWidth, maxHeight * 1.5f)
+            Canvas(
+                modifier = Modifier.width(fittedWidth).aspectRatio(1.5f)
+            ) {
+                frameVersion.let { /* Snapshot read invalidates this draw scope. */ }
+                drawImage(
+                    image = frameImage,
+                    dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+                    filterQuality = FilterQuality.None
+                )
+            }
         }
+        else -> Text("Iniciando jogo…", color = NexoraMuted)
     }
 }
 
