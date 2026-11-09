@@ -44,7 +44,7 @@ This roadmap separates product goals from verified implementation. A phase is co
 - [x] Pin and compile mGBA 0.10.5 as a separate Android shared library.
 - [ ] Verify native GBA core initialization on a physical Android device.
 - [ ] Wrap the core behind the system-independent emulator abstraction.
-- [ ] Load and unload user-provided games through the native core.
+- [ ] Validate native ROM load/unload on a physical Android device.
 - [ ] Render video and play audio.
 - [ ] Map touch controls and physical controllers where supported.
 - [ ] Persist save data safely.
@@ -103,4 +103,4 @@ Not yet implemented:
 - Search, folders, favorites, pins, multi-select, metadata, artwork, and play history.
 - Verified behavior on a physical Android device and across document-provider apps.
 
-Next engineering milestone: verify the linked mGBA core on a physical Android device, then implement ROM loading from the stored document URI and a dedicated emulation thread with video, audio, and input.
+Next engineering milestone: validate native ROM loading on a physical Android device, then build the dedicated emulation loop, video renderer, audio output, and input pipeline.
