@@ -487,9 +487,9 @@ private fun GbaControl(label: String, keyMask: Int, compact: Boolean = false) {
             .background(NexoraPanelLight, RoundedCornerShape(14.dp))
             .pointerInput(keyMask) {
                 detectTapGestures(onPress = {
-                    NativeBridge.nativeSetKeys(keyMask)
+                    NativeBridge.nativeAddKeys(keyMask)
                     tryAwaitRelease()
-                    NativeBridge.nativeSetKeys(0)
+                    NativeBridge.nativeClearKeys(keyMask)
                 })
             },
         contentAlignment = Alignment.Center
