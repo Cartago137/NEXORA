@@ -119,8 +119,7 @@ class MainActivity : ComponentActivity() {
 
             MaterialTheme {
                 val nativeStatus = remember {
-                    runCatching { NativeBridge.nativeStatus() }
-                        .getOrElse { getString(R.string.native_bridge_unavailable) }
+                    runCatching { NativeBridge.nativeStatus() }.getOrDefault(-1)
                 }
 
                 NexoraApp(
@@ -480,7 +479,7 @@ private fun EmptyScreen(eyebrow: String, title: String, description: String, sym
 }
 
 @Composable
-private fun SettingsScreen(nativeStatus: String) {
+private fun SettingsScreen(nativeStatus: Int) {
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -492,7 +491,13 @@ private fun SettingsScreen(nativeStatus: String) {
         SettingsRow(stringResource(R.string.about_setting), stringResource(R.string.about_description))
         Spacer(Modifier.height(4.dp))
         Text(stringResource(R.string.technical_status), color = NexoraPink, fontSize = 10.sp, letterSpacing = 1.5.sp)
-        Text(nativeStatus, color = NexoraMuted, fontSize = 11.sp)
+        val statusText = when (nativeStatus) {
+            2 -> stringResource(R.string.native_core_ready)
+            1 -> stringResource(R.string.native_core_init_failed)
+            0 -> stringResource(R.string.native_core_create_failed)
+            else -> stringResource(R.string.native_bridge_unavailable)
+        }
+        Text(statusText, color = NexoraMuted, fontSize = 11.sp)
     }
 }
 
