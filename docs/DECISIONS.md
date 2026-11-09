@@ -82,3 +82,24 @@ This file records decisions and important constraints. Update it when a decision
 **Reason:** This uses Android's standard native integration path while keeping the interface and platform services separate from the emulator core.
 
 **Consequence:** The first implementation targets Android. The UI framework is not assumed to be the future framework for any other platform. Native mGBA integration must be validated independently; this decision does not mean mGBA already builds on Android out of the box.
+
+
+## ADR-009 — Portuguese and English localization
+
+**Status:** Accepted
+
+**Decision:** Support Portuguese as the default language and English as the second language. Use Android's active app/device locale to select the matching resources.
+
+**Reason:** These are the two project languages agreed for the first release.
+
+**Consequence:** Spanish is not part of the current localization scope. Every user-facing string, including native-engine status and import/removal messages, must have Portuguese and English resources.
+
+## ADR-010 — Immersive app presentation
+
+**Status:** Accepted
+
+**Decision:** Hide the Android status bar while NEXORA is open, so the app content uses the full top-to-bottom display area. Keep Android's system navigation gesture/bar available.
+
+**Reason:** The status bar must not overlap or consume space above the NEXORA interface.
+
+**Consequence:** The activity must apply full-screen behavior consistently across launches and orientation changes. Device testing must confirm the result on supported Android versions.
