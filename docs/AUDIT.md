@@ -29,7 +29,7 @@ The branch also had independent input and safety issues. Those have been correct
 | NEX-12 | Medium | Save states are not implemented. | Add save/load state support after the battery-save path is reliable; test corrupt and incompatible state files. | Open / later milestone |
 | NEX-13 | High | The frame loop did not expose a useful UI error if JNI returned no frame; the screen could remain on its startup placeholder. | Add an explicit player error state and actionable message for a failed frame/native session. Native SIGSEGVs still require Logcat because Kotlin exception handling cannot catch a process-level native fault. | Open |
 | NEX-14 | High | CI previously compiled the APK but did not test emulator runtime behavior or a physical device. | Keep CI as a compile gate, then validate installation, ROM load, first frame, controls, pause/resume, rotation, and long-session stability on the target ARM64 phone. | Open / release blocker |
-| NEX-15 | Medium | The build workflow only ran on the main branch and pull requests, so direct foundation-branch pushes were not independently covered. Adding both push and pull-request triggers produced duplicate runs. | Keep branch-push coverage and use the same concurrency key for push and pull-request events, or choose a single event source for this development branch. | Partially addressed; workflow key needs final verification |
+| NEX-15 | Medium | Enabling both push and pull-request events for the same feature branch created duplicate CI runs. | Use pull-request events for feature-branch validation and push events for main only; share a branch-name concurrency key so repeated PR updates replace older runs. | Fixed in workflow; verify on the next PR update |
 
 ## Build and repository observations
 
