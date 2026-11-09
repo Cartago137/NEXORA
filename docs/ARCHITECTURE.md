@@ -36,7 +36,7 @@ Platform services
   └── Local networking
 ```
 
-This is a conceptual boundary map. The selected GBA core is mGBA, integrated in the native C/C++ layer. The Android application/UI framework and language, and the exact native integration/build approach, must still be validated before implementation.
+This is a conceptual boundary map. The selected GBA core is mGBA, integrated in the native C/C++ layer. Android uses Kotlin + Jetpack Compose, with JNI as the boundary between the application and native core.
 
 ## 3. Emulator core contract
 
