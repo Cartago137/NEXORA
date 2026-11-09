@@ -19,8 +19,8 @@ object NativeBridge {
      */
     external fun nativeLoadRom(path: String): Int
 
-    /** Runs one GBA frame and returns 240x160 ARGB pixels, or null if stopped. */
-    external fun nativeRunFrame(): IntArray?
+    /** Runs one GBA frame into a reusable 240x160 ARGB pixel buffer. */
+    external fun nativeRunFrame(output: IntArray): Boolean
 
     /** Opens or creates the per-game battery save file through mGBA. */
     external fun nativeLoadBatterySave(path: String): Boolean
