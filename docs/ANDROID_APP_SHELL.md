@@ -25,7 +25,8 @@ The GitHub Actions workflow successfully assembled a debug APK with the pinned m
 
 ## What is not included yet
 
-- Audio playback (currently disabled in the diagnostic build), persistent battery saves, save states, and physical controller mapping.
+- Audio playback (currently disabled in the diagnostic build), save states, and physical controller mapping.
+- Physical-device verification of battery-save persistence (the per-game `.sav` file path is now connected to mGBA).
 - Verified pause/resume, background behavior, and orientation changes during an active session.
 - Search, folders, favorites, pinned games, batch actions, and play history.
 - Physical-device validation of full-screen behavior, persisted file access, and runtime loading of the mGBA shared library.
