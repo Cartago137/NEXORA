@@ -12,7 +12,6 @@
     <string name="open_library">Abrir biblioteca</string>
     <string name="library_label">Sua biblioteca</string>
     <string name="library_game_count">%1$d jogo(s) na coleção</string>
-    <string name="library_not_playable_yet">Os arquivos já ficam salvos aqui; jogar será liberado quando o núcleo GBA estiver pronto.</string>
     <string name="library_not_playable_yet">O carregamento das ROMs está em integração; vídeo, áudio e controles virão nas próximas etapas.</string>
     <string name="load_game">Carregar</string>
     <string name="game_loaded_success">ROM carregada pelo mGBA! A próxima etapa é exibir a imagem e conectar áudio e controles.</string>
