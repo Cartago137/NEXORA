@@ -7,7 +7,7 @@
 
 ## Executive result
 
-The repository is structurally buildable, but it is not yet a verified playable emulator. Earlier APKs closing immediately after the player screen appeared is consistent with an incomplete mGBA startup sequence. The native integration has now been corrected to follow the upstream frontend setup order: initialize the core configuration, apply defaults, set the video buffer before loading the ROM, load the ROM, and reset the core before the first frame.
+The repository is structurally buildable, but it is not yet a verified playable emulator. Earlier APKs closing immediately after the player screen appeared is consistent with an incomplete mGBA startup sequence. The native integration follows the upstream frontend setup order: initialize the core configuration, apply defaults, set the video buffer before loading the ROM, load the ROM, and reset the core before the first frame. A further critical BIOS-free boot issue was found: `useBios` was false but `skipBios` was not enabled, leaving the CPU to enter the BIOS path without a BIOS image. The frontend now explicitly skips BIOS and starts the cartridge directly. Native logs also identify each startup stage and the first frame.
 
 The branch also had independent input and safety issues. Those have been corrected in source. The remaining release blockers are real-device validation, restoring audio, and implementing battery-backed saves. A green CI build alone cannot prove that a game is playable on the user's phone.
 
