@@ -3,7 +3,7 @@
 #include <mgba/core/core.h>
 #include <mgba/core/config.h>
 #include <mgba/core/interface.h>
-#include <mgba-util/audio-buffer.h>
+#include <mgba/core/blip_buf.h>
 #include <mgba-util/vfs.h>
 
 #include <array>
@@ -164,6 +164,18 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
 
     logInfo("ROM load stage 8: ROM loaded; resetting CPU and video pipeline.");
     core->reset(core);
+
+    // This pinned mGBA revision exposes audio through two blip channels.
+    // Configure their resampling rate once, not on every audio read.
+    constexpr double kOutputSampleRate = 44100.0;
+    const int32_t audioClockRate = core->frequency(core);
+    blip_t* leftAudio = core->getAudioChannel(core, 0);
+    blip_t* rightAudio = core->getAudioChannel(core, 1);
+    if (leftAudio != nullptr && rightAudio != nullptr && audioClockRate > 0) {
+        blip_set_rates(leftAudio, audioClockRate, kOutputSampleRate);
+        blip_set_rates(rightAudio, audioClockRate, kOutputSampleRate);
+    }
+
     logInfo("ROM load stage 9: reset complete; publishing active core.");
     gActiveCore = core;
     gRomLoaded = true;
@@ -241,10 +253,10 @@ Java_com_nexora_app_NativeBridge_nativeGetAudioSampleRate(
     JNIEnv* /* env */, jobject /* instance */
 ) {
     std::lock_guard<std::mutex> lock(gCoreMutex);
-    if (gActiveCore == nullptr || !gRomLoaded || gActiveCore->audioSampleRate == nullptr) {
+    if (gActiveCore == nullptr || !gRomLoaded) {
         return 0;
     }
-    return static_cast<jint>(gActiveCore->audioSampleRate(gActiveCore));
+    return 44100;
 }
 
 extern "C"
@@ -257,23 +269,22 @@ Java_com_nexora_app_NativeBridge_nativeReadAudio(
     }
 
     std::lock_guard<std::mutex> lock(gCoreMutex);
-    if (gActiveCore == nullptr || !gRomLoaded || gActiveCore->getAudioBuffer == nullptr) {
+    if (gActiveCore == nullptr || !gRomLoaded || gActiveCore->getAudioChannel == nullptr) {
         return 0;
     }
 
-    // Use mGBA's public interleaved audio buffer API. Reading the two internal
-    // blip channels independently bypasses the core's normal frontend buffer.
-    mAudioBuffer* audioBuffer = gActiveCore->getAudioBuffer(gActiveCore);
-    if (audioBuffer == nullptr) {
+    blip_t* left = gActiveCore->getAudioChannel(gActiveCore, 0);
+    blip_t* right = gActiveCore->getAudioChannel(gActiveCore, 1);
+    if (left == nullptr || right == nullptr) {
         return 0;
     }
 
     const jsize capacityFrames = env->GetArrayLength(output) / 2;
-    const size_t availableFrames = mAudioBufferAvailable(audioBuffer);
-    const size_t framesToRead = availableFrames < static_cast<size_t>(capacityFrames)
-        ? availableFrames
-        : static_cast<size_t>(capacityFrames);
-    if (framesToRead == 0) {
+    int available = blip_samples_avail(left);
+    if (available > capacityFrames) {
+        available = capacityFrames;
+    }
+    if (available <= 0) {
         return 0;
     }
 
@@ -282,9 +293,10 @@ Java_com_nexora_app_NativeBridge_nativeReadAudio(
         return 0;
     }
 
-    const size_t framesRead = mAudioBufferRead(audioBuffer, samples, framesToRead);
+    const int leftRead = blip_read_samples(left, samples, available, 2);
+    const int rightRead = blip_read_samples(right, samples + 1, leftRead, 2);
     env->ReleaseShortArrayElements(output, samples, 0);
-    return static_cast<jint>(framesRead);
+    return rightRead < leftRead ? rightRead : leftRead;
 }
 
 extern "C"
