@@ -1,5 +1,7 @@
 #include <jni.h>
+#include <android/log.h>
 #include <mgba/core/core.h>
+#include <mgba/core/config.h>
 #include <mgba/core/interface.h>
 #include <mgba/core/blip_buf.h>
 #include <mgba-util/vfs.h>
@@ -10,12 +12,19 @@
 #include <mutex>
 
 namespace {
+constexpr char kLogTag[] = "NEXORA";
 constexpr int kGbaWidth = 240;
 constexpr int kGbaHeight = 160;
+constexpr off_t kMaxRomBytes = 64 * 1024 * 1024;
 std::mutex gCoreMutex;
 mCore* gActiveCore = nullptr;
 bool gRomLoaded = false;
+uint64_t gFrameCount = 0;
 std::array<color_t, kGbaWidth * kGbaHeight> gVideoBuffer{};
+
+void logInfo(const char* message) {
+    __android_log_write(ANDROID_LOG_INFO, kLogTag, message);
+}
 
 void unloadActiveCore() {
     if (gActiveCore == nullptr) {
@@ -23,18 +32,18 @@ void unloadActiveCore() {
     }
 
     if (gRomLoaded) {
-        // mGBA owns the VFile after a successful loadROM call.
         gActiveCore->unloadROM(gActiveCore);
         gRomLoaded = false;
     }
 
+    mCoreConfigDeinit(&gActiveCore->config);
     // mGBA's GBA deinit implementation releases the core allocation itself.
     gActiveCore->deinit(gActiveCore);
     gActiveCore = nullptr;
+    gFrameCount = 0;
 }
 
 jint toAndroidArgb(color_t pixel) {
-    // mGBA's native color layout is BGR-oriented; Android Bitmap expects ARGB.
     const jint red = static_cast<jint>(M_R8(pixel));
     const jint green = static_cast<jint>(M_G8(pixel));
     const jint blue = static_cast<jint>(M_B8(pixel));
@@ -51,11 +60,16 @@ Java_com_nexora_app_NativeBridge_nativeStatus(JNIEnv* /* env */, jobject /* inst
     if (core == nullptr) {
         return 0;
     }
+
+    mCoreInitConfig(core, nullptr);
     if (!core->init(core)) {
+        mCoreConfigDeinit(&core->config);
         std::free(core);
         return 1;
     }
-    // deinit() owns and frees the GBA core allocation.
+
+    mCoreConfigDeinit(&core->config);
+    core->deinit(core);
     return 2;
 }
 
@@ -82,25 +96,47 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
         return 2;
     }
 
+    const off_t romSize = rom->size(rom);
+    if (romSize < 0xC0 || romSize > kMaxRomBytes) {
+        rom->close(rom);
+        return 3;
+    }
+
     mCore* core = mCoreCreate(mPLATFORM_GBA);
     if (core == nullptr) {
         rom->close(rom);
         return 0;
     }
+
+    mCoreInitConfig(core, nullptr);
     if (!core->init(core)) {
-        rom->close(rom);
+        mCoreConfigDeinit(&core->config);
         std::free(core);
+        rom->close(rom);
         return 1;
     }
+
+    // Match mGBA's own frontend setup order: configure output before loading
+    // the ROM, then reset the core after the cartridge has been attached.
+    mCoreOptions options{};
+    options.volume = 0x100;
+    options.useBios = false;
+    mCoreConfigLoadDefaults(&core->config, &options);
+    mCoreLoadForeignConfig(core, &core->config);
+    core->setVideoBuffer(core, gVideoBuffer.data(), kGbaWidth);
+
     if (!core->loadROM(core, rom)) {
         rom->close(rom);
-        // deinit() owns and frees the GBA core allocation.
+        mCoreConfigDeinit(&core->config);
+        core->deinit(core);
         return 3;
     }
 
-    core->setVideoBuffer(core, gVideoBuffer.data(), kGbaWidth);
+    core->reset(core);
     gActiveCore = core;
     gRomLoaded = true;
+    gFrameCount = 0;
+    logInfo("GBA core initialized, ROM loaded, video configured, and core reset.");
     return 4;
 }
 
@@ -112,19 +148,28 @@ Java_com_nexora_app_NativeBridge_nativeRunFrame(JNIEnv* env, jobject /* instance
         return nullptr;
     }
 
+    if (gFrameCount == 0) {
+        logInfo("Starting first GBA frame.");
+    }
     gActiveCore->runFrame(gActiveCore);
-    jint pixels[kGbaWidth * kGbaHeight];
+
+    std::array<jint, kGbaWidth * kGbaHeight> pixels{};
     for (size_t i = 0; i < gVideoBuffer.size(); ++i) {
         pixels[i] = toAndroidArgb(gVideoBuffer[i]);
     }
 
     jintArray result = env->NewIntArray(kGbaWidth * kGbaHeight);
-    if (result != nullptr) {
-        env->SetIntArrayRegion(result, 0, kGbaWidth * kGbaHeight, pixels);
+    if (result == nullptr) {
+        return nullptr;
+    }
+    env->SetIntArrayRegion(result, 0, kGbaWidth * kGbaHeight, pixels.data());
+    ++gFrameCount;
+
+    if (gFrameCount == 1) {
+        logInfo("First GBA frame completed and copied to the Android framebuffer.");
     }
     return result;
 }
-
 
 extern "C"
 JNIEXPORT jint JNICALL
@@ -163,9 +208,6 @@ Java_com_nexora_app_NativeBridge_nativeReadAudio(
     }
 
     if (available > 0) {
-        // The destination is interleaved stereo: L, R, L, R...
-        // A stride of 2 is essential; stride 1 overwrites the other channel
-        // and writes beyond the Java array's allocated sample region.
         blip_read_samples(left, samples, available, 2);
         blip_read_samples(right, samples + 1, available, 2);
     }
