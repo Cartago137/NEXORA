@@ -27,9 +27,6 @@ void logInfo(const char* message) {
     __android_log_write(ANDROID_LOG_INFO, kLogTag, message);
 }
 
-void logError(const char* message) {
-    __android_log_write(ANDROID_LOG_ERROR, kLogTag, message);
-}
 
 void unloadActiveCore() {
     if (gActiveCore == nullptr) {
@@ -61,7 +58,6 @@ extern "C"
 JNIEXPORT jint JNICALL
 Java_com_nexora_app_NativeBridge_nativeStatus(JNIEnv* /* env */, jobject /* instance */) {
     std::lock_guard<std::mutex> lock(gCoreMutex);
-    logInfo("ROM load stage 3: ROM size accepted; creating mGBA core.");
     mCore* core = mCoreCreate(mPLATFORM_GBA);
     if (core == nullptr) {
         return 0;
@@ -111,6 +107,7 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
         return 3;
     }
 
+    logInfo("ROM load stage 3: ROM size accepted; creating mGBA core.");
     mCore* core = mCoreCreate(mPLATFORM_GBA);
     if (core == nullptr) {
         rom->close(rom);
