@@ -1,6 +1,7 @@
 package com.nexora.app
 
 import android.content.Intent
+import android.app.ActivityManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.graphics.Bitmap
@@ -176,6 +177,42 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun readPreviousCrashReport(): String? {
+        val savedReport = runCatching {
+            File(filesDir, "last_crash.txt").takeIf { it.exists() }?.readText()
+        }.getOrNull()
+        if (!savedReport.isNullOrBlank()) return savedReport
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+
+        return runCatching {
+            val manager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+            val previousExit = manager.getHistoricalProcessExitReasons(packageName, 0, 5)
+                .firstOrNull { exit ->
+                    exit.reason == android.app.ApplicationExitInfo.REASON_CRASH ||
+                    exit.reason == android.app.ApplicationExitInfo.REASON_CRASH_NATIVE ||
+                    exit.reason == android.app.ApplicationExitInfo.REASON_ANR
+                } ?: return@runCatching null
+
+            val nativeTrace = previousExit.traceInputStream
+                ?.bufferedReader()
+                ?.use { it.readText() }
+                .orEmpty()
+
+            buildString {
+                appendLine("NEXORA — diagnóstico da última execução")
+                appendLine("Motivo de encerramento (Android): ${previousExit.reason}")
+                appendLine("Horário: ${previousExit.timestamp}")
+                appendLine("Descrição: ${previousExit.description ?: "não informada"}")
+                appendLine()
+                if (nativeTrace.isNotBlank()) {
+                    append(nativeTrace)
+                } else {
+                    appendLine("O Android não disponibilizou o rastreamento detalhado desta falha.")
+                }
+            }
+        }.getOrNull()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -187,9 +224,7 @@ class MainActivity : ComponentActivity() {
             window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
         }
 
-        val previousCrashReport = runCatching {
-            File(filesDir, "last_crash.txt").takeIf { it.exists() }?.readText()
-        }.getOrNull()
+        val previousCrashReport = readPreviousCrashReport()
         val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
 
         setContent {
