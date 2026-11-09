@@ -35,6 +35,7 @@
     <string name="native_bridge_unavailable">The native bridge could not be loaded.</string>
     <string name="native_status_not_checked">The engine will be checked when a game starts.</string>
     <string name="battery_save_unavailable">The game started, but its save file could not be opened. Your progress may not be preserved.</string>
+    <string name="emulation_frame_failed">Emulation stopped. Exit the game and try loading it again.</string>
     <string name="native_core_ready">mGBA 0.10.5 linked; GBA core initialized.</string>
     <string name="native_core_init_failed">The GBA core was found but could not initialize.</string>
     <string name="native_core_create_failed">The GBA core could not be created.</string>
