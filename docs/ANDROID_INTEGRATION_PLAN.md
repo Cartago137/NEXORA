@@ -19,7 +19,7 @@ Bring the selected mGBA core into NEXORA on Android without coupling the GBA imp
 
 The current app has a Compose shell, four navigation destinations, Portuguese and English resources, a full-screen window that hides the Android status bar, and a persistent SAF-based library for user-selected ROM documents.
 
-The upstream mGBA 0.10.5 source is now pinned to commit `26b7884bc25a5933960f3cdcd98bac1ae14d42e2` and compiled as a separate shared library in the Android CMake build. CI successfully assembles the APK with this native dependency. The JNI status smoke test creates and initializes an mGBA GBA core, but runtime execution on a physical Android device still needs verification. ROM loading and the frame/audio/input pipeline are not implemented yet.
+The upstream mGBA 0.10.5 source is pinned to commit `26b7884bc25a5933960f3cdcd98bac1ae14d42e2` and compiled as a separate shared library in the Android CMake build. The current native bridge initializes the core, configures the video buffer before ROM loading, loads a user-selected ROM, resets the core, and exposes frame execution and input. The Compose player screen attempts to display frames. Audio is intentionally disabled in the current diagnostic build while runtime stability is investigated. Physical-device gameplay, audio, battery saves, and lifecycle behavior remain unverified.
 
 The library foundation now uses Android's Storage Access Framework document picker. It stores the selected document URI, display name, file size, and persistable read permission. The original file is not copied or moved. Removal from the library is separate from the optional request to delete the original document.
 
@@ -73,8 +73,8 @@ Only after this vertical slice works should we mark the GBA core as integrated o
 
 - The Android app builds and installs on a physical ARM64 device.
 - The native library loads without linker errors.
-- A legally user-supplied test ROM starts and runs.
-- Video, audio, and input work without blocking the UI.
+- A legally user-supplied test ROM starts and runs for an extended session without crashing.
+- Video and multitouch input work reliably; audio is restored and verified.
 - Pause/resume and activity lifecycle transitions do not corrupt the emulation session.
 - Battery saves survive app restarts.
 - The mGBA license and third-party notices are included.
