@@ -73,44 +73,46 @@ class MainActivity : ComponentActivity() {
                         )
                     }.isSuccess
 
-                    val displayName = contentResolver.query(
-                        uri,
-                        arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
-                        null,
-                        null,
-                        null
-                    )?.use { cursor ->
-                        if (cursor.moveToFirst()) {
-                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                            val name = if (nameIndex >= 0) cursor.getString(nameIndex) else null
-                            val size = if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) {
-                                cursor.getLong(sizeIndex)
-                            } else 0L
-                            (name ?: uri.lastPathSegment ?: "GBA game") to size
-                        } else {
-                            (uri.lastPathSegment ?: "GBA game") to 0L
-                        }
-                    } ?: ((uri.lastPathSegment ?: "GBA game") to 0L)
+                    if (!accepted) {
+                        libraryMessage = getString(R.string.file_access_permission_failed)
+                    } else {
+                        val displayName = contentResolver.query(
+                            uri,
+                            arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+                            null,
+                            null,
+                            null
+                        )?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                                val name = if (nameIndex >= 0) cursor.getString(nameIndex) else null
+                                val size = if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) {
+                                    cursor.getLong(sizeIndex)
+                                } else 0L
+                                (name ?: uri.lastPathSegment ?: "GBA game") to size
+                            } else {
+                                (uri.lastPathSegment ?: "GBA game") to 0L
+                            }
+                        } ?: ((uri.lastPathSegment ?: "GBA game") to 0L)
 
-                    val extension = displayName.first.substringAfterLast('.', "").lowercase(Locale.ROOT)
-                    if (extension !in setOf("gba", "agb", "bin")) {
-                        libraryMessage = getString(R.string.unsupported_rom_format)
-                        if (accepted) {
+                        val extension = displayName.first.substringAfterLast('.', "").lowercase(Locale.ROOT)
+                        if (extension !in setOf("gba", "agb", "bin")) {
+                            libraryMessage = getString(R.string.unsupported_rom_format)
                             runCatching {
                                 contentResolver.releasePersistableUriPermission(
                                     uri,
                                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                                 )
                             }
+                        } else if (games.any { it.uri == uri.toString() }) {
+                            libraryMessage = getString(R.string.game_already_added)
+                        } else {
+                            val entry = GameEntry(displayName.first, uri.toString(), displayName.second)
+                            games = games + entry
+                            GameLibraryStore.save(this@MainActivity, games)
+                            libraryMessage = getString(R.string.game_added_success)
                         }
-                    } else if (games.any { it.uri == uri.toString() }) {
-                        libraryMessage = getString(R.string.game_already_added)
-                    } else {
-                        val entry = GameEntry(displayName.first, uri.toString(), displayName.second)
-                        games = games + entry
-                        GameLibraryStore.save(this@MainActivity, games)
-                        libraryMessage = getString(R.string.game_added_success)
                     }
                 }
             }
@@ -405,7 +407,7 @@ private fun LibraryScreen(
             )
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(games, key = { it.uri }) { game ->
