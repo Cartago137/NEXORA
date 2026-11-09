@@ -21,6 +21,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -482,7 +484,7 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
                     AudioFormat.ENCODING_PCM_16BIT
                 )
                 val bufferBytes = if (minimumBufferBytes > 0) {
-                    maxOf(minimumBufferBytes * 2, 8_192)
+                    maxOf(minimumBufferBytes * 4, 16_384)
                 } else {
                     8_192
                 }
@@ -543,9 +545,9 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
         }
 
         try {
-            // A GBA frame lasts about 16.74 ms at 59.7 FPS. Pace against the
-            // frame start so we do not add another full 16 ms after emulation.
-            val targetFrameNanos = 1_000_000_000L / 60L
+            // The GBA runs at 16,777,216 / 280,896 Hz (about 59.7275 FPS).
+            // Matching the hardware cadence prevents gradual audio/video drift.
+            val targetFrameNanos = 16_742_706L
 
             while (isActive) {
                 val frameStartNanos = System.nanoTime()
@@ -616,18 +618,26 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
                     color = NexoraPink,
                     fontSize = 13.sp
                 )
-                frameReady -> Canvas(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1.5f)
+                frameReady -> BoxWithConstraints(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Snapshot reads inside Canvas invalidate drawing on each new frame.
-                    frameVersion.let { /* Snapshot read invalidates this draw scope. */ }
-                    drawImage(
-                        image = frameImage,
-                        dstSize = IntSize(size.width.toInt(), size.height.toInt()),
-                        filterQuality = FilterQuality.None
-                    )
+                    // Fit the 3:2 GBA image inside the available area in both
+                    // orientations. Never stretch or crop it when the phone rotates.
+                    val fittedWidth = minOf(maxWidth, maxHeight * 1.5f)
+                    Canvas(
+                        modifier = Modifier
+                            .width(fittedWidth)
+                            .aspectRatio(1.5f)
+                    ) {
+                        // Snapshot reads inside Canvas invalidate drawing on each new frame.
+                        frameVersion.let { /* Snapshot read invalidates this draw scope. */ }
+                        drawImage(
+                            image = frameImage,
+                            dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+                            filterQuality = FilterQuality.None
+                        )
+                    }
                 }
                 else -> Text("Iniciando jogo…", color = NexoraMuted)
             }
