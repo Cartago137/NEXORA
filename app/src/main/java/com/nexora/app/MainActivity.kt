@@ -205,20 +205,20 @@ class MainActivity : ComponentActivity() {
                     libraryMessage = libraryMessage,
                     isLoadingGame = isLoadingGame,
                     onImportGame = { romPicker.launch(arrayOf("*/*")) },
-                    onPlayGame = { game ->
+                    onPlayGame = { game, onLoaded ->
                         isLoadingGame = true
                         loadGame(game) { status ->
                             isLoadingGame = false
-                            if (status == 4) {
-                                activeGameName = game.name
-                                libraryMessage = null
-                            } else {
+                            if (status != 4) {
                                 libraryMessage = when (status) {
                                     -2 -> getString(R.string.game_file_copy_failed)
                                     0, 1, 2, 3 -> getString(R.string.game_load_failed)
                                     else -> getString(R.string.native_bridge_unavailable)
                                 }
+                            } else {
+                                libraryMessage = null
                             }
+                            onLoaded(status)
                         }
                     },
                     onClearLibraryMessage = { libraryMessage = null },
@@ -256,7 +256,7 @@ private fun NexoraApp(
     libraryMessage: String?,
     isLoadingGame: Boolean,
     onImportGame: () -> Unit,
-    onPlayGame: (GameEntry) -> Unit,
+    onPlayGame: (GameEntry, (Int) -> Unit) -> Unit,
     onClearLibraryMessage: () -> Unit,
     onExitGame: () -> Unit,
     onRemoveGame: (GameEntry, Boolean) -> Boolean
@@ -320,7 +320,11 @@ private fun NexoraApp(
                         message = libraryMessage,
                         isLoadingGame = isLoadingGame,
                         onImportGame = onImportGame,
-                        onPlayGame = onPlayGame,
+                        onPlayGame = { game ->
+                            onPlayGame(game) { status ->
+                                if (status == 4) activeGameName = game.name
+                            }
+                        },
                         onClearMessage = onClearLibraryMessage,
                         onRemoveGame = { game ->
                             removalFailed = false
