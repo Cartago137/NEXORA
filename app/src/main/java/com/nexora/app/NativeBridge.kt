@@ -25,8 +25,14 @@ object NativeBridge {
     /** Reads interleaved stereo PCM samples at 44.1 kHz; returns sample frames. */
     external fun nativeReadAudio(output: ShortArray): Int
 
-    /** Sets the active GBA key bitmask. */
+    /** Replaces the active GBA key bitmask. */
     external fun nativeSetKeys(keys: Int)
+
+    /** Adds a pressed key without releasing other simultaneously held keys. */
+    external fun nativeAddKeys(keys: Int)
+
+    /** Releases only the supplied key bits. */
+    external fun nativeClearKeys(keys: Int)
 
     /** Stops the active session and releases the native core. */
     external fun nativeUnloadRom()
