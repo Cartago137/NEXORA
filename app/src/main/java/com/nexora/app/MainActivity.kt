@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.view.WindowManager
+import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -77,9 +78,27 @@ class MainActivity : ComponentActivity() {
     private var activeRomCacheFile: File? = null
     private var isAppInForeground by mutableStateOf(true)
 
+    private fun hideSystemBars() {
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            )
+    }
+
     override fun onResume() {
         super.onResume()
         isAppInForeground = true
+        hideSystemBars()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideSystemBars()
     }
 
     override fun onPause() {
@@ -176,9 +195,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Hide the Android status bar (clock, notifications, battery and signal).
-        // The system navigation gesture/bar remains available.
-        window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        // Use immersive fullscreen so neither the status bar nor navigation bar
+        // covers the game. Android can reveal them temporarily with a swipe.
+        hideSystemBars()
 
         setContent {
             var games by remember { mutableStateOf(GameLibraryStore.load(this@MainActivity)) }
@@ -531,6 +550,9 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                     .build()
                     .also {
                         check(it.state == AudioTrack.STATE_INITIALIZED)
+                        // Keep the device output well below clipping while the
+                        // core mixer is also attenuated.
+                        it.setVolume(0.60f)
                         it.play()
                     }
             }
@@ -549,6 +571,11 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
 
                     if (sampleFrames > 0) {
                         val sampleCount = sampleFrames * 2
+                        // Final digital headroom: avoid sending near-full-scale
+                        // samples to Android's output mixer.
+                        for (index in 0 until sampleCount) {
+                            audioSamples[index] = (audioSamples[index] * 0.60f).toInt().toShort()
+                        }
                         var offset = 0
                         while (offset < sampleCount && isActive) {
                             val written = createdAudioTrack.write(
@@ -561,7 +588,7 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                             offset += written
                         }
                     } else {
-                        delay(2)
+                        delay(4)
                     }
                 }
             }
