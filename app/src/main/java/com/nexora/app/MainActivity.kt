@@ -51,6 +51,22 @@ private val NexoraMuted = Color(0xFFB7AFC2)
 private enum class NexoraTab { HOME, LIBRARY, HISTORY, SETTINGS }
 
 class MainActivity : ComponentActivity() {
+
+    private fun releaseDocumentAccess(uri: android.net.Uri) {
+        val readWriteFlags =
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        runCatching {
+            contentResolver.releasePersistableUriPermission(uri, readWriteFlags)
+        }.onFailure {
+            runCatching {
+                contentResolver.releasePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -66,12 +82,20 @@ class MainActivity : ComponentActivity() {
                 contract = ActivityResultContracts.OpenDocument()
             ) { uri ->
                 if (uri != null) {
+                    val readWriteFlags =
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                     val accepted = runCatching {
-                        contentResolver.takePersistableUriPermission(
-                            uri,
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION
-                        )
-                    }.isSuccess
+                        contentResolver.takePersistableUriPermission(uri, readWriteFlags)
+                        true
+                    }.getOrElse {
+                        runCatching {
+                            contentResolver.takePersistableUriPermission(
+                                uri,
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            )
+                            true
+                        }.getOrDefault(false)
+                    }
 
                     if (!accepted) {
                         libraryMessage = getString(R.string.file_access_permission_failed)
@@ -99,12 +123,7 @@ class MainActivity : ComponentActivity() {
                         val extension = displayName.first.substringAfterLast('.', "").lowercase(Locale.ROOT)
                         if (extension !in setOf("gba", "agb", "bin")) {
                             libraryMessage = getString(R.string.unsupported_rom_format)
-                            runCatching {
-                                contentResolver.releasePersistableUriPermission(
-                                    uri,
-                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                )
-                            }
+                            releaseDocumentAccess(uri)
                         } else if (games.any { it.uri == uri.toString() }) {
                             libraryMessage = getString(R.string.game_already_added)
                         } else {
@@ -141,12 +160,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         if (removedSuccessfully) {
-                            runCatching {
-                                contentResolver.releasePersistableUriPermission(
-                                    android.net.Uri.parse(game.uri),
-                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                )
-                            }
+                            releaseDocumentAccess(android.net.Uri.parse(game.uri))
                             games = games.filterNot { it.uri == game.uri }
                             GameLibraryStore.save(this@MainActivity, games)
                             libraryMessage = null
