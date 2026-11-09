@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define the first technical milestone for bringing the selected mGBA core into NEXORA on Android without coupling the GBA implementation to the app's future systems.
+Bring the selected mGBA core into NEXORA on Android without coupling the GBA implementation to the app's future systems.
 
 ## Confirmed project decisions
 
@@ -10,62 +10,62 @@ Define the first technical milestone for bringing the selected mGBA core into NE
 - First emulated system: Game Boy Advance.
 - GBA core: mGBA.
 - Native emulation/integration code: C/C++.
+- Android application layer: Kotlin + Jetpack Compose.
+- Native build: Android NDK + CMake.
+- Kotlin/native boundary: a small JNI API.
 - Architecture: system-independent application layer with system-specific core modules.
 
-## Proposed Android bridge
+## Android application foundation
 
-Use the Android NDK to compile the native emulation layer as a shared library. Expose a small, stable interface to the Android application through JNI. Keep JNI calls thin: validate and translate requests, then delegate to the native core adapter.
+The current app has a Compose shell, four navigation destinations, Portuguese and English resources, and a full-screen window that hides the Android status bar.
 
-The official Android documentation describes this model: C/C++ is built into native shared libraries and Java/Kotlin calls it through JNI. CMake is supported by Android Studio/Gradle for native builds.
+The library foundation now uses Android's Storage Access Framework document picker. It stores the selected document URI, display name, file size, and persistable read permission. The original file is not copied or moved. Removal from the library is separate from the optional request to delete the original document.
 
-## Proposed module boundaries
+Supported file extensions at the import layer: `.gba`, `.agb`, and `.bin`. An extension check is only a file-selection filter; it does not prove that the file contains a valid GBA ROM. ROM header/content validation belongs in the emulator integration milestone.
+
+## Proposed native module boundaries
 
 ```text
-android-app/
-  app/                         # Android app and user interface
-  native/
-    CMakeLists.txt             # Native build entry point
-    include/nexora/core/       # System-independent core contracts
-    src/                       # Native bridge and shared implementation
-    systems/
-      gba/
-        mgba/                  # mGBA integration, isolated from app UI
+app/
+  src/main/
+    java/com/nexora/app/
+      MainActivity.kt
+      GameLibrary.kt
+      NativeBridge.kt
+    cpp/
+      CMakeLists.txt
+      native_bridge.cpp
+      systems/
+        gba/
+          mgba/              # pinned upstream source or controlled submodule
 ```
 
-This is a proposed layout, not yet a generated or build-tested Android project.
+Keep the JNI layer thin. It should validate handles and arguments, then delegate to a GBA adapter that implements a system-independent emulator contract.
 
-## First prototype milestone
+## First playable prototype milestone
 
-Build a minimal Android test app that can:
+Build a vertical slice that can:
 
 1. Compile the native layer for Android ARM64 using NDK + CMake.
 2. Load the native shared library through JNI.
 3. Initialize and shut down an mGBA-backed GBA core.
-4. Load a user-selected GBA ROM from an app-provided file path/descriptor.
-5. Advance emulation away from the UI thread.
-6. Return a video frame and audio samples to the Android side.
-7. Send button press/release events into the core.
-8. Report errors and supported capabilities to the app.
+4. Open a user-selected ROM through its Android content URI/file descriptor.
+5. Advance emulation on a dedicated worker thread, never on the Compose UI thread.
+6. Return video frames through a safe buffer/Surface strategy.
+7. Stream audio through Android's low-latency audio APIs.
+8. Send button press/release events into the core.
+9. Persist battery saves and restore them safely.
+10. Report errors and supported capabilities to the app.
 
-Only after this vertical slice works should we build the full NEXORA library and visual interface around it.
+Only after this vertical slice works should we mark the GBA core as integrated or advertise the app as playable.
 
 ## Important mGBA findings and constraints
 
 - The upstream mGBA project is primarily a native C codebase and uses CMake.
-- mGBA is distributed under the Mozilla Public License 2.0 (MPL-2.0). Before shipping, include the required license/notice material and review obligations for any modified MPL-covered files.
-- Upstream lists local link cable support for two instances on the same computer. Its README lists networked multiplayer link cable and Wireless Adapter support as planned features. Therefore, NEXORA's phone-to-phone Wi-Fi multiplayer must be treated as a separate engineering task and proven with a prototype; it must not be advertised as already supported by upstream mGBA.
-- mGBA supports cartridges with motion sensors and rumble when used with game controllers. Mapping these features to Android sensors and phone vibration requires NEXORA-side integration and per-game/device validation.
-- Upstream currently lists desktop and several console platforms; Android is not listed as an officially supported platform. NEXORA must own and test its Android build/integration rather than assuming an official Android frontend exists.
-
-## Open decision: Android application/UI layer
-
-The native mGBA integration does not determine the language used for the rest of the Android app. Recommended direction:
-
-- Kotlin + Jetpack Compose for Android screens, navigation, storage access, lifecycle, and settings.
-- C/C++ + Android NDK + CMake for mGBA and performance-sensitive emulation.
-- JNI as the narrow boundary between the Android app and native layer.
-
-This keeps the emulator native while using Android's standard application tooling for the library and polished interface. Confirm this UI-layer choice before generating the full Android project.
+- mGBA is distributed under the Mozilla Public License 2.0 (MPL-2.0). Before shipping, include required license/notice material and review obligations for modified MPL-covered files.
+- Upstream lists local link cable support for two instances on the same computer. Networked multiplayer link cable and Wireless Adapter support must be treated as separate engineering work; do not assume NEXORA phone-to-phone Wi-Fi is supplied automatically by upstream.
+- Mapping cartridge motion sensors and rumble behavior to Android sensors and phone vibration requires NEXORA-side integration and per-game/device validation.
+- Android is not listed as an officially supported upstream mGBA frontend/platform. NEXORA must own and test its Android build/integration rather than assuming an official Android frontend exists.
 
 ## Acceptance criteria
 
@@ -74,5 +74,6 @@ This keeps the emulator native while using Android's standard application toolin
 - A legally user-supplied test ROM starts and runs.
 - Video, audio, and input work without blocking the UI.
 - Pause/resume and activity lifecycle transitions do not corrupt the emulation session.
-- The mGBA license and third-party notices are included in the project.
+- Battery saves survive app restarts.
+- The mGBA license and third-party notices are included.
 - No claim of Wi-Fi multiplayer, motion, or rumble support is made until each is independently tested.
