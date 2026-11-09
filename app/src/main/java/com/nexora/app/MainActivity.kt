@@ -70,6 +70,7 @@ private enum class NexoraTab { HOME, LIBRARY, HISTORY, SETTINGS }
 class MainActivity : ComponentActivity() {
 
     private var activeRomCacheFile: File? = null
+    private var isActivityResumed by mutableStateOf(false)
 
     private fun loadGame(game: GameEntry, onResult: (Int) -> Unit) {
         Thread {
@@ -115,6 +116,19 @@ class MainActivity : ComponentActivity() {
         runCatching { NativeBridge.nativeUnloadRom() }
         activeRomCacheFile?.delete()
         activeRomCacheFile = null
+    }
+
+    override fun onResume() {
+        super.onResume()
+        isActivityResumed = true
+    }
+
+    override fun onPause() {
+        isActivityResumed = false
+        if (activeRomCacheFile != null) {
+            runCatching { NativeBridge.nativeSetKeys(0) }
+        }
+        super.onPause()
     }
 
     override fun onDestroy() {
@@ -216,6 +230,7 @@ class MainActivity : ComponentActivity() {
                 // The native engine is initialized only when the user starts a game.
                 NexoraApp(
                     nativeStatus = -1,
+                    isActivityResumed = isActivityResumed,
                     games = games,
                     libraryMessage = libraryMessage,
                     isLoadingGame = isLoadingGame,
@@ -267,6 +282,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun NexoraApp(
     nativeStatus: Int,
+    isActivityResumed: Boolean,
     games: List<GameEntry>,
     libraryMessage: String?,
     isLoadingGame: Boolean,
@@ -317,6 +333,7 @@ private fun NexoraApp(
                 if (activeGameName != null) {
                     PlayerScreen(
                         gameName = activeGameName!!,
+                        isActivityResumed = isActivityResumed,
                         onExit = {
                             onExitGame()
                             activeGameName = null
@@ -414,12 +431,17 @@ private fun NexoraApp(
 }
 
 @Composable
-private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
+private fun PlayerScreen(
+    gameName: String,
+    isActivityResumed: Boolean,
+    onExit: () -> Unit
+) {
     var frame by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     // Diagnostic build: audio is temporarily disabled to isolate the crash.
-    // The video/frame loop remains active; audio will be restored after validation.
+    // Pause frame execution whenever the app is not in the foreground.
 
-    LaunchedEffect(gameName) {
+    LaunchedEffect(gameName, isActivityResumed) {
+        if (!isActivityResumed) return@LaunchedEffect
         while (isActive) {
             val pixels = withContext(Dispatchers.Default) {
                 runCatching { NativeBridge.nativeRunFrame() }.getOrNull()
