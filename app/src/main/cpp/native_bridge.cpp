@@ -46,9 +46,19 @@ void unloadActiveCore() {
 }
 
 jint toAndroidArgb(color_t pixel) {
+#ifdef COLOR_16_BIT
+    // In 16-bit builds mGBA stores GBA pixels as RGB555.
     const jint red = static_cast<jint>(M_R8(pixel));
     const jint green = static_cast<jint>(M_G8(pixel));
     const jint blue = static_cast<jint>(M_B8(pixel));
+#else
+    // In the default 32-bit build mGBA expands RGB555 to BGR byte order:
+    // red is in the least-significant byte, blue in bits 16-23.
+    // M_R8/M_G8/M_B8 are RGB555 extractors and must not be used here.
+    const jint red = static_cast<jint>(pixel & 0xFF);
+    const jint green = static_cast<jint>((pixel >> 8) & 0xFF);
+    const jint blue = static_cast<jint>((pixel >> 16) & 0xFF);
+#endif
     return static_cast<jint>(0xFF000000u | (static_cast<unsigned>(red) << 16)
         | (static_cast<unsigned>(green) << 8) | static_cast<unsigned>(blue));
 }
