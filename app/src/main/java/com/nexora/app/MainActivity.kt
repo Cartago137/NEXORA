@@ -55,6 +55,8 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 
@@ -99,7 +101,25 @@ class MainActivity : ComponentActivity() {
             }.isSuccess
 
             val status = if (copied) {
-                runCatching { NativeBridge.nativeLoadRom(cachedRom.absolutePath) }.getOrDefault(-1)
+                val loadStatus = runCatching {
+                    NativeBridge.nativeLoadRom(cachedRom.absolutePath)
+                }.getOrDefault(-1)
+
+                if (loadStatus == 4) {
+                    // Battery saves are kept privately by NEXORA and separated per imported ROM.
+                    val saveDirectory = File(filesDir, "saves").apply { mkdirs() }
+                    val safeGameName = game.name.substringBeforeLast('.')
+                        .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                    val saveFile = File(
+                        saveDirectory,
+                        "$safeGameName-${Integer.toHexString(game.uri.hashCode())}.sav"
+                    )
+                    // A missing/empty battery save must never prevent the game from starting.
+                    runCatching {
+                        NativeBridge.nativeLoadBatterySave(saveFile.absolutePath)
+                    }
+                }
+                loadStatus
             } else {
                 cachedRom.delete()
                 copyFailureCode
@@ -453,38 +473,118 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
     var frameVersion by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(gameName) {
-        // A GBA frame lasts about 16.74 ms at 59.7 FPS. Pace against the
-        // frame start so we do not add another full 16 ms after emulation.
-        val targetFrameNanos = 1_000_000_000L / 60L
-
-        while (isActive) {
-            val frameStartNanos = System.nanoTime()
-            val rendered = withContext(Dispatchers.Default) {
-                runCatching {
-                    val success = NativeBridge.nativeRunFrame(pixelBuffer)
-                    if (success) {
-                        // Keep pixel conversion/copying off the UI thread.
-                        frameBitmap.setPixels(pixelBuffer, 0, 240, 0, 0, 240, 160)
+        // Open Android's stereo output independently from the emulation loop.
+        val audioTrack = runCatching {
+            withContext(Dispatchers.IO) {
+                val minimumBufferBytes = AudioTrack.getMinBufferSize(
+                    44_100,
+                    AudioFormat.CHANNEL_OUT_STEREO,
+                    AudioFormat.ENCODING_PCM_16BIT
+                )
+                val bufferBytes = if (minimumBufferBytes > 0) {
+                    maxOf(minimumBufferBytes * 2, 8_192)
+                } else {
+                    8_192
+                }
+                AudioTrack.Builder()
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_GAME)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build()
+                    )
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setSampleRate(44_100)
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                            .build()
+                    )
+                    .setBufferSizeInBytes(bufferBytes)
+                    .setTransferMode(AudioTrack.MODE_STREAM)
+                    .build()
+                    .also {
+                        check(it.state == AudioTrack.STATE_INITIALIZED)
+                        it.play()
                     }
-                    success
-                }.getOrDefault(false)
             }
+        }.getOrNull()
 
-            if (!rendered) {
-                frameError = true
-                break
+        // mGBA produces audio while frames run; this worker drains it without
+        // blocking the Compose/UI thread or slowing down video frame pacing.
+        val audioJob = if (audioTrack != null) {
+            launch(Dispatchers.IO) {
+                val audioSamples = ShortArray(2_048)
+                while (isActive) {
+                    val sampleFrames = runCatching {
+                        NativeBridge.nativeReadAudio(audioSamples)
+                    }.getOrDefault(0)
+
+                    if (sampleFrames > 0) {
+                        val sampleCount = sampleFrames * 2
+                        var offset = 0
+                        while (offset < sampleCount && isActive) {
+                            val written = audioTrack.write(
+                                audioSamples,
+                                offset,
+                                sampleCount - offset,
+                                AudioTrack.WRITE_BLOCKING
+                            )
+                            if (written <= 0) break
+                            offset += written
+                        }
+                    } else {
+                        delay(2)
+                    }
+                }
             }
+        } else {
+            null
+        }
 
-            frameReady = true
-            // Canvas reads this state in its draw phase, forcing the existing
-            // bitmap to be painted again even though its object identity is stable.
-            frameVersion++
+        try {
+            // A GBA frame lasts about 16.74 ms at 59.7 FPS. Pace against the
+            // frame start so we do not add another full 16 ms after emulation.
+            val targetFrameNanos = 1_000_000_000L / 60L
 
-            val remainingNanos = targetFrameNanos - (System.nanoTime() - frameStartNanos)
-            if (remainingNanos > 0L) {
-                delay((remainingNanos / 1_000_000L).coerceAtLeast(1L))
-            } else {
-                yield()
+            while (isActive) {
+                val frameStartNanos = System.nanoTime()
+                val rendered = withContext(Dispatchers.Default) {
+                    runCatching {
+                        val success = NativeBridge.nativeRunFrame(pixelBuffer)
+                        if (success) {
+                            // Keep pixel conversion/copying off the UI thread.
+                            frameBitmap.setPixels(pixelBuffer, 0, 240, 0, 0, 240, 160)
+                        }
+                        success
+                    }.getOrDefault(false)
+                }
+
+                if (!rendered) {
+                    frameError = true
+                    break
+                }
+
+                frameReady = true
+                // Canvas reads this state in its draw phase, forcing the existing
+                // bitmap to be painted again even though its object identity is stable.
+                frameVersion++
+
+                val remainingNanos = targetFrameNanos - (System.nanoTime() - frameStartNanos)
+                if (remainingNanos > 0L) {
+                    delay((remainingNanos / 1_000_000L).coerceAtLeast(1L))
+                } else {
+                    yield()
+                }
+            }
+        } finally {
+            audioJob?.cancelAndJoin()
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    audioTrack?.pause()
+                    audioTrack?.flush()
+                    audioTrack?.release()
+                }
             }
         }
     }
