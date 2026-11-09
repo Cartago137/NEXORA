@@ -31,6 +31,9 @@ object NativeBridge {
     /** Reads interleaved stereo PCM samples at the active core's sample rate. */
     external fun nativeReadAudio(output: ShortArray): Int
 
+    /** Discards buffered audio when gameplay is paused or leaves the foreground. */
+    external fun nativeClearAudio()
+
     /** Replaces the active GBA key bitmask. */
     external fun nativeSetKeys(keys: Int)
 
