@@ -194,12 +194,10 @@ class MainActivity : ComponentActivity() {
             }
 
             MaterialTheme {
-                val nativeStatus = remember {
-                    runCatching { NativeBridge.nativeStatus() }.getOrDefault(-1)
-                }
-
+                // Keep the launcher path independent from JNI/native core startup.
+                // The native engine is initialized only when the user starts a game.
                 NexoraApp(
-                    nativeStatus = nativeStatus,
+                    nativeStatus = -1,
                     games = games,
                     libraryMessage = libraryMessage,
                     isLoadingGame = isLoadingGame,
