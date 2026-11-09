@@ -207,7 +207,10 @@ private fun NexoraApp(
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when (selectedTab) {
                     NexoraTab.HOME -> HomeScreen(
-                        onImportGame = onImportGame,
+                        onImportGame = {
+                            selectedTab = NexoraTab.LIBRARY
+                            onImportGame()
+                        },
                         onOpenLibrary = { selectedTab = NexoraTab.LIBRARY }
                     )
                     NexoraTab.LIBRARY -> LibraryScreen(
@@ -382,6 +385,7 @@ private fun LibraryScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.library_label), color = NexoraText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
                 Text(stringResource(R.string.library_game_count, games.size), color = NexoraMuted, fontSize = 12.sp)
+                Text(stringResource(R.string.library_not_playable_yet), color = NexoraMuted, fontSize = 10.sp)
             }
             Button(onClick = onImportGame) {
                 Text(stringResource(R.string.add_games))
