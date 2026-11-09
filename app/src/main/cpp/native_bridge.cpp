@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <mgba/core/core.h>
 #include <mgba/core/interface.h>
+#include <mgba/core/blip_buf.h>
 #include <mgba-util/vfs.h>
 
 #include <array>
@@ -123,6 +124,52 @@ Java_com_nexora_app_NativeBridge_nativeRunFrame(JNIEnv* env, jobject /* instance
         env->SetIntArrayRegion(result, 0, kGbaWidth * kGbaHeight, pixels);
     }
     return result;
+}
+
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_nexora_app_NativeBridge_nativeReadAudio(
+    JNIEnv* env, jobject /* instance */, jshortArray output
+) {
+    if (output == nullptr) {
+        return 0;
+    }
+
+    std::lock_guard<std::mutex> lock(gCoreMutex);
+    if (gActiveCore == nullptr || !gRomLoaded) {
+        return 0;
+    }
+
+    blip_t* left = gActiveCore->getAudioChannel(gActiveCore, 0);
+    blip_t* right = gActiveCore->getAudioChannel(gActiveCore, 1);
+    if (left == nullptr || right == nullptr) {
+        return 0;
+    }
+
+    constexpr double kOutputSampleRate = 44100.0;
+    const int32_t clockRate = gActiveCore->frequency(gActiveCore);
+    blip_set_rates(left, clockRate, kOutputSampleRate);
+    blip_set_rates(right, clockRate, kOutputSampleRate);
+
+    jshort* samples = env->GetShortArrayElements(output, nullptr);
+    if (samples == nullptr) {
+        return 0;
+    }
+
+    const jsize capacityFrames = env->GetArrayLength(output) / 2;
+    int available = blip_samples_avail(left);
+    if (available > capacityFrames) {
+        available = capacityFrames;
+    }
+
+    if (available > 0) {
+        blip_read_samples(left, samples, available, 1);
+        blip_read_samples(right, samples + 1, available, 1);
+    }
+
+    env->ReleaseShortArrayElements(output, samples, 0);
+    return available;
 }
 
 extern "C"
