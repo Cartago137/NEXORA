@@ -108,6 +108,14 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
         return 0;
     }
 
+    // A filename extension is not proof that the file is a GBA cartridge.
+    // Validate the mGBA header before allowing untrusted bytes into the CPU.
+    if (core->isROM == nullptr || !core->isROM(rom)) {
+        rom->close(rom);
+        std::free(core);
+        return 3;
+    }
+
     mCoreInitConfig(core, nullptr);
     if (!core->init(core)) {
         mCoreConfigDeinit(&core->config);
