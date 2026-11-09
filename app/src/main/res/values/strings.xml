@@ -12,6 +12,7 @@
     <string name="open_library">Abrir biblioteca</string>
     <string name="library_label">Sua biblioteca</string>
     <string name="library_game_count">%1$d jogo(s) na coleção</string>
+    <string name="library_not_playable_yet">Os arquivos já ficam salvos aqui; jogar será liberado quando o núcleo GBA estiver pronto.</string>
     <string name="no_games_yet">Ainda não há jogos</string>
     <string name="library_empty_description">Adicione seus arquivos de Game Boy Advance para começar sua coleção.</string>
     <string name="history_label">Jogados recentemente</string>
