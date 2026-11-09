@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import java.io.File
 import java.util.Locale
+import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -72,7 +73,18 @@ class MainActivity : ComponentActivity() {
     private var activeRomCacheFile: File? = null
     private var isActivityResumed by mutableStateOf(false)
 
-    private fun loadGame(game: GameEntry, onResult: (Int) -> Unit) {
+    private fun batterySaveFileFor(game: GameEntry): File {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(game.uri.toByteArray(Charsets.UTF_8))
+        val key = digest.joinToString("") { byte -> "%02x".format(byte) }
+        val saveDirectory = File(filesDir, "saves")
+        check(saveDirectory.exists() || saveDirectory.mkdirs()) {
+            "Could not create the battery save directory."
+        }
+        return File(saveDirectory, "$key.sav")
+    }
+
+    private fun loadGame(game: GameEntry, onResult: (Int, Boolean) -> Unit) {
         Thread {
             val extension = game.name.substringAfterLast('.', "gba").lowercase(Locale.ROOT)
             val cachedRom = File(cacheDir, "nexora-${System.nanoTime()}.$extension")
@@ -101,13 +113,20 @@ class MainActivity : ComponentActivity() {
             } else {
                 -2
             }
+            val saveLoaded = if (status == 4) {
+                runCatching {
+                    NativeBridge.nativeLoadBatterySave(batterySaveFileFor(game).absolutePath)
+                }.getOrDefault(false)
+            } else {
+                false
+            }
 
             runOnUiThread {
                 // nativeLoadRom replaces any previous session before loading the new ROM.
                 activeRomCacheFile?.delete()
                 activeRomCacheFile = if (status == 4) cachedRom else null
                 if (status != 4) cachedRom.delete()
-                onResult(status)
+                onResult(status, saveLoaded)
             }
         }.start()
     }
@@ -237,7 +256,7 @@ class MainActivity : ComponentActivity() {
                     onImportGame = { romPicker.launch(arrayOf("*/*")) },
                     onPlayGame = { game, onLoaded ->
                         isLoadingGame = true
-                        loadGame(game) { status ->
+                        loadGame(game) { status, saveLoaded ->
                             isLoadingGame = false
                             if (status != 4) {
                                 libraryMessage = when (status) {
@@ -245,6 +264,8 @@ class MainActivity : ComponentActivity() {
                                     0, 1, 2, 3 -> getString(R.string.game_load_failed)
                                     else -> getString(R.string.native_bridge_unavailable)
                                 }
+                            } else if (!saveLoaded) {
+                                libraryMessage = getString(R.string.battery_save_unavailable)
                             } else {
                                 libraryMessage = null
                             }
