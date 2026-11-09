@@ -229,6 +229,28 @@ Java_com_nexora_app_NativeBridge_nativeSetKeys(
 
 extern "C"
 JNIEXPORT void JNICALL
+Java_com_nexora_app_NativeBridge_nativeAddKeys(
+    JNIEnv* /* env */, jobject /* instance */, jint keys
+) {
+    std::lock_guard<std::mutex> lock(gCoreMutex);
+    if (gActiveCore != nullptr && gRomLoaded) {
+        gActiveCore->addKeys(gActiveCore, static_cast<uint32_t>(keys));
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_nexora_app_NativeBridge_nativeClearKeys(
+    JNIEnv* /* env */, jobject /* instance */, jint keys
+) {
+    std::lock_guard<std::mutex> lock(gCoreMutex);
+    if (gActiveCore != nullptr && gRomLoaded) {
+        gActiveCore->clearKeys(gActiveCore, static_cast<uint32_t>(keys));
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
 Java_com_nexora_app_NativeBridge_nativeUnloadRom(JNIEnv* /* env */, jobject /* instance */) {
     std::lock_guard<std::mutex> lock(gCoreMutex);
     unloadActiveCore();
