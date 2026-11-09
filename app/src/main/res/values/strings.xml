@@ -32,6 +32,7 @@
     <string name="nav_library">Biblioteca</string>
     <string name="nav_history">Histórico</string>
     <string name="nav_settings">Ajustes</string>
+    <string name="file_access_permission_failed">Não foi possível manter o acesso a esse arquivo. Escolha o arquivo novamente usando o seletor do Android.</string>
     <string name="unsupported_rom_format">Formato não reconhecido. Escolha um arquivo .gba, .agb ou .bin.</string>
     <string name="game_already_added">Esse arquivo já está na sua biblioteca.</string>
     <string name="game_added_success">Jogo adicionado à biblioteca!</string>
