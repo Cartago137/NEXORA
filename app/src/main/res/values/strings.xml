@@ -34,6 +34,7 @@
     <string name="technical_status">STATUS DO MOTOR NATIVO</string>
     <string name="native_bridge_unavailable">A ponte nativa não pôde ser carregada.</string>
     <string name="native_status_not_checked">O motor será verificado ao iniciar um jogo.</string>
+    <string name="battery_save_unavailable">O jogo iniciou, mas o arquivo de salvamento não pôde ser aberto. Seu progresso pode não ser guardado.</string>
     <string name="native_core_ready">mGBA 0.10.5 integrado; núcleo GBA inicializado.</string>
     <string name="native_core_init_failed">O núcleo GBA foi encontrado, mas não inicializou.</string>
     <string name="native_core_create_failed">Não foi possível criar o núcleo GBA.</string>
