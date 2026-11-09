@@ -12,11 +12,14 @@
     <string name="open_library">Abrir biblioteca</string>
     <string name="library_label">Sua biblioteca</string>
     <string name="library_game_count">%1$d jogo(s) na coleção</string>
-    <string name="library_not_playable_yet">O carregamento das ROMs está em integração; vídeo, áudio e controles virão nas próximas etapas.</string>
+    <string name="library_not_playable_yet">Toque em um jogo da biblioteca para começar a jogar.</string>
     <string name="load_game">Carregar</string>
-    <string name="game_loaded_success">ROM carregada pelo mGBA! A próxima etapa é exibir a imagem e conectar áudio e controles.</string>
+    <string name="game_loaded_success">Jogo iniciado.</string>
     <string name="game_load_failed">Não foi possível carregar esta ROM. Verifique se o arquivo é válido e compatível.</string>
     <string name="game_file_copy_failed">Não foi possível ler o arquivo selecionado. Verifique a permissão de acesso.</string>
+    <string name="game_file_too_large">Esta ROM ultrapassa o limite de 64 MiB suportado por esta versão.</string>
+    <string name="import_summary">Importação concluída: %1$d adicionado(s), %2$d já existente(s), %3$d incompatível(is), %4$d sem acesso.</string>
+    <string name="emulation_frame_failed">A emulação foi interrompida. Saia do jogo e tente carregá-lo novamente.</string>
     <string name="no_games_yet">Ainda não há jogos</string>
     <string name="library_empty_description">Adicione seus arquivos de Game Boy Advance para começar sua coleção.</string>
     <string name="history_label">Jogados recentemente</string>
