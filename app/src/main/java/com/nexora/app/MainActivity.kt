@@ -375,34 +375,36 @@ private fun NexoraApp(
 
     Surface(modifier = Modifier.fillMaxSize(), color = NexoraBackground) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 22.dp, vertical = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
+            if (activeGameName == null) {
+                Row(
                     modifier = Modifier
-                        .size(width = 4.dp, height = 38.dp)
-                        .background(NexoraPurple, RoundedCornerShape(4.dp))
-                )
-                Column(modifier = Modifier.padding(start = 12.dp)) {
-                    Text(
-                        text = stringResource(R.string.brand_name),
-                        color = NexoraText,
-                        fontSize = 25.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 4.sp
+                        .fillMaxWidth()
+                        .padding(horizontal = 22.dp, vertical = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 4.dp, height = 38.dp)
+                            .background(NexoraPurple, RoundedCornerShape(4.dp))
                     )
-                    Text(
-                        text = stringResource(R.string.app_tagline),
-                        color = NexoraMuted,
-                        fontSize = 9.sp,
-                        letterSpacing = 2.sp
-                    )
+                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                        Text(
+                            text = stringResource(R.string.brand_name),
+                            color = NexoraText,
+                            fontSize = 25.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 4.sp
+                        )
+                        Text(
+                            text = stringResource(R.string.app_tagline),
+                            color = NexoraMuted,
+                            fontSize = 9.sp,
+                            letterSpacing = 2.sp
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text("●", color = NexoraPink, fontSize = 12.sp)
                 }
-                Spacer(Modifier.weight(1f))
-                Text("●", color = NexoraPink, fontSize = 12.sp)
             }
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
