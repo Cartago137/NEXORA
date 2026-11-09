@@ -180,6 +180,27 @@ Java_com_nexora_app_NativeBridge_nativeRunFrame(JNIEnv* env, jobject /* instance
 }
 
 extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_nexora_app_NativeBridge_nativeLoadBatterySave(
+    JNIEnv* env, jobject /* instance */, jstring path
+) {
+    if (path == nullptr) {
+        return JNI_FALSE;
+    }
+
+    const char* nativePath = env->GetStringUTFChars(path, nullptr);
+    if (nativePath == nullptr) {
+        return JNI_FALSE;
+    }
+
+    std::lock_guard<std::mutex> lock(gCoreMutex);
+    const bool loaded = gActiveCore != nullptr && gRomLoaded
+        && mCoreLoadSaveFile(gActiveCore, nativePath, false);
+    env->ReleaseStringUTFChars(path, nativePath);
+    return loaded ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C"
 JNIEXPORT jint JNICALL
 Java_com_nexora_app_NativeBridge_nativeReadAudio(
     JNIEnv* env, jobject /* instance */, jshortArray output
