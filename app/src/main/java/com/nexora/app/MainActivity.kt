@@ -593,51 +593,27 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
         }
     }
 
+    androidx.activity.compose.BackHandler {
+        NativeBridge.nativeSetKeys(0)
+        onExit()
+    }
+
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(Color.Black)
     ) {
         val isLandscape = maxWidth > maxHeight
 
         if (isLandscape) {
-            // In landscape, reserve most of the width for the 3:2 game image
-            // and move the controls to a side panel instead of stacking them below.
+            // Keep the game image centered, with controls on both sides.
             Row(
-                modifier = Modifier.fillMaxSize().padding(10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(
-                    modifier = Modifier.weight(0.74f).fillMaxSize()
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().height(34.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            gameName,
-                            color = NexoraText,
-                            fontSize = 12.sp,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1
-                        )
-                        TextButton(onClick = {
-                            NativeBridge.nativeSetKeys(0)
-                            onExit()
-                        }) {
-                            Text("SAIR", color = NexoraPink)
-                        }
-                    }
-                    Box(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        GameFrame(frameError, frameReady, frameVersion, frameImage)
-                    }
-                }
-
-                Column(
-                    modifier = Modifier.weight(0.26f).fillMaxSize(),
-                    verticalArrangement = Arrangement.SpaceEvenly,
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    modifier = Modifier.weight(0.19f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         GbaControl("↑", 1 shl 6)
@@ -647,38 +623,42 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
                             GbaControl("→", 1 shl 4)
                         }
                     }
+                    Row {
+                        GbaControl("SELECT", 1 shl 2, compact = true)
+                        GbaControl("START", 1 shl 3, compact = true)
+                    }
+                }
+
+                Box(
+                    modifier = Modifier.weight(0.62f).fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    GameFrame(frameError, frameReady, frameVersion, frameImage)
+                }
+
+                Column(
+                    modifier = Modifier.weight(0.19f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         GbaControl("B", 1 shl 1)
                         GbaControl("A", 1 shl 0)
                     }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        GbaControl("SELECT", 1 shl 2, compact = true)
-                        GbaControl("START", 1 shl 3, compact = true)
-                        Row {
-                            GbaControl("L", 1 shl 9, compact = true)
-                            GbaControl("R", 1 shl 8, compact = true)
-                        }
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GbaControl("L", 1 shl 9, compact = true)
+                        GbaControl("R", 1 shl 8, compact = true)
                     }
                 }
             }
         } else {
+            // Portrait: game first, controls below; no title or exit toolbar.
             Column(
-                modifier = Modifier.fillMaxSize().padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.fillMaxSize().padding(10.dp),
+                verticalArrangement = Arrangement.SpaceEvenly,
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(gameName, color = NexoraText, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    TextButton(onClick = {
-                        NativeBridge.nativeSetKeys(0)
-                        onExit()
-                    }) {
-                        Text("SAIR", color = NexoraPink)
-                    }
-                }
-
                 Box(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center
