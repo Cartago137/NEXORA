@@ -45,4 +45,4 @@ add_library(
 
 target_compile_features(nexora_native PRIVATE cxx_std_17)
 target_compile_definitions(nexora_native PRIVATE NEXORA_MGBA_VERSION="0.10.5")
-target_link_libraries(nexora_native PRIVATE mgba)
+target_link_libraries(nexora_native PRIVATE mgba log)
