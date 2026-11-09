@@ -12,7 +12,6 @@
     <string name="open_library">Open library</string>
     <string name="library_label">Your library</string>
     <string name="library_game_count">%1$d game(s) in your collection</string>
-    <string name="library_not_playable_yet">Your files are saved here; gameplay will be enabled when the GBA core is ready.</string>
     <string name="library_not_playable_yet">ROM loading is being integrated; video, audio and controls will follow in the next milestones.</string>
     <string name="load_game">Load</string>
     <string name="game_loaded_success">ROM loaded by mGBA! Next we will display video and connect audio and controls.</string>
