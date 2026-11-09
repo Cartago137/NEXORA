@@ -13,6 +13,11 @@
     <string name="library_label">Your library</string>
     <string name="library_game_count">%1$d game(s) in your collection</string>
     <string name="library_not_playable_yet">Your files are saved here; gameplay will be enabled when the GBA core is ready.</string>
+    <string name="library_not_playable_yet">ROM loading is being integrated; video, audio and controls will follow in the next milestones.</string>
+    <string name="load_game">Load</string>
+    <string name="game_loaded_success">ROM loaded by mGBA! Next we will display video and connect audio and controls.</string>
+    <string name="game_load_failed">This ROM could not be loaded. Check that the file is valid and compatible.</string>
+    <string name="game_file_copy_failed">The selected file could not be read. Check its access permission.</string>
     <string name="no_games_yet">No games yet</string>
     <string name="library_empty_description">Add your Game Boy Advance files to start your collection.</string>
     <string name="history_label">Recently played</string>
