@@ -1,25 +1,35 @@
-# Android App Shell — Milestone 1
+# Android App Shell — Foundation Milestone
 
 ## What is included
 
-- Kotlin Android application module.
-- Jetpack Compose starter screen using NEXORA's dark purple visual direction.
+- Kotlin Android application module with Jetpack Compose.
+- NEXORA's dark purple visual identity and four navigation destinations.
+- Portuguese default and English translations, selected through Android locale resources.
+- Full-screen activity window that hides the Android status bar while keeping system navigation available.
+- Android document picker for user-selected `.gba`, `.agb`, and `.bin` files.
+- Persistent library index with stored document URIs and persisted access permissions.
+- Separate removal actions: remove only from the library, or request deletion of the original document.
 - Android NDK + CMake native shared-library target.
-- A minimal JNI bridge so the Android layer can verify that the native library loads.
+- mGBA 0.10.5 pinned to upstream commit `26b7884bc25a5933960f3cdcd98bac1ae14d42e2`, compiled as a separate shared library for Android.
+- JNI smoke test that creates and initializes the mGBA GBA core and reports a localized status in the Settings screen.
 - ARM64 Android and x86_64 emulator build targets.
+- Third-party license texts for mGBA, blip_buf, and inih included in app assets.
+
+## Verified in CI
+
+The GitHub Actions workflow successfully assembled a debug APK with the pinned mGBA source compiled and linked. This verifies the Android native build pipeline for the configured ABIs.
 
 ## What is not included yet
 
-- The mGBA source code is not vendored or linked yet.
-- No ROM loading, emulation loop, graphics output, audio, saves, or controller input is implemented.
-- This is a starter shell, not a playable emulator.
+- Loading a selected ROM into mGBA.
+- Emulation frame loop, rendered game video, audio output, touch controls, physical controller mapping, and save data.
+- Search, folders, favorites, pinned games, batch actions, and play history.
+- Physical-device validation of full-screen behavior, persisted file access, and runtime loading of the mGBA shared library.
 
-## Next engineering milestone
-
-Integrate a pinned mGBA release into the native build. Upstream mGBA uses CMake, but Android is not listed among its officially supported platforms. We must therefore validate the Android build configuration and dependencies instead of assuming the desktop build works unchanged.
+This is a working application foundation and a native-core build milestone, not yet a playable emulator.
 
 ## Build environment
 
-Open the repository root in a compatible Android Studio installation. Install the Android SDK platform 36, Android NDK, and CMake 3.22.1 through SDK Manager. The Gradle wrapper must be generated/verified by the Android Studio/Gradle environment before a first build if it is not present in the repository.
+The repeatable build is currently provided by GitHub Actions. The project configuration uses Java 17, Android Gradle Plugin 9.3.1, Gradle 9.5.0, compile SDK 37, target SDK 36, minimum SDK 26, Android NDK 27.2.12479018, and CMake 3.22.1.
 
-The initial project configuration targets Java 17, Android API 26+, and Android API 36.
+The Android app targets ARM64 devices and x86_64 emulators. A successful CI build is not a substitute for testing on the user's physical device.
