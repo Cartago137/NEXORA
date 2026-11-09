@@ -398,57 +398,8 @@ private fun NexoraApp(
 @Composable
 private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
     var frame by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
-    val audioTrack = remember {
-        val minBuffer = AudioTrack.getMinBufferSize(
-            44100,
-            AudioFormat.CHANNEL_OUT_STEREO,
-            AudioFormat.ENCODING_PCM_16BIT
-        )
-        AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_GAME)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setSampleRate(44100)
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
-                    .build()
-            )
-            .setBufferSizeInBytes(maxOf(minBuffer, 8192))
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .build()
-    }
-
-    DisposableEffect(audioTrack) {
-        audioTrack.play()
-        onDispose {
-            runCatching { audioTrack.pause() }
-            runCatching { audioTrack.flush() }
-            audioTrack.release()
-        }
-    }
-
-    LaunchedEffect(audioTrack) {
-        val samples = ShortArray(2048)
-        while (isActive) {
-            val frames = withContext(Dispatchers.Default) {
-                runCatching { NativeBridge.nativeReadAudio(samples) }.getOrDefault(0)
-            }
-            if (frames > 0) {
-                withContext(Dispatchers.IO) {
-                    audioTrack.write(
-                        samples, 0, frames * 2, AudioTrack.WRITE_BLOCKING
-                    )
-                }
-            } else {
-                delay(4)
-            }
-        }
-    }
+    // Diagnostic build: audio is temporarily disabled to isolate the crash.
+    // The video/frame loop remains active; audio will be restored after validation.
 
     LaunchedEffect(gameName) {
         while (isActive) {
