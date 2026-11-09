@@ -14,11 +14,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,10 +42,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
@@ -54,6 +56,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 
 private val NexoraBackground = Color(0xFF100B18)
 private val NexoraPanel = Color(0xFF1D1428)
@@ -450,18 +453,39 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
     var frameVersion by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(gameName) {
+        // A GBA frame lasts about 16.74 ms at 59.7 FPS. Pace against the
+        // frame start so we do not add another full 16 ms after emulation.
+        val targetFrameNanos = 1_000_000_000L / 60L
+
         while (isActive) {
+            val frameStartNanos = System.nanoTime()
             val rendered = withContext(Dispatchers.Default) {
-                runCatching { NativeBridge.nativeRunFrame(pixelBuffer) }.getOrDefault(false)
+                runCatching {
+                    val success = NativeBridge.nativeRunFrame(pixelBuffer)
+                    if (success) {
+                        // Keep pixel conversion/copying off the UI thread.
+                        frameBitmap.setPixels(pixelBuffer, 0, 240, 0, 0, 240, 160)
+                    }
+                    success
+                }.getOrDefault(false)
             }
+
             if (!rendered) {
                 frameError = true
                 break
             }
-            frameBitmap.setPixels(pixelBuffer, 0, 240, 0, 0, 240, 160)
+
             frameReady = true
+            // Canvas reads this state in its draw phase, forcing the existing
+            // bitmap to be painted again even though its object identity is stable.
             frameVersion++
-            delay(16)
+
+            val remainingNanos = targetFrameNanos - (System.nanoTime() - frameStartNanos)
+            if (remainingNanos > 0L) {
+                delay((remainingNanos / 1_000_000L).coerceAtLeast(1L))
+            } else {
+                yield()
+            }
         }
     }
 
@@ -492,12 +516,20 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
                     color = NexoraPink,
                     fontSize = 13.sp
                 )
-                frameReady -> Image(
-                    bitmap = frameImage,
-                    contentDescription = "$gameName frame $frameVersion",
-                    modifier = Modifier.fillMaxWidth(),
-                    contentScale = ContentScale.Fit
-                )
+                frameReady -> Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1.5f)
+                ) {
+                    // Snapshot reads inside Canvas invalidate drawing on each new frame.
+                    @Suppress("UNUSED_EXPRESSION")
+                    frameVersion
+                    drawImage(
+                        image = frameImage,
+                        dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+                        filterQuality = FilterQuality.None
+                    )
+                }
                 else -> Text("Iniciando jogo…", color = NexoraMuted)
             }
         }
