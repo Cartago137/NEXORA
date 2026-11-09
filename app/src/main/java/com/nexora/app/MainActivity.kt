@@ -522,8 +522,7 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
                         .aspectRatio(1.5f)
                 ) {
                     // Snapshot reads inside Canvas invalidate drawing on each new frame.
-                    @Suppress("UNUSED_EXPRESSION")
-                    frameVersion
+                    frameVersion.let { /* Snapshot read invalidates this draw scope. */ }
                     drawImage(
                         image = frameImage,
                         dstSize = IntSize(size.width.toInt(), size.height.toInt()),
