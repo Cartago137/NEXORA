@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">NEXORA</string>
+    <string name="brand_name">NEXORA</string>
+    <string name="app_tagline">YOUR GAME UNIVERSE</string>
+    <string name="game_library">GAME LIBRARY</string>
+    <string name="home_headline">Your games. Your world.</string>
+    <string name="home_subtitle">Your handheld collection, all in one place.</string>
+    <string name="featured_label">FEATURED GAME</string>
+    <string name="no_featured_game">Your next adventure awaits</string>
+    <string name="featured_description">Add a game to see it here.</string>
+    <string name="add_games">Add games</string>
+    <string name="open_library">Open library</string>
+    <string name="library_label">Your library</string>
+    <string name="no_games_yet">No games yet</string>
+    <string name="library_empty_description">Your collection will appear here when you add your own game files.</string>
+    <string name="history_label">Recently played</string>
+    <string name="no_history_yet">Nothing played yet</string>
+    <string name="history_empty_description">The games you play will appear here.</string>
+    <string name="settings_label">Settings</string>
+    <string name="appearance_setting">Appearance</string>
+    <string name="appearance_description">Colors and console skins — coming later.</string>
+    <string name="language_setting">Language</string>
+    <string name="language_description">Portuguese and English. The app follows your Android language.</string>
+    <string name="controls_setting">Controls</string>
+    <string name="controls_description">Touch and controller options — coming later.</string>
+    <string name="about_setting">About NEXORA</string>
+    <string name="about_description">The beginning of your handheld game universe.</string>
+    <string name="technical_status">NATIVE ENGINE STATUS</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_library">Library</string>
+    <string name="nav_history">History</string>
+    <string name="nav_settings">Settings</string>
+</resources>
