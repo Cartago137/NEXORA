@@ -7,38 +7,42 @@ This roadmap separates product goals from verified implementation. A phase is co
 - [x] Create repository documentation.
 - [x] Define modular architecture principles.
 - [x] Record major product goals and open decisions.
-- [ ] Choose the application framework and language.
-- [ ] Choose and review a GBA core and its license.
-- [ ] Define supported Android versions and a test-device baseline.
+- [x] Choose Kotlin + Jetpack Compose for Android.
+- [x] Choose mGBA as the GBA core and record its licensing/integration constraints.
+- [x] Define the Android build baseline (min SDK 26, ARM64 and x86_64 build targets).
 
-**Exit check:** a documented technical plan with license review and a minimal buildable application.
+**Exit check:** a documented technical plan and a minimal buildable application.
 
 ## Phase 1 — Application shell
 
-- [ ] Create the Android project and repeatable build instructions.
-- [ ] Establish navigation and the dark NEXORA design system.
-- [ ] Add English and Spanish localization foundations.
+- [x] Create the Android project and repeatable CI build.
+- [x] Establish navigation and the dark NEXORA design system.
+- [x] Add Portuguese (default) and English localization resources.
+- [x] Hide the Android status bar for an immersive app window.
 - [ ] Implement orientation-aware layouts.
-- [ ] Add settings and theme selection foundations.
+- [ ] Add functional settings and theme selection.
 
-**Exit check:** the app builds and navigates reliably in portrait and landscape.
+**Exit check:** the app builds and navigates reliably in portrait and landscape, with no system status bar covering the interface.
 
 ## Phase 2 — Game library
 
-- [ ] Import user-provided GBA files through Android's document picker.
-- [ ] Build searchable library and metadata handling.
+- [x] Import user-provided GBA files through Android's document picker.
+- [x] Persist library entries and document access permissions across restarts.
+- [x] Show imported game names and file sizes.
+- [x] Ask whether to delete the original document when removing a library entry.
+- [ ] Validate ROM content and show game metadata/artwork.
+- [ ] Add library search.
 - [ ] Add custom folders, favorites, and pinned items.
 - [ ] Add multi-select and batch actions.
 - [ ] Implement play history.
-- [ ] Ask before deleting an original file when removing a library entry.
-- [ ] Ensure deleting a folder does not delete its games.
+- [ ] Test file permissions and deletion behavior across Android document providers.
 
-**Exit check:** library behavior is tested, including file-safety and batch-action cases.
+**Exit check:** library behavior is tested, including file-safety, persistence, and batch-action cases.
 
 ## Phase 3 — First playable GBA integration
 
-- [ ] Integrate a license-compatible GBA core behind the emulator abstraction.
-- [ ] Load and unload user-provided games.
+- [ ] Integrate the pinned mGBA source behind the emulator abstraction.
+- [ ] Load and unload user-provided games through the native core.
 - [ ] Render video and play audio.
 - [ ] Map touch controls and physical controllers where supported.
 - [ ] Persist save data safely.
@@ -49,7 +53,7 @@ This roadmap separates product goals from verified implementation. A phase is co
 ## Phase 4 — Premium play experience
 
 - [ ] Build the landscape GBA-inspired console layout.
-- [ ] Build the portrait GBA SP-inspired layout.
+- [ ] Build the portrait GBA SP-inspired console layout.
 - [ ] Add configurable colors and user-provided body skins.
 - [ ] Add the featured game's subtle floating 3D box presentation.
 - [ ] Add responsive controls, haptics, and accessibility options.
@@ -80,19 +84,21 @@ This roadmap separates product goals from verified implementation. A phase is co
 
 Do not mark a feature complete because a screen or placeholder exists. Require a working implementation, tests on supported devices, documented limitations, and a review of relevant licenses.
 
+## Current implementation checkpoint — Library foundation
 
-## Current implementation checkpoint — Android app shell
+**Status:** implemented on `foundation/android-app-shell`; CI and physical-device validation are required.
 
-**Status:** Scaffold committed on branch `foundation/android-app-shell`; build verification pending.
+Implemented in this checkpoint:
+- Full-screen window with the Android status bar hidden.
+- Portuguese default and English localized resources.
+- Android document picker for `.gba`, `.agb`, and `.bin` files.
+- Persisted document access and a local library index.
+- Duplicate URI protection.
+- Separate actions to remove a library entry or remove it and request deletion of the original document.
 
-Completed in this checkpoint:
-- Kotlin + Jetpack Compose Android app shell.
-- English and Spanish resource files.
-- Native C++ shared-library target built through CMake/NDK.
-- Minimal JNI status call to verify the native bridge.
+Not yet implemented:
+- Actual mGBA emulation, game execution, video/audio, controls, and save states.
+- Search, folders, favorites, pins, multi-select, metadata, artwork, and play history.
+- Verified behavior on a physical Android device and across document-provider apps.
 
-Next:
-1. Open/sync the project in Android Studio and resolve any toolchain issues.
-2. Build and install the shell on an ARM64 Android device.
-3. Integrate the pinned mGBA source into the Android native build.
-4. Prove ROM loading, frame output, audio, and input before implementing the full library experience.
+Next engineering milestone: integrate and test the mGBA core through the existing C++/JNI boundary, then connect the imported document stream to the core without blocking the UI.
