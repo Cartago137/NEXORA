@@ -5,6 +5,7 @@
 #include <mgba-util/vfs.h>
 
 #include <array>
+#include <fcntl.h>
 #include <cstdlib>
 #include <mutex>
 
