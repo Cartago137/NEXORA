@@ -696,7 +696,7 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
             }
         }
     }
-
+}
 
 @Composable
 private fun GameFrame(
