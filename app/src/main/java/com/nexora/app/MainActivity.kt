@@ -73,22 +73,36 @@ class MainActivity : ComponentActivity() {
         Thread {
             val extension = game.name.substringAfterLast('.', "gba").lowercase(Locale.ROOT)
             val cachedRom = File(cacheDir, "nexora-${System.nanoTime()}.$extension")
+            var copyFailureCode = -2
             val copied = runCatching {
                 val source = contentResolver.openInputStream(Uri.parse(game.uri))
                     ?: error("The selected document could not be opened.")
                 source.use { input ->
-                    cachedRom.outputStream().use { output -> input.copyTo(output) }
+                    cachedRom.outputStream().use { output ->
+                        val buffer = ByteArray(16 * 1024)
+                        var totalBytes = 0L
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            totalBytes += count
+                            if (totalBytes > 64L * 1024L * 1024L) {
+                                copyFailureCode = -3
+                                throw IllegalArgumentException("ROM exceeds the 64 MiB limit.")
+                            }
+                            output.write(buffer, 0, count)
+                        }
+                    }
                 }
             }.isSuccess
 
             val status = if (copied) {
                 runCatching { NativeBridge.nativeLoadRom(cachedRom.absolutePath) }.getOrDefault(-1)
             } else {
-                -2
+                cachedRom.delete()
+                copyFailureCode
             }
 
             runOnUiThread {
-                // nativeLoadRom replaces any previous session before loading the new ROM.
                 activeRomCacheFile?.delete()
                 activeRomCacheFile = if (status == 4) cachedRom else null
                 if (status != 4) cachedRom.delete()
@@ -136,60 +150,88 @@ class MainActivity : ComponentActivity() {
             var isLoadingGame by remember { mutableStateOf(false) }
 
             val romPicker = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.OpenDocument()
-            ) { uri ->
-                if (uri != null) {
+                contract = ActivityResultContracts.OpenMultipleDocuments()
+            ) { selectedUris ->
+                if (selectedUris.isNotEmpty()) {
                     val readWriteFlags =
                         Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                    val accepted = runCatching {
-                        contentResolver.takePersistableUriPermission(uri, readWriteFlags)
-                        true
-                    }.getOrElse {
-                        runCatching {
-                            contentResolver.takePersistableUriPermission(
-                                uri,
-                                Intent.FLAG_GRANT_READ_URI_PERMISSION
-                            )
+                    val updatedGames = games.toMutableList()
+                    var addedCount = 0
+                    var duplicateCount = 0
+                    var invalidCount = 0
+                    var permissionErrorCount = 0
+
+                    selectedUris.forEach { uri ->
+                        val accepted = runCatching {
+                            contentResolver.takePersistableUriPermission(uri, readWriteFlags)
                             true
-                        }.getOrDefault(false)
-                    }
+                        }.getOrElse {
+                            runCatching {
+                                contentResolver.takePersistableUriPermission(
+                                    uri,
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                )
+                                true
+                            }.getOrDefault(false)
+                        }
 
-                    if (!accepted) {
-                        libraryMessage = getString(R.string.file_access_permission_failed)
-                    } else {
-                        val displayName = contentResolver.query(
-                            uri,
-                            arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
-                            null,
-                            null,
-                            null
-                        )?.use { cursor ->
-                            if (cursor.moveToFirst()) {
-                                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                                val name = if (nameIndex >= 0) cursor.getString(nameIndex) else null
-                                val size = if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) {
-                                    cursor.getLong(sizeIndex)
-                                } else 0L
-                                (name ?: uri.lastPathSegment ?: "GBA game") to size
-                            } else {
-                                (uri.lastPathSegment ?: "GBA game") to 0L
-                            }
-                        } ?: ((uri.lastPathSegment ?: "GBA game") to 0L)
-
-                        val extension = displayName.first.substringAfterLast('.', "").lowercase(Locale.ROOT)
-                        if (extension !in setOf("gba", "agb", "bin")) {
-                            libraryMessage = getString(R.string.unsupported_rom_format)
-                            releaseDocumentAccess(uri)
-                        } else if (games.any { it.uri == uri.toString() }) {
-                            libraryMessage = getString(R.string.game_already_added)
+                        if (!accepted) {
+                            permissionErrorCount++
                         } else {
-                            val entry = GameEntry(displayName.first, uri.toString(), displayName.second)
-                            games = games + entry
-                            GameLibraryStore.save(this@MainActivity, games)
-                            libraryMessage = getString(R.string.game_added_success)
+                            val displayName = contentResolver.query(
+                                uri,
+                                arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+                                null,
+                                null,
+                                null
+                            )?.use { cursor ->
+                                if (cursor.moveToFirst()) {
+                                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                                    val name = if (nameIndex >= 0) cursor.getString(nameIndex) else null
+                                    val size = if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) {
+                                        cursor.getLong(sizeIndex)
+                                    } else 0L
+                                    (name ?: uri.lastPathSegment ?: "GBA game") to size
+                                } else {
+                                    (uri.lastPathSegment ?: "GBA game") to 0L
+                                }
+                            } ?: ((uri.lastPathSegment ?: "GBA game") to 0L)
+
+                            val extension = displayName.first
+                                .substringAfterLast('.', "")
+                                .lowercase(Locale.ROOT)
+
+                            when {
+                                extension !in setOf("gba", "agb", "bin") -> {
+                                    invalidCount++
+                                    releaseDocumentAccess(uri)
+                                }
+                                updatedGames.any { it.uri == uri.toString() } -> {
+                                    duplicateCount++
+                                }
+                                else -> {
+                                    updatedGames.add(
+                                        GameEntry(displayName.first, uri.toString(), displayName.second)
+                                    )
+                                    addedCount++
+                                }
+                            }
                         }
                     }
+
+                    if (addedCount > 0) {
+                        games = updatedGames
+                        GameLibraryStore.save(this@MainActivity, games)
+                    }
+
+                    libraryMessage = getString(
+                        R.string.import_summary,
+                        addedCount,
+                        duplicateCount,
+                        invalidCount,
+                        permissionErrorCount
+                    )
                 }
             }
 
@@ -209,6 +251,7 @@ class MainActivity : ComponentActivity() {
                             if (status != 4) {
                                 libraryMessage = when (status) {
                                     -2 -> getString(R.string.game_file_copy_failed)
+                                    -3 -> getString(R.string.game_file_too_large)
                                     0, 1, 2, 3 -> getString(R.string.game_load_failed)
                                     else -> getString(R.string.native_bridge_unavailable)
                                 }
@@ -397,69 +440,27 @@ private fun NexoraApp(
 
 @Composable
 private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
-    var frame by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
-    val audioTrack = remember {
-        val minBuffer = AudioTrack.getMinBufferSize(
-            44100,
-            AudioFormat.CHANNEL_OUT_STEREO,
-            AudioFormat.ENCODING_PCM_16BIT
-        )
-        AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_GAME)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setSampleRate(44100)
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
-                    .build()
-            )
-            .setBufferSizeInBytes(maxOf(minBuffer, 8192))
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .build()
+    val pixelBuffer = remember { IntArray(240 * 160) }
+    val frameBitmap = remember {
+        Bitmap.createBitmap(240, 160, Bitmap.Config.ARGB_8888)
     }
-
-    DisposableEffect(audioTrack) {
-        audioTrack.play()
-        onDispose {
-            runCatching { audioTrack.pause() }
-            runCatching { audioTrack.flush() }
-            audioTrack.release()
-        }
-    }
-
-    LaunchedEffect(audioTrack) {
-        val samples = ShortArray(2048)
-        while (isActive) {
-            val frames = withContext(Dispatchers.Default) {
-                runCatching { NativeBridge.nativeReadAudio(samples) }.getOrDefault(0)
-            }
-            if (frames > 0) {
-                withContext(Dispatchers.IO) {
-                    audioTrack.write(
-                        samples, 0, frames * 2, AudioTrack.WRITE_BLOCKING
-                    )
-                }
-            } else {
-                delay(4)
-            }
-        }
-    }
+    val frameImage = remember { frameBitmap.asImageBitmap() }
+    var frameReady by remember { mutableStateOf(false) }
+    var frameError by remember { mutableStateOf(false) }
+    var frameVersion by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(gameName) {
         while (isActive) {
-            val pixels = withContext(Dispatchers.Default) {
-                runCatching { NativeBridge.nativeRunFrame() }.getOrNull()
+            val rendered = withContext(Dispatchers.Default) {
+                runCatching { NativeBridge.nativeRunFrame(pixelBuffer) }.getOrDefault(false)
             }
-            if (pixels != null && pixels.size == 240 * 160) {
-                frame = Bitmap.createBitmap(
-                    pixels, 240, 160, Bitmap.Config.ARGB_8888
-                ).asImageBitmap()
+            if (!rendered) {
+                frameError = true
+                break
             }
+            frameBitmap.setPixels(pixelBuffer, 0, 240, 0, 0, 240, 160)
+            frameReady = true
+            frameVersion++
             delay(16)
         }
     }
@@ -485,15 +486,19 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
-            if (frame != null) {
-                Image(
-                    bitmap = frame!!,
-                    contentDescription = "Tela do jogo GBA",
+            when {
+                frameError -> Text(
+                    stringResource(R.string.emulation_frame_failed),
+                    color = NexoraPink,
+                    fontSize = 13.sp
+                )
+                frameReady -> Image(
+                    bitmap = frameImage,
+                    contentDescription = "$gameName frame $frameVersion",
                     modifier = Modifier.fillMaxWidth(),
                     contentScale = ContentScale.Fit
                 )
-            } else {
-                Text("Iniciando jogo…", color = NexoraMuted)
+                else -> Text("Iniciando jogo…", color = NexoraMuted)
             }
         }
 
@@ -527,6 +532,7 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
     }
 }
 
+
 @Composable
 private fun GbaControl(label: String, keyMask: Int, compact: Boolean = false) {
     Box(
@@ -536,9 +542,12 @@ private fun GbaControl(label: String, keyMask: Int, compact: Boolean = false) {
             .background(NexoraPanelLight, RoundedCornerShape(14.dp))
             .pointerInput(keyMask) {
                 detectTapGestures(onPress = {
-                    NativeBridge.nativeSetKeys(keyMask)
-                    tryAwaitRelease()
-                    NativeBridge.nativeSetKeys(0)
+                    NativeBridge.nativeAddKeys(keyMask)
+                    try {
+                        tryAwaitRelease()
+                    } finally {
+                        NativeBridge.nativeClearKeys(keyMask)
+                    }
                 })
             },
         contentAlignment = Alignment.Center
@@ -546,6 +555,7 @@ private fun GbaControl(label: String, keyMask: Int, compact: Boolean = false) {
         Text(label, color = NexoraText, fontSize = if (compact) 9.sp else 16.sp, fontWeight = FontWeight.Bold)
     }
 }
+
 
 @Composable
 private fun HomeScreen(onImportGame: () -> Unit, onOpenLibrary: () -> Unit) {
