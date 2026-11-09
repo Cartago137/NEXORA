@@ -75,6 +75,17 @@ private enum class NexoraTab { HOME, LIBRARY, HISTORY, SETTINGS }
 class MainActivity : ComponentActivity() {
 
     private var activeRomCacheFile: File? = null
+    private var isAppInForeground by mutableStateOf(true)
+
+    override fun onResume() {
+        super.onResume()
+        isAppInForeground = true
+    }
+
+    override fun onPause() {
+        isAppInForeground = false
+        super.onPause()
+    }
 
     private fun loadGame(game: GameEntry, onResult: (Int) -> Unit) {
         Thread {
@@ -265,6 +276,7 @@ class MainActivity : ComponentActivity() {
                 // The native engine is initialized only when the user starts a game.
                 NexoraApp(
                     nativeStatus = -1,
+                    isAppInForeground = isAppInForeground,
                     games = games,
                     libraryMessage = libraryMessage,
                     isLoadingGame = isLoadingGame,
@@ -317,6 +329,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun NexoraApp(
     nativeStatus: Int,
+    isAppInForeground: Boolean,
     games: List<GameEntry>,
     libraryMessage: String?,
     isLoadingGame: Boolean,
@@ -367,6 +380,7 @@ private fun NexoraApp(
                 if (activeGameName != null) {
                     PlayerScreen(
                         gameName = activeGameName!!,
+                        isAppInForeground = isAppInForeground,
                         onExit = {
                             onExitGame()
                             activeGameName = null
@@ -464,7 +478,7 @@ private fun NexoraApp(
 }
 
 @Composable
-private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
+private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: () -> Unit) {
     val pixelBuffer = remember { IntArray(240 * 160) }
     val frameBitmap = remember {
         Bitmap.createBitmap(240, 160, Bitmap.Config.ARGB_8888)
@@ -474,7 +488,13 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
     var frameError by remember { mutableStateOf(false) }
     var frameVersion by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(gameName) {
+    LaunchedEffect(gameName, isAppInForeground) {
+        if (!isAppInForeground) {
+            NativeBridge.nativeSetKeys(0)
+            return@LaunchedEffect
+        }
+
+        try {
         // Match Android's output stream to the PCM rate supplied by mGBA.
         val outputSampleRate = NativeBridge.nativeGetAudioSampleRate()
             .takeIf { it > 0 } ?: 32_768
@@ -518,7 +538,7 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
         // blocking the Compose/UI thread or slowing down video frame pacing.
         val audioJob = if (audioTrack != null) {
             launch(Dispatchers.IO) {
-                val audioSamples = ShortArray(2_048)
+                val audioSamples = ShortArray(4_096)
                 while (isActive) {
                     val sampleFrames = runCatching {
                         NativeBridge.nativeReadAudio(audioSamples)
@@ -546,7 +566,6 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
             null
         }
 
-        try {
             // The GBA runs at 16,777,216 / 280,896 Hz (about 59.7275 FPS).
             // Matching the hardware cadence prevents gradual audio/video drift.
             val targetFrameNanos = 16_742_706L
@@ -590,6 +609,8 @@ private fun PlayerScreen(gameName: String, onExit: () -> Unit) {
                     audioTrack?.release()
                 }
             }
+            NativeBridge.nativeSetKeys(0)
+            NativeBridge.nativeClearAudio()
         }
     }
 
