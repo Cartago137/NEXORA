@@ -7,12 +7,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Keep only the newest build for each branch/PR ref. This avoids a backlog of
-# redundant APK builds while the native mGBA dependency is compiling.
-concurrency:
-  group: nexora-android-${{ github.event.pull_request.head.ref || github.ref_name }}
-  cancel-in-progress: true
-
 jobs:
   assemble-debug:
     runs-on: ubuntu-latest
