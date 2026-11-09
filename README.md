@@ -1,15 +1,15 @@
 # NEXORA
 
-NEXORA is a mobile-first Game Boy Advance emulator project, designed around a distinctive console-inspired experience and an architecture that can grow to support additional systems.
+NEXORA is an Android-first Game Boy Advance emulator project, designed around a distinctive console-inspired experience and an architecture that can grow to support additional systems.
 
-> **Project status:** foundation and planning stage. The emulator core and platform integrations have not yet been implemented.
+> **Current status:** the Android app shell builds in CI. The current development milestone adds full-screen presentation and a persistent library for user-selected GBA ROM files. The mGBA core is not yet integrated, so games are not playable yet.
 
 ## Product direction
 
 - **Platform:** Android first.
-- **Initial system:** Game Boy Advance (GBA).
+- **Initial system:** Game Boy Advance (GBA), using the selected mGBA core.
 - **Future growth:** modular architecture that can accommodate additional console cores without rebuilding the application.
-- **Languages:** English and Spanish.
+- **Languages:** Portuguese (default) and English.
 - **Visual identity:** dark, premium interface inspired by deep Gengar-like purples, with restrained violet and pink/red accents.
 - **Orientation-aware experience:** landscape mode evokes the Game Boy Advance; portrait mode evokes the Game Boy Advance SP.
 - **Personalization:** selectable color themes and user-provided console-body skins.
@@ -31,29 +31,41 @@ NEXORA is a mobile-first Game Boy Advance emulator project, designed around a di
 
 ```text
 NEXORA/
-├── README.md
-├── .gitignore
-└── docs/
-    ├── ARCHITECTURE.md
-    ├── ROADMAP.md
-    └── DECISIONS.md
+├── app/
+│   └── src/main/
+│       ├── java/com/nexora/app/
+│       │   ├── MainActivity.kt
+│       │   ├── GameLibrary.kt
+│       │   └── NativeBridge.kt
+│       ├── cpp/
+│       └── res/
+│           ├── values/       # Portuguese (default)
+│           └── values-en/    # English
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── ROADMAP.md
+│   ├── DECISIONS.md
+│   ├── ANDROID_APP_SHELL.md
+│   └── ANDROID_INTEGRATION_PLAN.md
+└── .github/workflows/
+    └── android-build.yml
 ```
 
-The repository currently contains project documentation only. The implementation stack and emulator-core integration will be selected and validated before application code is introduced.
+## Current implementation
 
-## Getting started
+- Kotlin + Jetpack Compose Android application.
+- Portuguese default strings and English translations; Android locale selects the matching resources.
+- Four navigation areas: Home, Library, History, and Settings.
+- Full-screen app window hides the Android status bar at the top.
+- Android document picker accepts user-selected `.gba`, `.agb`, and `.bin` files.
+- Library entries and persistable document permissions are stored across app restarts.
+- Removing a library entry offers a separate option to delete the original document; deletion is never silent.
+- C++/JNI native bridge builds, but it is still a placeholder and does not run mGBA.
 
-There is no runnable application yet. Start with the architecture and roadmap documents:
+## Build and test status
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Architecture decisions](docs/DECISIONS.md)
+The project is built by GitHub Actions on the `foundation/android-app-shell` branch. A successful CI build proves that the APK compiles; physical-device behavior still requires testing. The app is not yet a playable emulator: mGBA, video, audio, emulation input, save states, and multiplayer remain future milestones.
 
 ## Legal and preservation note
 
 NEXORA is intended to run user-provided game files. The project will not distribute commercial ROMs, copyrighted game assets, or proprietary BIOS files. Any third-party emulator core or library must be reviewed for license compatibility before integration.
-
-
-## Implementation status
-
-The initial Android app shell is being developed on the `foundation/android-app-shell` branch. It contains a Kotlin/Compose starter screen and a minimal C++/JNI bridge. It is not yet a playable emulator, and the mGBA core has not yet been linked into the Android build. See [the app shell milestone](docs/ANDROID_APP_SHELL.md) and [the Android integration plan](docs/ANDROID_INTEGRATION_PLAN.md).
