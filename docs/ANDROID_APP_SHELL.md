@@ -11,7 +11,11 @@
 - Separate removal actions: remove only from the library, or request deletion of the original document.
 - Android NDK + CMake native shared-library target.
 - mGBA 0.10.5 pinned to upstream commit `26b7884bc25a5933960f3cdcd98bac1ae14d42e2`, compiled as a separate shared library for Android.
-- JNI integration for mGBA core initialization and loading/unloading a user-selected GBA ROM from an app-private cached copy.
+- JNI integration for mGBA core initialization, ROM loading/unloading, frame execution, video-buffer delivery, and GBA key input.
+- An experimental Compose gameplay screen that runs the GBA frame loop and displays the 240×160 framebuffer.
+- On-screen GBA controls with independent key press/release handling for simultaneous touch input.
+- A temporary diagnostic mode with audio playback disabled while the previous runtime crash is investigated.
+- A 64 MiB upper bound on ROM cache copies to avoid unbounded storage use.
 - ARM64 Android and x86_64 emulator build targets.
 - Third-party license texts for mGBA, blip_buf, and inih included in app assets.
 
@@ -21,12 +25,12 @@ The GitHub Actions workflow successfully assembled a debug APK with the pinned m
 
 ## What is not included yet
 
-- Running emulation frames and presenting a game screen.
-- Rendered game video, audio output, touch controls, physical controller mapping, and save data.
+- Audio playback (currently disabled in the diagnostic build), persistent battery saves, save states, and physical controller mapping.
+- Verified pause/resume, background behavior, and orientation changes during an active session.
 - Search, folders, favorites, pinned games, batch actions, and play history.
 - Physical-device validation of full-screen behavior, persisted file access, and runtime loading of the mGBA shared library.
 
-The native bridge can now open a user-selected ROM in mGBA, but the app does not yet run frames or display/play the game. This remains a loading milestone, not a playable emulator.
+The native bridge now attempts to run frames and display the GBA framebuffer. The core setup sequence has been corrected to configure video before ROM loading and reset the core after loading. However, this is still an experimental diagnostic milestone: audio is temporarily disabled, battery saves are not implemented, and successful CI compilation does not prove stable gameplay on a physical phone. Do not label this a finished playable release until the test ROM runs reliably on-device.
 
 ## Build environment
 
