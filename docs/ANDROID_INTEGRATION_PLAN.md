@@ -1,78 +1,105 @@
-# Android and mGBA Integration Plan
+# Android and mGBA Integration — Recovery and Build Plan
 
 ## Purpose
 
-Define the first technical milestone for bringing the selected mGBA core into NEXORA on Android without coupling the GBA implementation to the app's future systems.
+Bring the already-tested NEXORA Android application and its mGBA-backed native core into a reproducible, maintainable GitHub source project. This document supersedes the earlier assumption that no application prototype exists.
 
-## Confirmed project decisions
+## What has already been observed
 
-- First platform: Android.
-- First emulated system: Game Boy Advance.
-- GBA core: mGBA.
-- Native emulation/integration code: C/C++.
-- Architecture: system-independent application layer with system-specific core modules.
+Static inspection of the user-provided test APK found:
 
-## Proposed Android bridge
+- Kotlin application classes, including `com.nexora.app.MainActivityKt` and `NativeBridge`.
+- Compose-generated player-screen classes.
+- Native libraries named `libnexora_native.so` for `arm64-v8a` and `x86_64`.
+- JNI methods corresponding to status, ROM load, frame execution, audio read, key input, and ROM unload.
+- mGBA-related symbols, including core creation and ROM-loading functions.
+- An included mGBA MPL-2.0 license file.
 
-Use the Android NDK to compile the native emulation layer as a shared library. Expose a small, stable interface to the Android application through JNI. Keep JNI calls thin: validate and translate requests, then delegate to the native core adapter.
+The user also confirmed that native in-game GBA saves persist after the app is fully closed and reopened.
 
-The official Android documentation describes this model: C/C++ is built into native shared libraries and Java/Kotlin calls it through JNI. CMake is supported by Android Studio/Gradle for native builds.
+This is evidence about the compiled artifact, not access to its original source. The APK inspection does not establish the exact source revision, Gradle configuration, mGBA commit, rendering implementation, or all runtime behavior.
 
-## Proposed module boundaries
+## Confirmed technical direction
+
+- Android application/UI: Kotlin + Jetpack Compose.
+- Native emulation/integration: C/C++ using Android NDK and CMake.
+- GBA core: mGBA, isolated behind NEXORA's system-independent emulator contract.
+- Boundary: thin JNI bridge; UI and Android lifecycle code must not call mGBA internals directly.
+- Build and source of truth: GitHub repository and GitHub Actions.
+- Supported build ABI baseline observed in the APK: `arm64-v8a` and `x86_64`. Other ABIs are not assumed until tested.
+
+## Existing JNI compatibility surface
+
+The inspected binary exposes JNI methods with these responsibilities:
+
+| Native bridge responsibility | Expected behavior |
+| --- | --- |
+| `nativeStatus` | Report native core availability/state |
+| `nativeLoadRom` | Load a user-selected ROM |
+| `nativeRunFrame` | Advance emulation and produce video output |
+| `nativeReadAudio` | Read generated audio samples |
+| `nativeSetKeys` | Apply GBA key state |
+| `nativeUnloadRom` | Release the active game/core resources |
+
+These names are reverse-engineering observations. Exact Kotlin signatures, parameter types, return types, and threading requirements must be verified from source or bytecode before implementing a replacement bridge.
+
+## Source recovery rules
+
+1. Search for the original Kotlin, Gradle, C/C++, CMake, and mGBA integration source before recreating files.
+2. Keep the supplied APK unchanged as a reference artifact; do not silently overwrite it with a new build.
+3. Do not treat extracted shared libraries as maintainable source code.
+4. Do not replace a working mGBA implementation with a fake/stub core and describe it as equivalent.
+5. If source cannot be recovered, reconstruct one vertical slice at a time and compare its behavior with the reference APK.
+6. Preserve the user's validated save behavior as a regression requirement.
+
+## Repository implementation layout
+
+Target layout, to be introduced incrementally:
 
 ```text
-android-app/
-  app/                         # Android app and user interface
-  native/
-    CMakeLists.txt             # Native build entry point
-    include/nexora/core/       # System-independent core contracts
-    src/                       # Native bridge and shared implementation
-    systems/
-      gba/
-        mgba/                  # mGBA integration, isolated from app UI
+NEXORA/
+├── app/                         # Kotlin/Compose Android application
+├── native/
+│   ├── CMakeLists.txt
+│   ├── include/nexora/           # System-independent native contracts
+│   ├── src/                      # JNI bridge and shared native code
+│   └── systems/gba/               # Isolated mGBA adapter
+├── gradle/
+├── .github/workflows/            # Reproducible checks and APK builds
+├── docs/
+└── README.md
 ```
 
-This is a proposed layout, not yet a generated or build-tested Android project.
+This is the target structure, not a claim that these source files already exist.
 
-## First prototype milestone
+## Build pipeline requirements
 
-Build a minimal Android test app that can:
+The GitHub Actions build must:
+- use a pinned, documented JDK, Gradle, Android SDK, and NDK setup;
+- build the debug APK without requiring signing secrets;
+- run Kotlin/unit tests and native compilation checks where available;
+- upload the generated APK as a workflow artifact;
+- keep release signing separate from debug/CI builds;
+- never print signing passwords or commit keystores, ROMs, BIOS files, or generated build outputs.
 
-1. Compile the native layer for Android ARM64 using NDK + CMake.
-2. Load the native shared library through JNI.
-3. Initialize and shut down an mGBA-backed GBA core.
-4. Load a user-selected GBA ROM from an app-provided file path/descriptor.
-5. Advance emulation away from the UI thread.
-6. Return a video frame and audio samples to the Android side.
-7. Send button press/release events into the core.
-8. Report errors and supported capabilities to the app.
+## Rendering and stability investigation
 
-Only after this vertical slice works should we build the full NEXORA library and visual interface around it.
+The previously reported Pokémon FireRed issue (image becoming white/small after the intro) is not diagnosed by static APK inspection. The next runtime investigation must capture:
+- frame dimensions, pixel format, stride, and orientation;
+- buffer lifetime and synchronization between native emulation and Compose rendering;
+- frame pacing and UI-thread blocking;
+- ROM load and reset state;
+- device logs and native error/status output.
 
-## Important mGBA findings and constraints
-
-- The upstream mGBA project is primarily a native C codebase and uses CMake.
-- mGBA is distributed under the Mozilla Public License 2.0 (MPL-2.0). Before shipping, include the required license/notice material and review obligations for any modified MPL-covered files.
-- Upstream lists local link cable support for two instances on the same computer. Its README lists networked multiplayer link cable and Wireless Adapter support as planned features. Therefore, NEXORA's phone-to-phone Wi-Fi multiplayer must be treated as a separate engineering task and proven with a prototype; it must not be advertised as already supported by upstream mGBA.
-- mGBA supports cartridges with motion sensors and rumble when used with game controllers. Mapping these features to Android sensors and phone vibration requires NEXORA-side integration and per-game/device validation.
-- Upstream currently lists desktop and several console platforms; Android is not listed as an officially supported platform. NEXORA must own and test its Android build/integration rather than assuming an official Android frontend exists.
-
-## Open decision: Android application/UI layer
-
-The native mGBA integration does not determine the language used for the rest of the Android app. Recommended direction:
-
-- Kotlin + Jetpack Compose for Android screens, navigation, storage access, lifecycle, and settings.
-- C/C++ + Android NDK + CMake for mGBA and performance-sensitive emulation.
-- JNI as the narrow boundary between the Android app and native layer.
-
-This keeps the emulator native while using Android's standard application tooling for the library and polished interface. Confirm this UI-layer choice before generating the full Android project.
+Do not change rendering behavior speculatively. Reproduce and isolate the failure first.
 
 ## Acceptance criteria
 
-- The Android app builds and installs on a physical ARM64 device.
-- The native library loads without linker errors.
-- A legally user-supplied test ROM starts and runs.
-- Video, audio, and input work without blocking the UI.
-- Pause/resume and activity lifecycle transitions do not corrupt the emulation session.
-- The mGBA license and third-party notices are included in the project.
-- No claim of Wi-Fi multiplayer, motion, or rumble support is made until each is independently tested.
+- The source project builds reproducibly from GitHub Actions.
+- The native library loads on the target ARM64 Android device.
+- A user-provided GBA test ROM loads, advances frames, and renders at the correct size.
+- Input, pause/resume, and activity lifecycle transitions are stable.
+- Audio is tested independently from video.
+- In-game saves survive app restart, matching the already-confirmed behavior.
+- The mGBA license and all required notices are included.
+- Multiplayer, motion, and rumble are advertised only after independent validation.
