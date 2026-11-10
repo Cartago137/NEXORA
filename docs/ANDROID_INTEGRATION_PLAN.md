@@ -49,7 +49,8 @@ These names are reverse-engineering observations. Exact Kotlin signatures, param
 - [x] Confirmed that the revision maps to the preserved `recovery/stable-launch-shell` branch and contains the Android source project.
 - [x] Identified the later `feature/audio-saves-orientation` source line, which includes the frame-rendering/color-conversion fix, audio pipeline, per-game battery-save loading, multi-ROM import, and orientation handling.
 - [x] Confirmed that the latest commit on that line (`89b104099543e1e07be26c62fb33a09576b641b1`) passed the Android debug build in GitHub Actions (run 42711690785).
-- [ ] Restore the source tree to `main` and pass the build workflow on the restoration pull request.
+- [x] Restore the Android source tree and build workflow to `main`.
+- [ ] Confirm the mainline GitHub Actions build completes successfully.
 - [ ] Install the resulting APK on the target phone and validate runtime behavior.
 
 Keep the uploaded APK unchanged as a reference. Do not replace the mGBA implementation with a stub. Preserve the user's validated save behavior as a regression requirement.
@@ -60,19 +61,28 @@ Restored Android source layout:
 
 ```text
 NEXORA/
-├── app/                         # Kotlin/Compose Android application
-├── native/
-│   ├── CMakeLists.txt
-│   ├── include/nexora/           # System-independent native contracts
-│   ├── src/                      # JNI bridge and shared native code
-│   └── systems/gba/               # Isolated mGBA adapter
-├── gradle/
-├── .github/workflows/            # Reproducible checks and APK builds
+├── app/
+│   ├── build.gradle.kts
+│   └── src/main/
+│       ├── AndroidManifest.xml
+│       ├── assets/licenses/
+│       ├── cpp/
+│       │   ├── CMakeLists.txt
+│       │   └── native_bridge.cpp
+│       ├── java/com/nexora/app/
+│       │   ├── MainActivity.kt
+│       │   ├── GameLibrary.kt
+│       │   └── NativeBridge.kt
+│       └── res/values*/
+├── build.gradle.kts
+├── settings.gradle.kts
+├── gradle/                      # Version catalog and wrapper settings
+├── .github/workflows/            # Android build and signing-key workflows
 ├── docs/
 └── README.md
 ```
 
-The Android app, Gradle configuration, JNI bridge, and CMake entry point are restored in the recovery branch. The native mGBA source itself is fetched by CMake from the pinned upstream commit.
+The Android app, Gradle configuration, JNI bridge, and CMake entry point are restored on `main`. The native mGBA source itself is fetched by CMake from the pinned upstream commit.
 
 ## Build pipeline requirements
 
@@ -97,7 +107,7 @@ The `fix/frame-rendering-performance` ancestor includes a native pixel-channel c
 
 ## Acceptance criteria
 
-- The `feature/audio-saves-orientation` source line has a successful GitHub Actions debug build; the restoration pull request must pass the same workflow on `main`.
+- The `feature/audio-saves-orientation` source line has a successful GitHub Actions debug build. The restored `main` branch now runs the Android build workflow on push.
 - The native library loads on the target ARM64 Android device.
 - A user-provided GBA test ROM loads, advances frames, and renders at the correct size.
 - Input, pause/resume, and activity lifecycle transitions are stable.
