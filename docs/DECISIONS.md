@@ -58,9 +58,9 @@ This file records decisions and important constraints. Update it when a decision
 
 **Decision:** Use mGBA as NEXORA's Game Boy Advance emulation core.
 
-**Reason:** The project has selected mGBA for GBA emulation.
+**Reason:** The tested APK contains mGBA-related native symbols and an mGBA MPL-2.0 license notice, consistent with the project's selected core.
 
-**Consequence:** Integrate mGBA behind the stable emulator-core abstraction. Verify the exact version, build configuration, license obligations, and supported capabilities before shipping.
+**Consequence:** Integrate mGBA behind the stable emulator-core abstraction. Verify the exact upstream revision, build configuration, license obligations, and supported capabilities before shipping.
 
 ## ADR-007 — Native emulation integration in C/C++
 
@@ -68,7 +68,26 @@ This file records decisions and important constraints. Update it when a decision
 
 **Decision:** Use C/C++ for the native emulation/integration layer, working with mGBA's predominantly C codebase.
 
-**Reason:** This keeps the GBA core integration in the native layer and supports the performance-sensitive emulation path.
+**Reason:** The inspected APK contains a native shared library with JNI entry points and mGBA-related symbols.
 
-**Consequence:** The Android application/UI language and framework remain a separate decision. The native boundary and build pipeline must be validated with a small Android prototype.
+**Consequence:** The native boundary and build pipeline must be recovered or reconstructed and validated against the reference APK.
 
+## ADR-008 — Kotlin and Jetpack Compose for Android UI
+
+**Status:** Accepted as the source-reconstruction target
+
+**Decision:** Use Kotlin and Jetpack Compose for Android screens, navigation, library management, lifecycle coordination, and settings.
+
+**Reason:** Static inspection of the existing test APK found Kotlin application classes, a `MainActivityKt` entry point, and Compose-generated player-screen classes.
+
+**Consequence:** The exact original Kotlin source and dependency versions still need to be recovered or reconstructed. The inspected APK is evidence of the stack, not a substitute for source code.
+
+## ADR-009 — GitHub as the source of truth
+
+**Status:** Accepted
+
+**Decision:** Keep the maintainable NEXORA source, documentation, and repeatable build pipeline in the GitHub repository. Use GitHub Actions for automated builds and checks.
+
+**Reason:** The project is being developed and maintained through GitHub; a reproducible source tree is required for future work.
+
+**Consequence:** Do not treat an APK produced outside this repository as a reproducible build. Keep reference binaries distinct from source and CI artifacts.
