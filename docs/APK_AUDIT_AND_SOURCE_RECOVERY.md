@@ -14,6 +14,19 @@ The inspected APK contained:
 - `lib/x86_64/libnexora_native.so`.
 - An mGBA MPL-2.0 license notice and additional third-party license notices.
 
+## Source revision recovered from APK metadata
+
+The APK contains `META-INF/version-control-info.textproto` with:
+
+- Git revision: `17bcb65bad01e23790605ef4ec32fbdb173e637a`.
+- Android Gradle Plugin version: `9.3.1`.
+
+The revision resolves to the preserved `recovery/stable-launch-shell` branch. Its Git tree includes `app/build.gradle.kts`, `MainActivity.kt`, `NativeBridge.kt`, `native_bridge.cpp`, `CMakeLists.txt`, Gradle configuration, Android resources, and third-party license assets. This means the source was recovered from Git history, not decompiled or recreated from the APK.
+
+The later `feature/audio-saves-orientation` branch contains the next development line and passed Android debug build run `42711690785` at commit `89b104099543e1e07be26c62fb33a09576b641b1`. Its ancestry includes the rendering-fix commit `a7613bd6f67e7e42c59f9d8f31f90802c8efb581` (native GBA color-channel conversion), plus reusable frame rendering, audio, save, multi-ROM import, and orientation work.
+
+The CMake integration pins mGBA to upstream commit `26b7884bc25a5933960f3cdcd98bac1ae14d42e2` and labels the integration as version `0.10.5`.
+
 ## Native interface observations
 
 JNI exports found in the native library:
@@ -39,21 +52,22 @@ The issue may involve rendering dimensions, pixel format, frame-buffer handling,
 
 ## What this audit does not prove
 
-- It does not recover original Kotlin, Compose, C/C++, or CMake source.
-- It does not establish the exact mGBA commit or build flags.
+- The original source revision was located in Git history; however, the APK alone does not prove that every later development-branch change was included in that specific binary.
+- The recovered source branch's CI build does not prove runtime compatibility on every Android device.
+
 - It does not prove all game compatibility, audio, multiplayer, sensor, or rumble behavior.
 - It does not establish that the APK can be reproduced from the current GitHub repository.
 - It does not constitute a physical-device test performed during this audit.
 
-## Source recovery strategy
+## Source recovery result
 
-1. Treat the tested APK as an immutable reference.
-2. Recover original source files if they remain available from the original development workspace or backups.
-3. Otherwise reconstruct source incrementally, using bytecode and native symbols only as supporting evidence.
-4. Keep the JNI contract compatible only after exact method signatures are verified.
-5. Compare each reconstructed APK against the reference on the target device.
-6. Add regression tests for save persistence and the reported rendering issue.
+1. Preserve the tested APK as an immutable reference.
+2. Restore the source from the identified Git history rather than reverse-engineering the binary.
+3. Use the later CI-verified development branch as the current source candidate, while retaining the exact APK-generating commit in history.
+4. Keep JNI signatures aligned with the recovered Kotlin/native source.
+5. Run the restored workflow on the current mainline and compare the resulting APK with the reference.
+6. Add regression checks for save persistence, rendering, audio, and lifecycle behavior.
 
-## Important repository distinction
+## Remaining validation
 
-At the time of this record, the GitHub repository contains documentation and workflow configuration but not the Android source project. The compiled APK and its native libraries are not the same thing as a maintainable source tree.
+The source is available and is being restored to `main`. The native color-channel correction is present in the later development line, but the reported Pokémon FireRed white/small-screen issue is not considered fixed until the new APK is tested on the user's phone. The successful CI run verifies compilation only, not gameplay.

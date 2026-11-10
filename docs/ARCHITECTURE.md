@@ -12,7 +12,7 @@ NEXORA is an Android-first GBA emulator with a premium interface and a modular f
 - App/native boundary: JNI.
 - Build source of truth: this GitHub repository, with GitHub Actions for repeatable builds.
 
-The inspected test APK contains Kotlin/Compose-related application classes, a native NEXORA library, JNI exports, and mGBA-related symbols. The exact original source revision and build configuration are not yet present in this repository and must be recovered or reconstructed.
+The APK metadata identifies source revision `17bcb65bad01e23790605ef4ec32fbdb173e637a`, which is preserved in Git history. The later CI-verified `feature/audio-saves-orientation` branch contains the expanded Kotlin/Compose app, native JNI bridge, pinned mGBA CMake integration, and Gradle project; this source line is being restored to `main`.
 
 ## 3. Proposed layers
 
@@ -105,12 +105,12 @@ Deleting a custom folder should not delete the games assigned to it. Pinned and 
 
 ## 9. Source recovery and compatibility
 
-The currently tested APK is a behavioral and binary reference, not a maintainable source tree. The repository does not yet contain the original app or native sources.
+The tested APK is a behavioral reference, and its embedded Git revision has been recovered from the repository's preserved branches. The current restoration brings the later CI-verified source line into `main`.
 
-- Recover original source files when available.
-- Otherwise reconstruct incrementally, validating each vertical slice against the reference APK.
+- Keep the exact APK-generating revision available for comparison.
+- Preserve the later rendering, audio, save, and input improvements already present in the source branches.
 - Do not replace the existing mGBA implementation with a stub and call it equivalent.
-- Verify JNI signatures, frame-buffer format, audio format, threading, and lifecycle behavior before replacing the bridge.
-- Diagnose the reported Pokémon FireRed white/small rendering issue through reproducible device tests and instrumentation.
+- Verify JNI signatures, frame-buffer format, audio format, threading, and lifecycle behavior on the target device.
+- Treat the Pokémon FireRed white/small rendering issue as open until reproduced and verified after the source restoration.
 
 See [APK audit and source recovery](APK_AUDIT_AND_SOURCE_RECOVERY.md) and the [Android integration plan](ANDROID_INTEGRATION_PLAN.md).

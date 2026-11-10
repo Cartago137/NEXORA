@@ -47,17 +47,17 @@ See [APK audit and source recovery](docs/APK_AUDIT_AND_SOURCE_RECOVERY.md).
 
 ## Repository status
 
-The repository currently contains project documentation and a signing-key setup workflow. The Android application source, Gradle project, C/C++ source, and reproducible build workflow still need to be brought into this repository.
+The Android source project is being restored from preserved development branches in this repository. The APK's embedded Git revision identifies the exact launch-shell snapshot (`17bcb65bad01e23790605ef4ec32fbdb173e637a`). The restored mainline source uses the later CI-verified `feature/audio-saves-orientation` development line, which includes the Kotlin/Compose application, JNI/C++ bridge, pinned mGBA CMake integration, Gradle configuration, license notices, multi-ROM import, reusable video buffers, corrected native color conversion, audio, battery-save loading, and orientation handling.
 
-The uploaded/tested APK is being used as a technical reference. Reconstructing source from a binary is necessarily incomplete; source files must be recovered from their original development environment or recreated and validated against the APK's observable behavior.
+The `feature/audio-saves-orientation` branch's debug APK build completed successfully in GitHub Actions (run 42711690785). The restoration pull request must also pass the build workflow on the current mainline before merge. A successful compile does not replace physical-device testing.
 
 ## Development sequence
 
-1. Preserve and document the tested APK as a reference.
-2. Recover or reconstruct the Kotlin/Compose app and native mGBA integration in source form.
-3. Establish a reproducible Android/NDK build in GitHub Actions.
-4. Run automated checks and compare generated APK behavior with the reference.
-5. Continue feature work only on top of the reproducible source project.
+1. Preserve the tested APK and its exact source revision as a compatibility reference.
+2. Restore the later CI-verified Android and native source line into `main`.
+3. Run the Android/NDK build from the restoration pull request and keep the pipeline in GitHub Actions.
+4. Install the new APK on the target phone and revalidate rendering, audio, controls, orientation, and save persistence.
+5. Continue feature work only from the restored, reproducible source project.
 
 ## Legal and preservation note
 
