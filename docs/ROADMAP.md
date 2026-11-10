@@ -1,29 +1,45 @@
 # NEXORA Roadmap
 
-This roadmap separates product goals from verified implementation. A phase is complete only after its acceptance checks pass.
+This roadmap distinguishes confirmed behavior, repository work, and future goals. A phase is complete only after its acceptance checks pass.
 
-## Phase 0 — Foundation
+## Phase 0 — Product and prototype baseline
 
-- [x] Create repository documentation.
+- [x] Establish the NEXORA repository and project documentation.
 - [x] Define modular architecture principles.
-- [x] Record major product goals and open decisions.
-- [ ] Choose the application framework and language.
-- [ ] Choose and review a GBA core and its license.
-- [ ] Define supported Android versions and a test-device baseline.
+- [x] Select Android as the first platform and GBA as the first system.
+- [x] Select mGBA as the GBA core and C/C++ for native integration.
+- [x] Produce a test APK containing Kotlin/Compose-related app classes and native mGBA-related code.
+- [x] Confirm on the user's device that native in-game GBA saves persist after a full app restart.
+- [ ] Recover or reconstruct the source corresponding to the tested APK.
+- [ ] Record exact Android/Gradle/NDK and mGBA versions from source/build metadata.
+- [ ] Establish reproducible CI builds from this repository.
 
-**Exit check:** a documented technical plan with license review and a minimal buildable application.
+**Exit check:** a maintainable source project that can produce a reproducible APK and preserves the validated save behavior.
 
-## Phase 1 — Application shell
+## Phase 1 — Source recovery and reproducible Android build
 
-- [ ] Create the Android project and repeatable build instructions.
-- [ ] Establish navigation and the dark NEXORA design system.
-- [ ] Add English and Spanish localization foundations.
-- [ ] Implement orientation-aware layouts.
-- [ ] Add settings and theme selection foundations.
+- [ ] Recover original Kotlin, Compose, Gradle, C/C++, and CMake sources if available.
+- [ ] If original source is unavailable, reconstruct the application incrementally against the reference APK.
+- [ ] Restore the JNI bridge with verified signatures and lifecycle behavior.
+- [ ] Integrate the mGBA source and document the exact upstream revision and license notices.
+- [ ] Add GitHub Actions for debug APK builds and automated tests.
+- [ ] Keep release signing credentials separate from ordinary CI.
 
-**Exit check:** the app builds and navigates reliably in portrait and landscape.
+**Exit check:** GitHub Actions can build the source project without private signing secrets, and the generated APK installs on the target ARM64 device.
 
-## Phase 2 — Game library
+## Phase 2 — Emulator stability and compatibility
+
+- [ ] Verify ROM loading and unloading.
+- [ ] Verify frame execution, frame dimensions, pixel format, and rendering.
+- [ ] Investigate the previously reported Pokémon FireRed white/small-screen issue using logs and reproducible tests.
+- [ ] Validate input mapping and virtual controls.
+- [ ] Validate audio independently from video.
+- [x] Preserve native in-game save persistence as a regression requirement.
+- [ ] Test pause/resume, app backgrounding, and process recreation.
+
+**Exit check:** multiple user-provided GBA test ROMs run reliably on real Android devices without UI freezes or corrupted saves.
+
+## Phase 3 — Game library
 
 - [ ] Import user-provided GBA files through Android's document picker.
 - [ ] Build searchable library and metadata handling.
@@ -35,26 +51,17 @@ This roadmap separates product goals from verified implementation. A phase is co
 
 **Exit check:** library behavior is tested, including file-safety and batch-action cases.
 
-## Phase 3 — First playable GBA integration
-
-- [ ] Integrate a license-compatible GBA core behind the emulator abstraction.
-- [ ] Load and unload user-provided games.
-- [ ] Render video and play audio.
-- [ ] Map touch controls and physical controllers where supported.
-- [ ] Persist save data safely.
-- [ ] Test performance and compatibility on real Android devices.
-
-**Exit check:** a legally obtained test game runs reliably, with repeatable save/load behavior.
-
 ## Phase 4 — Premium play experience
 
-- [ ] Build the landscape GBA-inspired console layout.
-- [ ] Build the portrait GBA SP-inspired layout.
+- [ ] Refine the dark NEXORA design system and navigation.
+- [ ] Complete English and Spanish localization.
+- [ ] Build landscape GBA-inspired and portrait GBA SP-inspired layouts.
 - [ ] Add configurable colors and user-provided body skins.
 - [ ] Add the featured game's subtle floating 3D box presentation.
 - [ ] Add responsive controls, haptics, and accessibility options.
+- [ ] Verify orientation changes without losing selection or emulation state.
 
-**Exit check:** both orientations work without losing session state, and customization persists.
+**Exit check:** both orientations work reliably and customization persists.
 
 ## Phase 5 — Advanced hardware and connectivity
 
