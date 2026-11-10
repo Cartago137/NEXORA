@@ -8,6 +8,7 @@
 
 #include <array>
 #include <algorithm>
+#include <chrono>
 #include <fcntl.h>
 #include <cstdlib>
 #include <mutex>
@@ -22,7 +23,14 @@ mCore* gActiveCore = nullptr;
 bool gRomLoaded = false;
 uint64_t gFrameCount = 0;
 std::array<color_t, kGbaWidth * kGbaHeight> gVideoBuffer{};
-std::array<jint, kGbaWidth * kGbaHeight> gAndroidPixelBuffer{};
+#if !defined(NDEBUG)
+uint64_t gFrameLockWaitNanos = 0;
+uint64_t gFrameCoreNanos = 0;
+uint64_t gFrameTransferNanos = 0;
+uint64_t gAudioLockWaitNanos = 0;
+uint64_t gAudioReadNanos = 0;
+uint64_t gAudioReadCount = 0;
+#endif
 
 void logInfo(const char* message) {
     __android_log_write(ANDROID_LOG_INFO, kLogTag, message);
@@ -198,7 +206,13 @@ Java_com_nexora_app_NativeBridge_nativeRunFrame(
         return JNI_FALSE;
     }
 
+#if !defined(NDEBUG)
+    const auto callStarted = std::chrono::steady_clock::now();
+#endif
     std::lock_guard<std::mutex> lock(gCoreMutex);
+#if !defined(NDEBUG)
+    const auto lockAcquired = std::chrono::steady_clock::now();
+#endif
     if (gActiveCore == nullptr || !gRomLoaded) {
         return JNI_FALSE;
     }
@@ -206,20 +220,56 @@ Java_com_nexora_app_NativeBridge_nativeRunFrame(
     if (gFrameCount == 0) {
         logInfo("Frame stage 1: entering the first mGBA runFrame call.");
     }
+    const auto coreStarted = std::chrono::steady_clock::now();
     gActiveCore->runFrame(gActiveCore);
+    const auto coreFinished = std::chrono::steady_clock::now();
     if (gFrameCount == 0) {
         logInfo("Frame stage 2: first mGBA runFrame call returned.");
     }
 
-    for (size_t i = 0; i < gVideoBuffer.size(); ++i) {
-        gAndroidPixelBuffer[i] = toAndroidArgb(gVideoBuffer[i]);
+    // Write converted pixels directly into the Java-owned frame array. This
+    // removes the extra native framebuffer and SetIntArrayRegion copy.
+    jint* outputPixels = static_cast<jint*>(
+        env->GetPrimitiveArrayCritical(output, nullptr)
+    );
+    if (outputPixels == nullptr) {
+        return JNI_FALSE;
     }
-
-    env->SetIntArrayRegion(output, 0, kGbaWidth * kGbaHeight, gAndroidPixelBuffer.data());
+    for (size_t i = 0; i < gVideoBuffer.size(); ++i) {
+        outputPixels[i] = toAndroidArgb(gVideoBuffer[i]);
+    }
+    env->ReleasePrimitiveArrayCritical(output, outputPixels, 0);
+    const auto transferFinished = std::chrono::steady_clock::now();
     if (env->ExceptionCheck()) {
         return JNI_FALSE;
     }
+#if !defined(NDEBUG)
+    gFrameLockWaitNanos += static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(lockAcquired - callStarted).count()
+    );
+    gFrameCoreNanos += static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(coreFinished - coreStarted).count()
+    );
+    gFrameTransferNanos += static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(transferFinished - coreFinished).count()
+    );
+#endif
     ++gFrameCount;
+#if !defined(NDEBUG)
+    if (gFrameCount % 300 == 0) {
+        __android_log_print(
+            ANDROID_LOG_INFO, kLogTag,
+            "PERF frames=%llu avg_lock_wait=%.3fms avg_mgba=%.3fms avg_pixel_transfer=%.3fms",
+            static_cast<unsigned long long>(gFrameCount),
+            gFrameLockWaitNanos / 300000000.0,
+            gFrameCoreNanos / 300000000.0,
+            gFrameTransferNanos / 300000000.0
+        );
+        gFrameLockWaitNanos = 0;
+        gFrameCoreNanos = 0;
+        gFrameTransferNanos = 0;
+    }
+#endif
 
     if (gFrameCount == 1) {
         logInfo("Frame stage 3: first GBA frame copied to the Android framebuffer.");
@@ -273,7 +323,13 @@ Java_com_nexora_app_NativeBridge_nativeReadAudio(
         return 0;
     }
 
+#if !defined(NDEBUG)
+    const auto audioCallStarted = std::chrono::steady_clock::now();
+#endif
     std::lock_guard<std::mutex> lock(gCoreMutex);
+#if !defined(NDEBUG)
+    const auto audioLockAcquired = std::chrono::steady_clock::now();
+#endif
     if (gActiveCore == nullptr || !gRomLoaded || gActiveCore->getAudioChannel == nullptr) {
         return 0;
     }
@@ -302,6 +358,27 @@ Java_com_nexora_app_NativeBridge_nativeReadAudio(
     const int leftRead = blip_read_samples(left, samples, available, 2);
     const int rightRead = blip_read_samples(right, samples + 1, leftRead, 2);
     env->ReleaseShortArrayElements(output, samples, 0);
+#if !defined(NDEBUG)
+    const auto audioReadFinished = std::chrono::steady_clock::now();
+    gAudioLockWaitNanos += static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(audioLockAcquired - audioCallStarted).count()
+    );
+    gAudioReadNanos += static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(audioReadFinished - audioLockAcquired).count()
+    );
+    ++gAudioReadCount;
+    if (gAudioReadCount % 600 == 0) {
+        __android_log_print(
+            ANDROID_LOG_INFO, kLogTag,
+            "PERF audio_reads=%llu avg_lock_wait=%.3fms avg_read=%.3fms",
+            static_cast<unsigned long long>(gAudioReadCount),
+            gAudioLockWaitNanos / 600000000.0,
+            gAudioReadNanos / 600000000.0
+        );
+        gAudioLockWaitNanos = 0;
+        gAudioReadNanos = 0;
+    }
+#endif
     return rightRead < leftRead ? rightRead : leftRead;
 }
 
