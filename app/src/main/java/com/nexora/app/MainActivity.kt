@@ -510,6 +510,8 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
     var frameReady by remember { mutableStateOf(false) }
     var frameError by remember { mutableStateOf(false) }
     var frameVersion by remember { mutableIntStateOf(0) }
+    var speedMultiplier by remember { mutableFloatStateOf(1f) }
+    val currentSpeed = rememberUpdatedState(speedMultiplier)
 
     LaunchedEffect(gameName, isAppInForeground) {
         if (!isAppInForeground) {
@@ -568,7 +570,23 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
         audioJob = if (createdAudioTrack != null) {
             launch(Dispatchers.IO) {
                 val audioSamples = ShortArray(4_096)
+                var appliedSpeed = 1f
                 while (isActive) {
+                    val requestedSpeed = currentSpeed.value
+                    if (requestedSpeed != appliedSpeed) {
+                        val requestedRate = (outputSampleRate * requestedSpeed).toInt()
+                        val rateStatus = runCatching {
+                            createdAudioTrack.setPlaybackRate(requestedRate)
+                        }.getOrDefault(-1)
+                        if (rateStatus == AudioTrack.SUCCESS) {
+                            appliedSpeed = requestedSpeed
+                        } else {
+                            Log.w("NEXORA_AUDIO", "Fast Forward playback rate $requestedRate rejected ($rateStatus); returning to 1x")
+                            speedMultiplier = 1f
+                            runCatching { createdAudioTrack.setPlaybackRate(outputSampleRate) }
+                            appliedSpeed = 1f
+                        }
+                    }
                     val sampleFrames = runCatching {
                         NativeBridge.nativeReadAudio(audioSamples)
                     }.getOrDefault(0)
@@ -607,6 +625,7 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
             // fresh relative delay after each frame. A late frame resets the
             // deadline instead of trying to "catch up" by running frames faster.
             var nextFrameDeadlineNanos = System.nanoTime()
+            var frameAccumulator = 0f
             var previousFrameStartNanos = 0L
             var measuredFrames = 0
             var totalFrameWorkNanos = 0L
@@ -615,11 +634,21 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
 
             while (isActive) {
                 val frameStartNanos = System.nanoTime()
+                val framesToRun = run {
+                    frameAccumulator += currentSpeed.value
+                    val count = frameAccumulator.toInt().coerceIn(1, 3)
+                    frameAccumulator -= count
+                    count
+                }
                 val rendered = withContext(Dispatchers.Default) {
                     runCatching {
-                        val success = NativeBridge.nativeRunFrame(pixelBuffer)
+                        var success = true
+                        repeat(framesToRun) {
+                            if (success) success = NativeBridge.nativeRunFrame(pixelBuffer)
+                        }
                         if (success) {
-                            // Keep pixel conversion/copying off the UI thread.
+                            // At accelerated speeds, render only the newest frame.
+                            // Intermediate emulated frames still execute and generate audio.
                             frameBitmap.setPixels(pixelBuffer, 0, 240, 0, 0, 240, 160)
                         }
                         success
@@ -712,6 +741,11 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                     contentAlignment = Alignment.Center
                 ) {
                     GameFrame(frameError, frameReady, frameVersion, frameImage)
+                    FastForwardControl(
+                        speedMultiplier = speedMultiplier,
+                        onSpeedChange = { speedMultiplier = it },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
+                    )
                 }
 
                 GbaActionCluster()
@@ -728,6 +762,11 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                     contentAlignment = Alignment.Center
                 ) {
                     GameFrame(frameError, frameReady, frameVersion, frameImage)
+                    FastForwardControl(
+                        speedMultiplier = speedMultiplier,
+                        onSpeedChange = { speedMultiplier = it },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+                    )
                 }
 
                 GbaPortraitControlDeck(
@@ -735,6 +774,27 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun FastForwardControl(
+    speedMultiplier: Float,
+    onSpeedChange: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val speedOptions = listOf(1f, 1.5f, 2f, 3f)
+    val currentIndex = speedOptions.indexOf(speedMultiplier).coerceAtLeast(0)
+    val nextSpeed = speedOptions[(currentIndex + 1) % speedOptions.size]
+    TextButton(
+        onClick = { onSpeedChange(nextSpeed) },
+        modifier = modifier
+    ) {
+        Text(
+            text = if (speedMultiplier == 1f) "1×" else "FF ${speedMultiplier}×",
+            color = NexoraText,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
