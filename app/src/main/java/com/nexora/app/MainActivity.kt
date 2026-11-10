@@ -7,6 +7,7 @@ import android.media.AudioFormat
 import android.media.AudioTrack
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.view.View
@@ -602,6 +603,15 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
             // The GBA runs at 16,777,216 / 280,896 Hz (about 59.7275 FPS).
             // Matching the hardware cadence prevents gradual audio/video drift.
             val targetFrameNanos = 16_742_706L
+            // Pace against an absolute monotonic deadline rather than adding a
+            // fresh relative delay after each frame. A late frame resets the
+            // deadline instead of trying to "catch up" by running frames faster.
+            var nextFrameDeadlineNanos = System.nanoTime()
+            var previousFrameStartNanos = 0L
+            var measuredFrames = 0
+            var totalFrameWorkNanos = 0L
+            var totalFrameIntervalNanos = 0L
+            var missedFrameDeadlines = 0
 
             while (isActive) {
                 val frameStartNanos = System.nanoTime()
@@ -615,6 +625,7 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                         success
                     }.getOrDefault(false)
                 }
+                val frameFinishedNanos = System.nanoTime()
 
                 if (!rendered) {
                     frameError = true
@@ -626,11 +637,41 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                 // bitmap to be painted again even though its object identity is stable.
                 frameVersion++
 
-                val remainingNanos = targetFrameNanos - (System.nanoTime() - frameStartNanos)
+                measuredFrames++
+                totalFrameWorkNanos += frameFinishedNanos - frameStartNanos
+                if (previousFrameStartNanos != 0L) {
+                    totalFrameIntervalNanos += frameStartNanos - previousFrameStartNanos
+                }
+                previousFrameStartNanos = frameStartNanos
+
+                nextFrameDeadlineNanos += targetFrameNanos
+                val remainingNanos = nextFrameDeadlineNanos - frameFinishedNanos
                 if (remainingNanos > 0L) {
-                    delay((remainingNanos / 1_000_000L).coerceAtLeast(1L))
+                    // delay() accepts whole milliseconds; retain the absolute
+                    // deadline so its rounding does not accumulate frame drift.
+                    delay(((remainingNanos + 999_999L) / 1_000_000L).coerceAtLeast(1L))
                 } else {
+                    missedFrameDeadlines++
+                    nextFrameDeadlineNanos = frameFinishedNanos
                     yield()
+                }
+
+                if (measuredFrames == 300) {
+                    if (BuildConfig.DEBUG) {
+                        val averageWorkMs = totalFrameWorkNanos / 300_000_000.0
+                        val averageIntervalMs = totalFrameIntervalNanos / 299_000_000.0
+                        Log.i(
+                            "NEXORA_PERF",
+                            "frames=300 avg_work_ms=$averageWorkMs " +
+                                "avg_interval_ms=$averageIntervalMs " +
+                                "missed_deadlines=$missedFrameDeadlines " +
+                                "audio_underruns=${audioTrack?.underrunCount ?: -1}"
+                        )
+                    }
+                    measuredFrames = 0
+                    totalFrameWorkNanos = 0L
+                    totalFrameIntervalNanos = 0L
+                    missedFrameDeadlines = 0
                 }
             }
         } finally {
