@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.media.PlaybackParams
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -574,16 +575,26 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                 while (isActive) {
                     val requestedSpeed = currentSpeed.value
                     if (requestedSpeed != appliedSpeed) {
-                        val requestedRate = (outputSampleRate * requestedSpeed).toInt()
-                        val rateStatus = runCatching {
-                            createdAudioTrack.setPlaybackRate(requestedRate)
-                        }.getOrDefault(-1)
-                        if (rateStatus == AudioTrack.SUCCESS) {
+                        val applied = runCatching {
+                            // Match speed and pitch so fast-forward has the familiar
+                            // higher-pitched sound without a separate pitch-preserving
+                            // time-stretch stage on the audio thread.
+                            createdAudioTrack.setPlaybackParams(
+                                PlaybackParams()
+                                    .setSpeed(requestedSpeed)
+                                    .setPitch(requestedSpeed)
+                            )
+                        }.isSuccess
+                        if (applied) {
                             appliedSpeed = requestedSpeed
                         } else {
-                            Log.w("NEXORA_AUDIO", "Fast Forward playback rate $requestedRate rejected ($rateStatus); returning to 1x")
+                            Log.w("NEXORA_AUDIO", "Fast Forward audio speed $requestedSpeed rejected; returning to 1x")
                             speedMultiplier = 1f
-                            runCatching { createdAudioTrack.setPlaybackRate(outputSampleRate) }
+                            runCatching {
+                                createdAudioTrack.setPlaybackParams(
+                                    PlaybackParams().setSpeed(1f).setPitch(1f)
+                                )
+                            }
                             appliedSpeed = 1f
                         }
                     }
