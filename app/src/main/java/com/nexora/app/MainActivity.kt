@@ -649,7 +649,7 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                 if (remainingNanos > 0L) {
                     // delay() accepts whole milliseconds; retain the absolute
                     // deadline so its rounding does not accumulate frame drift.
-                    delay((remainingNanos / 1_000_000L).coerceAtLeast(1L))
+                    delay(((remainingNanos + 999_999L) / 1_000_000L).coerceAtLeast(1L))
                 } else {
                     missedFrameDeadlines++
                     nextFrameDeadlineNanos = frameFinishedNanos
