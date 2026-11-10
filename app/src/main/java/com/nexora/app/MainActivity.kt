@@ -787,11 +787,22 @@ private fun GbaDPad() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        GbaControl("↑", 1 shl 6, controlSize = 46)
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Spacer(Modifier.size(46.dp))
+            GbaControl("↑", 1 shl 6, controlSize = 46)
+            Spacer(Modifier.size(46.dp))
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             GbaControl("←", 1 shl 5, controlSize = 46)
-            GbaControl("↓", 1 shl 7, controlSize = 46)
+            Box(
+                Modifier.size(46.dp).background(NexoraPanelLight, RoundedCornerShape(12.dp))
+            )
             GbaControl("→", 1 shl 4, controlSize = 46)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Spacer(Modifier.size(46.dp))
+            GbaControl("↓", 1 shl 7, controlSize = 46)
+            Spacer(Modifier.size(46.dp))
         }
     }
 }
