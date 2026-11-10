@@ -699,59 +699,28 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
         val isLandscape = maxWidth > maxHeight
 
         if (isLandscape) {
-            // Keep the game image centered, with controls on both sides.
+            // Keep the directional pad independent from the action-button cluster.
             Row(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(
-                    modifier = Modifier.weight(0.19f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        GbaControl("↑", 1 shl 6)
-                        Row {
-                            GbaControl("←", 1 shl 5)
-                            GbaControl("↓", 1 shl 7)
-                            GbaControl("→", 1 shl 4)
-                        }
-                    }
-                    Row {
-                        GbaControl("SELECT", 1 shl 2, compact = true)
-                        GbaControl("START", 1 shl 3, compact = true)
-                    }
-                }
+                GbaDPad()
 
                 Box(
-                    modifier = Modifier.weight(0.62f).fillMaxSize(),
+                    modifier = Modifier.weight(1f).fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     GameFrame(frameError, frameReady, frameVersion, frameImage)
                 }
 
-                Column(
-                    modifier = Modifier.weight(0.19f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GbaControl("B", 1 shl 1)
-                        GbaControl("A", 1 shl 0)
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GbaControl("L", 1 shl 9, compact = true)
-                        GbaControl("R", 1 shl 8, compact = true)
-                    }
-                }
+                GbaActionCluster()
             }
         } else {
-            // Portrait: game first, controls below; no title or exit toolbar.
+            // Portrait: reserve a dedicated, balanced control area below the game.
             Column(
-                modifier = Modifier.fillMaxSize().padding(10.dp),
-                verticalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
@@ -762,31 +731,12 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        GbaControl("↑", 1 shl 6)
-                        Row {
-                            GbaControl("←", 1 shl 5)
-                            GbaControl("↓", 1 shl 7)
-                            GbaControl("→", 1 shl 4)
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GbaControl("B", 1 shl 1)
-                        GbaControl("A", 1 shl 0)
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    GbaControl("SELECT", 1 shl 2, compact = true)
-                    GbaControl("START", 1 shl 3, compact = true)
-                    GbaControl("L", 1 shl 9, compact = true)
-                    GbaControl("R", 1 shl 8, compact = true)
+                    GbaDPad()
+                    GbaActionCluster()
                 }
             }
         }
@@ -829,12 +779,61 @@ private fun GameFrame(
 
 
 @Composable
-private fun GbaControl(label: String, keyMask: Int, compact: Boolean = false) {
+private fun GbaDPad() {
+    Column(
+        modifier = Modifier
+            .background(NexoraPanel, RoundedCornerShape(22.dp))
+            .padding(7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        GbaControl("↑", 1 shl 6, controlSize = 46)
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            GbaControl("←", 1 shl 5, controlSize = 46)
+            GbaControl("↓", 1 shl 7, controlSize = 46)
+            GbaControl("→", 1 shl 4, controlSize = 46)
+        }
+    }
+}
+
+@Composable
+private fun GbaActionCluster() {
+    Column(
+        modifier = Modifier
+            .background(NexoraPanel, RoundedCornerShape(22.dp))
+            .padding(horizontal = 8.dp, vertical = 9.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            GbaControl("L", 1 shl 9, compact = true)
+            GbaControl("R", 1 shl 8, compact = true)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            GbaControl("B", 1 shl 1, controlSize = 56)
+            GbaControl("A", 1 shl 0, controlSize = 56)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            GbaControl("SELECT", 1 shl 2, compact = true)
+            GbaControl("START", 1 shl 3, compact = true)
+        }
+    }
+}
+
+@Composable
+private fun GbaControl(
+    label: String,
+    keyMask: Int,
+    compact: Boolean = false,
+    controlSize: Int = 52
+) {
     Box(
         modifier = Modifier
-            .padding(3.dp)
-            .size(width = if (compact) 58.dp else 52.dp, height = if (compact) 38.dp else 52.dp)
-            .background(NexoraPanelLight, RoundedCornerShape(14.dp))
+            .size(
+                width = if (compact) 54.dp else controlSize.dp,
+                height = if (compact) 36.dp else controlSize.dp
+            )
+            .background(NexoraPanelLight, RoundedCornerShape(if (compact) 11.dp else 16.dp))
             .pointerInput(keyMask) {
                 detectTapGestures(onPress = {
                     NativeBridge.nativeAddKeys(keyMask)
@@ -847,7 +846,12 @@ private fun GbaControl(label: String, keyMask: Int, compact: Boolean = false) {
             },
         contentAlignment = Alignment.Center
     ) {
-        Text(label, color = NexoraText, fontSize = if (compact) 9.sp else 16.sp, fontWeight = FontWeight.Bold)
+        Text(
+            label,
+            color = NexoraText,
+            fontSize = if (compact) 9.sp else 16.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
