@@ -14,7 +14,8 @@ This roadmap distinguishes confirmed behavior, repository work, and future goals
 - [x] Restore the Kotlin/Compose app, JNI/C++ bridge, CMake integration, Gradle files, and license assets in a recovery branch.
 - [x] Identify the pinned mGBA source commit and Android/Gradle/NDK build versions.
 - [x] Confirm a successful Android debug build on the later `feature/audio-saves-orientation` branch.
-- [ ] Merge the source restoration and pass CI on the current `main` branch.
+- [x] Merge the source restoration into `main`.
+- [ ] Confirm the mainline build workflow completes and uploads the APK.
 - [ ] Install the new APK and validate it on the target ARM64 phone.
 
 **Exit check:** a maintainable source project that can produce a reproducible APK and preserves the validated save behavior.

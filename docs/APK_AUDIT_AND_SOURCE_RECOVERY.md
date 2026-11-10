@@ -70,4 +70,4 @@ The issue may involve rendering dimensions, pixel format, frame-buffer handling,
 
 ## Remaining validation
 
-The source is available and is being restored to `main`. The native color-channel correction is present in the later development line, but the reported Pokémon FireRed white/small-screen issue is not considered fixed until the new APK is tested on the user's phone. The successful CI run verifies compilation only, not gameplay.
+The source is available and has been restored to `main`. The native color-channel correction is present in the later development line, but the reported Pokémon FireRed white/small-screen issue is not considered fixed until the new APK is tested on the user's phone. The successful CI run verifies compilation only, not gameplay.

@@ -47,9 +47,9 @@ See [APK audit and source recovery](docs/APK_AUDIT_AND_SOURCE_RECOVERY.md).
 
 ## Repository status
 
-The Android source project is being restored from preserved development branches in this repository. The APK's embedded Git revision identifies the exact launch-shell snapshot (`17bcb65bad01e23790605ef4ec32fbdb173e637a`). The restored mainline source uses the later CI-verified `feature/audio-saves-orientation` development line, which includes the Kotlin/Compose application, JNI/C++ bridge, pinned mGBA CMake integration, Gradle configuration, license notices, multi-ROM import, reusable video buffers, corrected native color conversion, audio, battery-save loading, and orientation handling.
+The Android source project has been restored to `main` from preserved development branches in this repository. The APK's embedded Git revision identifies the exact launch-shell snapshot (`17bcb65bad01e23790605ef4ec32fbdb173e637a`). The restored mainline source uses the later CI-verified `feature/audio-saves-orientation` development line, which includes the Kotlin/Compose application, JNI/C++ bridge, pinned mGBA CMake integration, Gradle configuration, license notices, multi-ROM import, reusable video buffers, corrected native color conversion, audio, battery-save loading, and orientation handling.
 
-The `feature/audio-saves-orientation` branch's debug APK build completed successfully in GitHub Actions (run 42711690785). The restoration pull request must also pass the build workflow on the current mainline before merge. A successful compile does not replace physical-device testing.
+The `feature/audio-saves-orientation` branch's debug APK build completed successfully in GitHub Actions (run 42711690785). The restored `main` branch now triggers the Android build workflow. The generated APK still requires physical-device validation before it is treated as a release candidate. A successful compile does not replace physical-device testing.
 
 ## Development sequence
 
