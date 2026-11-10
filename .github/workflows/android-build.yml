@@ -1,0 +1,83 @@
+name: Android build
+
+on:
+  pull_request:
+    branches: [main, recovery/stable-launch-shell]
+  push:
+    branches: [main, recovery/stable-launch-shell, feature/multi-game-playback]
+  workflow_dispatch:
+
+concurrency:
+  group: nexora-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    env:
+      NEXORA_KEYSTORE_BASE64: ${{ secrets.NEXORA_KEYSTORE_BASE64 }}
+      NEXORA_STORE_PASSWORD: ${{ secrets.NEXORA_STORE_PASSWORD }}
+      NEXORA_KEY_ALIAS: ${{ secrets.NEXORA_KEY_ALIAS }}
+      NEXORA_KEY_PASSWORD: ${{ secrets.NEXORA_KEY_PASSWORD }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.5.0"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+
+      - name: Install Android build components
+        run: |
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.2.12479018"
+          if [ -d "$ANDROID_HOME/platforms/android-37.0" ] && [ ! -e "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+
+      - name: Assemble debug APK
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Prepare persistent release signing key
+        if: env.NEXORA_KEYSTORE_BASE64 != ''
+        shell: bash
+        run: |
+          echo "$NEXORA_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/nexora-upload.jks"
+          test -s "$RUNNER_TEMP/nexora-upload.jks"
+
+      - name: Assemble signed release APK
+        if: env.NEXORA_KEYSTORE_BASE64 != '' && env.NEXORA_STORE_PASSWORD != '' && env.NEXORA_KEY_ALIAS != '' && env.NEXORA_KEY_PASSWORD != ''
+        run: |
+          gradle --no-daemon :app:assembleRelease \
+            -PNEXORA_STORE_FILE="$RUNNER_TEMP/nexora-upload.jks" \
+            -PNEXORA_STORE_PASSWORD="$NEXORA_STORE_PASSWORD" \
+            -PNEXORA_KEY_ALIAS="$NEXORA_KEY_ALIAS" \
+            -PNEXORA_KEY_PASSWORD="$NEXORA_KEY_PASSWORD"
+
+      - name: Upload signed release APK
+        if: env.NEXORA_KEYSTORE_BASE64 != '' && env.NEXORA_STORE_PASSWORD != '' && env.NEXORA_KEY_ALIAS != '' && env.NEXORA_KEY_PASSWORD != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Explain unsigned release is waiting for signing secrets
+        if: env.NEXORA_KEYSTORE_BASE64 == '' || env.NEXORA_STORE_PASSWORD == '' || env.NEXORA_KEY_ALIAS == '' || env.NEXORA_KEY_PASSWORD == ''
+        run: echo "Signed release skipped. Configure the four NEXORA signing secrets to produce an update-installable release APK."

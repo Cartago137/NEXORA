@@ -10,41 +10,45 @@ This roadmap distinguishes confirmed behavior, repository work, and future goals
 - [x] Select mGBA as the GBA core and C/C++ for native integration.
 - [x] Produce a test APK containing Kotlin/Compose-related app classes and native mGBA-related code.
 - [x] Confirm on the user's device that native in-game GBA saves persist after a full app restart.
-- [ ] Recover or reconstruct the source corresponding to the tested APK.
-- [ ] Record exact Android/Gradle/NDK and mGBA versions from source/build metadata.
-- [ ] Establish reproducible CI builds from this repository.
+- [x] Locate the exact source revision embedded in the APK (`17bcb65bad01e23790605ef4ec32fbdb173e637a`) in the preserved GitHub branches.
+- [x] Restore the Kotlin/Compose app, JNI/C++ bridge, CMake integration, Gradle files, and license assets in a recovery branch.
+- [x] Identify the pinned mGBA source commit and Android/Gradle/NDK build versions.
+- [x] Confirm a successful Android debug build on the later `feature/audio-saves-orientation` branch.
+- [ ] Merge the source restoration and pass CI on the current `main` branch.
+- [ ] Install the new APK and validate it on the target ARM64 phone.
 
 **Exit check:** a maintainable source project that can produce a reproducible APK and preserves the validated save behavior.
 
 ## Phase 1 — Source recovery and reproducible Android build
 
-- [ ] Recover original Kotlin, Compose, Gradle, C/C++, and CMake sources if available.
-- [ ] If original source is unavailable, reconstruct the application incrementally against the reference APK.
-- [ ] Restore the JNI bridge with verified signatures and lifecycle behavior.
-- [ ] Integrate the mGBA source and document the exact upstream revision and license notices.
-- [ ] Add GitHub Actions for debug APK builds and automated tests.
-- [ ] Keep release signing credentials separate from ordinary CI.
+- [x] Recover the original source revision and preserve the reference APK's source history.
+- [x] Restore Kotlin/Compose, Gradle, C/C++, JNI, and CMake source from the later CI-verified development branch.
+- [x] Restore the mGBA integration pinned to upstream commit `26b7884bc25a5933960f3cdcd98bac1ae14d42e2` (project version label 0.10.5).
+- [x] Restore the GitHub Actions debug/release build workflow and keep release signing separate from ordinary CI.
+- [ ] Pass the build workflow on the source-restoration pull request and merge it into `main`.
 
 **Exit check:** GitHub Actions can build the source project without private signing secrets, and the generated APK installs on the target ARM64 device.
 
 ## Phase 2 — Emulator stability and compatibility
 
 - [ ] Verify ROM loading and unloading.
-- [ ] Verify frame execution, frame dimensions, pixel format, and rendering.
-- [ ] Investigate the previously reported Pokémon FireRed white/small-screen issue using logs and reproducible tests.
+- [x] Restore the reusable frame buffer, frame pacing, and native color-channel conversion correction from the preserved rendering-fix branch.
+- [ ] Verify frame execution, frame dimensions, pixel format, and rendering on the target phone.
+- [ ] Confirm whether the rendering correction resolves the previously reported Pokémon FireRed white/small-screen issue.
 - [ ] Validate input mapping and virtual controls.
-- [ ] Validate audio independently from video.
+- [x] Restore the Android AudioTrack pipeline and native audio-buffer handling.
+- [x] Restore per-game battery-save file loading and persistence integration.
 - [x] Preserve native in-game save persistence as a regression requirement.
+- [ ] Revalidate audio and save persistence on the new APK.
 - [ ] Test pause/resume, app backgrounding, and process recreation.
 
 **Exit check:** multiple user-provided GBA test ROMs run reliably on real Android devices without UI freezes or corrupted saves.
 
 ## Phase 3 — Game library
 
-- [ ] Import user-provided GBA files through Android's document picker.
+- [x] Import multiple user-provided GBA files through Android's document picker (initial multi-import implementation).
+- [ ] Expand the library with custom folders, favorites, pinned items, search, and batch management.
 - [ ] Build searchable library and metadata handling.
-- [ ] Add custom folders, favorites, and pinned items.
-- [ ] Add multi-select and batch actions.
 - [ ] Implement play history.
 - [ ] Ask before deleting an original file when removing a library entry.
 - [ ] Ensure deleting a folder does not delete its games.

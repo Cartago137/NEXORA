@@ -17,7 +17,7 @@ Static inspection of the user-provided test APK found:
 
 The user also confirmed that native in-game GBA saves persist after the app is fully closed and reopened.
 
-This is evidence about the compiled artifact, not access to its original source. The APK inspection does not establish the exact source revision, Gradle configuration, mGBA commit, rendering implementation, or all runtime behavior.
+The APK's `META-INF/version-control-info.textproto` contains Git revision `17bcb65bad01e23790605ef4ec32fbdb173e637a`. That commit exists in this repository on `recovery/stable-launch-shell`, and its Git tree contains the original Android source, Gradle files, native bridge, CMake integration, and license assets. Later preserved branches contain additional development work; this recovery uses the CI-verified `feature/audio-saves-orientation` line as the mainline source candidate.
 
 ## Confirmed technical direction
 
@@ -43,18 +43,20 @@ The inspected binary exposes JNI methods with these responsibilities:
 
 These names are reverse-engineering observations. Exact Kotlin signatures, parameter types, return types, and threading requirements must be verified from source or bytecode before implementing a replacement bridge.
 
-## Source recovery rules
+## Source recovery status
 
-1. Search for the original Kotlin, Gradle, C/C++, CMake, and mGBA integration source before recreating files.
-2. Keep the supplied APK unchanged as a reference artifact; do not silently overwrite it with a new build.
-3. Do not treat extracted shared libraries as maintainable source code.
-4. Do not replace a working mGBA implementation with a fake/stub core and describe it as equivalent.
-5. If source cannot be recovered, reconstruct one vertical slice at a time and compare its behavior with the reference APK.
-6. Preserve the user's validated save behavior as a regression requirement.
+- [x] Located the exact Git revision embedded in the reference APK: `17bcb65bad01e23790605ef4ec32fbdb173e637a`.
+- [x] Confirmed that the revision maps to the preserved `recovery/stable-launch-shell` branch and contains the Android source project.
+- [x] Identified the later `feature/audio-saves-orientation` source line, which includes the frame-rendering/color-conversion fix, audio pipeline, per-game battery-save loading, multi-ROM import, and orientation handling.
+- [x] Confirmed that the latest commit on that line (`89b104099543e1e07be26c62fb33a09576b641b1`) passed the Android debug build in GitHub Actions (run 42711690785).
+- [ ] Restore the source tree to `main` and pass the build workflow on the restoration pull request.
+- [ ] Install the resulting APK on the target phone and validate runtime behavior.
+
+Keep the uploaded APK unchanged as a reference. Do not replace the mGBA implementation with a stub. Preserve the user's validated save behavior as a regression requirement.
 
 ## Repository implementation layout
 
-Target layout, to be introduced incrementally:
+Restored Android source layout:
 
 ```text
 NEXORA/
@@ -70,7 +72,7 @@ NEXORA/
 └── README.md
 ```
 
-This is the target structure, not a claim that these source files already exist.
+The Android app, Gradle configuration, JNI bridge, and CMake entry point are restored in the recovery branch. The native mGBA source itself is fetched by CMake from the pinned upstream commit.
 
 ## Build pipeline requirements
 
@@ -91,11 +93,11 @@ The previously reported Pokémon FireRed issue (image becoming white/small after
 - ROM load and reset state;
 - device logs and native error/status output.
 
-Do not change rendering behavior speculatively. Reproduce and isolate the failure first.
+The `fix/frame-rendering-performance` ancestor includes a native pixel-channel conversion correction and reusable framebuffer/render-pacing changes. These are relevant candidate fixes, but they are not yet confirmed to resolve the exact white/small Pokémon FireRed screen reported on the user's phone. Do not mark that issue fixed until the restored APK is tested on-device.
 
 ## Acceptance criteria
 
-- The source project builds reproducibly from GitHub Actions.
+- The `feature/audio-saves-orientation` source line has a successful GitHub Actions debug build; the restoration pull request must pass the same workflow on `main`.
 - The native library loads on the target ARM64 Android device.
 - A user-provided GBA test ROM loads, advances frames, and renders at the correct size.
 - Input, pause/resume, and activity lifecycle transitions are stable.
