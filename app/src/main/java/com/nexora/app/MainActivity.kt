@@ -730,14 +730,9 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                     GameFrame(frameError, frameReady, frameVersion, frameImage)
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    GbaDPad()
-                    GbaActionCluster()
-                }
+                GbaPortraitControlDeck(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                )
             }
         }
     }
@@ -803,6 +798,43 @@ private fun GbaDPad() {
             Spacer(Modifier.size(46.dp))
             GbaControl("↓", 1 shl 7, controlSize = 46)
             Spacer(Modifier.size(46.dp))
+        }
+    }
+}
+
+@Composable
+private fun GbaPortraitControlDeck(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Shoulder buttons sit at the upper corners of the control deck.
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            GbaControl("L", 1 shl 9, compact = true)
+            GbaControl("R", 1 shl 8, compact = true)
+        }
+
+        // D-pad on the left, two large face buttons on the right.
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            GbaDPad()
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                GbaControl("B", 1 shl 1, controlSize = 58)
+                GbaControl("A", 1 shl 0, controlSize = 58)
+            }
+        }
+
+        // System buttons are centered along the lower edge, like a handheld console.
+        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            GbaControl("SELECT", 1 shl 2, compact = true)
+            GbaControl("START", 1 shl 3, compact = true)
         }
     }
 }
