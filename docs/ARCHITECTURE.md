@@ -12,7 +12,7 @@ NEXORA is an Android-first GBA emulator with a premium interface and a modular f
 - App/native boundary: JNI.
 - Build source of truth: this GitHub repository, with GitHub Actions for repeatable builds.
 
-The APK metadata identifies source revision `17bcb65bad01e23790605ef4ec32fbdb173e637a`, which is preserved in Git history. The later CI-verified `feature/audio-saves-orientation` branch contains the expanded Kotlin/Compose app, native JNI bridge, pinned mGBA CMake integration, and Gradle project; this source line is being restored to `main`.
+The APK metadata identifies source revision `17bcb65bad01e23790605ef4ec32fbdb173e637a`, which is preserved in Git history. The later CI-verified `feature/audio-saves-orientation` branch contains the expanded Kotlin/Compose app, native JNI bridge, pinned mGBA CMake integration, and Gradle project; this source line has been restored to `main`.
 
 ## 3. Proposed layers
 
