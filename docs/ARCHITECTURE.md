@@ -2,22 +2,30 @@
 
 ## 1. Goals
 
-The architecture must support a polished Android application beginning with Game Boy Advance emulation, while allowing future systems to be added as independent modules.
+NEXORA is an Android-first GBA emulator with a premium interface and a modular foundation for future systems. The architecture must preserve the existing tested prototype's behavior while moving toward a reproducible source project.
 
-The design should avoid coupling the interface directly to GBA-specific code.
+## 2. Confirmed technology direction
 
-## 2. Proposed layers
+- Android application and UI: Kotlin + Jetpack Compose.
+- Native emulation layer: C/C++ with Android NDK and CMake.
+- Initial emulator core: mGBA for Game Boy Advance.
+- App/native boundary: JNI.
+- Build source of truth: this GitHub repository, with GitHub Actions for repeatable builds.
+
+The inspected test APK contains Kotlin/Compose-related application classes, a native NEXORA library, JNI exports, and mGBA-related symbols. The exact original source revision and build configuration are not yet present in this repository and must be recovered or reconstructed.
+
+## 3. Proposed layers
 
 ```text
-Presentation
+Presentation (Kotlin / Compose)
   ├── Home and featured game
   ├── Library, folders, search and history
   ├── Emulator screen and virtual controls
   └── Settings, themes and localization
 
-Application
+Application (Kotlin)
   ├── Game library use cases
-  ├── Save-state and session coordination
+  ├── Save-data and session coordination
   ├── Input mapping
   └── Multiplayer session coordination
 
@@ -26,34 +34,34 @@ Emulation abstraction
   ├── Core registry / system selection
   └── Core capability reporting
 
-System modules
-  └── mGBA integration (GBA; native C/C++)
+System modules (C/C++)
+  └── GBA adapter and mGBA integration
 
-Platform services
+Android platform services
   ├── File access and permissions
   ├── Audio, vibration and sensors
   ├── Storage and backup
   └── Local networking
 ```
 
-This is a conceptual boundary map. The selected GBA core is mGBA, integrated in the native C/C++ layer. The Android application/UI framework and language, and the exact native integration/build approach, must still be validated before implementation.
+The JNI bridge should remain narrow. Kotlin UI code must not depend directly on mGBA types or internal functions.
 
-## 3. Emulator core contract
+## 4. Emulator core contract
 
-The application should communicate with an emulator through a stable contract. At minimum, the contract will eventually need to cover:
+The application should communicate with an emulator through a stable contract. At minimum, it must eventually cover:
 
 - initialize and shut down a core;
 - load and unload a user-selected game;
 - advance emulation and provide video frames;
 - receive controller input;
 - produce and consume audio;
-- save and restore game state when supported;
+- save and restore game data when supported;
 - report supported capabilities and limitations;
 - expose lifecycle and error information.
 
-Exact method signatures must be designed only after the runtime and core integration approach are selected.
+Exact signatures must be verified against the recovered/reconstructed native implementation rather than guessed from JNI symbol names alone.
 
-## 4. Capability-based features
+## 5. Capability-based features
 
 Not every system supports the same hardware features. Each core should report capabilities instead of assuming that all consoles support the same functions.
 
@@ -67,7 +75,7 @@ Potential capabilities include:
 
 The interface should enable a feature only when the active core and device support it.
 
-## 5. Multiplayer direction
+## 6. Multiplayer direction
 
 Multiplayer is a major product goal. The design should distinguish:
 
@@ -77,7 +85,7 @@ Multiplayer is a major product goal. The design should distinguish:
 
 These are technically different modes. Their feasibility, latency, synchronization, supported games, and security requirements must be tested independently. Do not promise universal compatibility before testing.
 
-## 6. Data ownership
+## 7. Data ownership
 
 The library should track user-selected game files and their metadata without assuming that NEXORA owns or distributes those files.
 
@@ -85,24 +93,24 @@ Removing a game from the library must be distinct from deleting its original fil
 
 Deleting a custom folder should not delete the games assigned to it. Pinned and favorite status should remain independent of folder membership.
 
-## 7. Quality requirements
+## 8. Quality requirements
 
 - Keep core emulation work off the UI thread.
-- Avoid blocking the interface during library scans, file operations, or save-state operations.
-- Handle orientation changes without losing the current session or selection state.
-- Treat user files as untrusted input and handle malformed files safely.
+- Avoid blocking the interface during library scans, file operations, or save-data operations.
+- Handle user files as untrusted input and handle malformed files safely.
+- Preserve selection and session state across orientation changes.
+- Treat persistent in-game save behavior as a regression requirement: the user has confirmed that saves survive a full app restart in the reference APK.
 - Add automated tests around library behavior, input mapping, save management, and core integration.
 - Record third-party licenses and notices before shipping dependencies.
 
-## 8. Open technical decisions
+## 9. Source recovery and compatibility
 
-The following are intentionally unresolved:
+The currently tested APK is a behavioral and binary reference, not a maintainable source tree. The repository does not yet contain the original app or native sources.
 
-- Android application/UI framework and language;
-- exact mGBA version, build configuration, and native integration method;
-- rendering and audio pipeline;
-- persistence technology;
-- multiplayer transport and synchronization design;
-- minimum Android version and device performance targets.
+- Recover original source files when available.
+- Otherwise reconstruct incrementally, validating each vertical slice against the reference APK.
+- Do not replace the existing mGBA implementation with a stub and call it equivalent.
+- Verify JNI signatures, frame-buffer format, audio format, threading, and lifecycle behavior before replacing the bridge.
+- Diagnose the reported Pokémon FireRed white/small rendering issue through reproducible device tests and instrumentation.
 
-Resolve these with small prototypes and documented trade-offs rather than guessing early.
+See [APK audit and source recovery](APK_AUDIT_AND_SOURCE_RECOVERY.md) and the [Android integration plan](ANDROID_INTEGRATION_PLAN.md).
