@@ -30,6 +30,8 @@ uint64_t gFrameTransferNanos = 0;
 uint64_t gAudioLockWaitNanos = 0;
 uint64_t gAudioReadNanos = 0;
 uint64_t gAudioReadCount = 0;
+uint64_t gAudioPollCount = 0;
+uint64_t gAudioEmptyPollCount = 0;
 #endif
 
 void logInfo(const char* message) {
@@ -347,6 +349,26 @@ Java_com_nexora_app_NativeBridge_nativeReadAudio(
         available = capacityFrames;
     }
     if (available <= 0) {
+#if !defined(NDEBUG)
+        gAudioLockWaitNanos += static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(audioLockAcquired - audioCallStarted).count()
+        );
+        ++gAudioPollCount;
+        ++gAudioEmptyPollCount;
+        if (gAudioPollCount % 600 == 0) {
+            __android_log_print(
+                ANDROID_LOG_INFO, kLogTag,
+                "PERF audio_polls=%llu empty_polls=%llu avg_lock_wait=%.3fms",
+                static_cast<unsigned long long>(gAudioPollCount),
+                static_cast<unsigned long long>(gAudioEmptyPollCount),
+                gAudioLockWaitNanos / 600000000.0
+            );
+            gAudioLockWaitNanos = 0;
+            gAudioReadNanos = 0;
+            gAudioReadCount = 0;
+            gAudioEmptyPollCount = 0;
+        }
+#endif
         return 0;
     }
 
@@ -367,16 +389,21 @@ Java_com_nexora_app_NativeBridge_nativeReadAudio(
         std::chrono::duration_cast<std::chrono::nanoseconds>(audioReadFinished - audioLockAcquired).count()
     );
     ++gAudioReadCount;
-    if (gAudioReadCount % 600 == 0) {
+    ++gAudioPollCount;
+    if (gAudioPollCount % 600 == 0) {
         __android_log_print(
             ANDROID_LOG_INFO, kLogTag,
-            "PERF audio_reads=%llu avg_lock_wait=%.3fms avg_read=%.3fms",
+            "PERF audio_polls=%llu empty_polls=%llu successful_reads=%llu avg_lock_wait=%.3fms avg_read=%.3fms",
+            static_cast<unsigned long long>(gAudioPollCount),
+            static_cast<unsigned long long>(gAudioEmptyPollCount),
             static_cast<unsigned long long>(gAudioReadCount),
             gAudioLockWaitNanos / 600000000.0,
-            gAudioReadNanos / 600000000.0
+            gAudioReadCount > 0 ? gAudioReadNanos / (gAudioReadCount * 1000000.0) : 0.0
         );
         gAudioLockWaitNanos = 0;
         gAudioReadNanos = 0;
+        gAudioReadCount = 0;
+        gAudioEmptyPollCount = 0;
     }
 #endif
     return rightRead < leftRead ? rightRead : leftRead;
