@@ -20,6 +20,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -412,6 +414,7 @@ private fun NexoraApp(
                     )
                 } else when (selectedTab) {
                     NexoraTab.HOME -> HomeScreen(
+                        games = games,
                         onImportGame = {
                             selectedTab = NexoraTab.LIBRARY
                             onImportGame()
@@ -642,6 +645,8 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
             var measuredFrames = 0
             var totalFrameWorkNanos = 0L
             var totalFrameIntervalNanos = 0L
+            var maxFrameWorkNanos = 0L
+            var maxFrameIntervalNanos = 0L
             var missedFrameDeadlines = 0
 
             while (isActive) {
@@ -679,9 +684,13 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                 frameVersion++
 
                 measuredFrames++
-                totalFrameWorkNanos += frameFinishedNanos - frameStartNanos
+                val frameWorkNanos = frameFinishedNanos - frameStartNanos
+                totalFrameWorkNanos += frameWorkNanos
+                maxFrameWorkNanos = maxOf(maxFrameWorkNanos, frameWorkNanos)
                 if (previousFrameStartNanos != 0L) {
-                    totalFrameIntervalNanos += frameStartNanos - previousFrameStartNanos
+                    val frameIntervalNanos = frameStartNanos - previousFrameStartNanos
+                    totalFrameIntervalNanos += frameIntervalNanos
+                    maxFrameIntervalNanos = maxOf(maxFrameIntervalNanos, frameIntervalNanos)
                 }
                 previousFrameStartNanos = frameStartNanos
 
@@ -705,6 +714,8 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                             "NEXORA_PERF",
                             "frames=300 avg_work_ms=$averageWorkMs " +
                                 "avg_interval_ms=$averageIntervalMs " +
+                                "max_work_ms=${maxFrameWorkNanos / 1_000_000.0} " +
+                                "max_interval_ms=${maxFrameIntervalNanos / 1_000_000.0} " +
                                 "missed_deadlines=$missedFrameDeadlines " +
                                 "audio_underruns=${audioTrack?.underrunCount ?: -1}"
                         )
@@ -712,6 +723,8 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                     measuredFrames = 0
                     totalFrameWorkNanos = 0L
                     totalFrameIntervalNanos = 0L
+                    maxFrameWorkNanos = 0L
+                    maxFrameIntervalNanos = 0L
                     missedFrameDeadlines = 0
                 }
             }
@@ -887,30 +900,77 @@ private fun GameFrame(
 
 @Composable
 private fun GbaDPad() {
-    Column(
+    Box(
         modifier = Modifier
+            .size(148.dp)
+            .pointerInput(Unit) {
+                fun directionAt(x: Float, y: Float): Int {
+                    if (x < 0f || y < 0f || x > size.width || y > size.height) return 0
+                    val horizontal = (x / size.width - 0.5f) * 2f
+                    val vertical = (y / size.height - 0.5f) * 2f
+                    if (kotlin.math.abs(horizontal) < 0.34f &&
+                        kotlin.math.abs(vertical) < 0.34f
+                    ) return 0
+                    return if (kotlin.math.abs(horizontal) > kotlin.math.abs(vertical)) {
+                        if (horizontal < 0f) 1 shl 5 else 1 shl 4
+                    } else {
+                        if (vertical < 0f) 1 shl 6 else 1 shl 7
+                    }
+                }
+
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var activeDirection = directionAt(down.position.x, down.position.y)
+                    if (activeDirection != 0) NativeBridge.nativeAddKeys(activeDirection)
+                    down.consume()
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        val nextDirection = if (change.pressed) {
+                            directionAt(change.position.x, change.position.y)
+                        } else {
+                            0
+                        }
+
+                        if (nextDirection != activeDirection) {
+                            if (activeDirection != 0) NativeBridge.nativeClearKeys(activeDirection)
+                            if (nextDirection != 0) NativeBridge.nativeAddKeys(nextDirection)
+                            activeDirection = nextDirection
+                        }
+
+                        change.consume()
+                        if (!change.pressed) break
+                    }
+
+                    if (activeDirection != 0) NativeBridge.nativeClearKeys(activeDirection)
+                }
+            }
             .background(NexoraPanel, RoundedCornerShape(22.dp))
-            .padding(7.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+            .padding(7.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Spacer(Modifier.size(46.dp))
-            GbaControl("↑", 1 shl 6, controlSize = 46)
-            Spacer(Modifier.size(46.dp))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            GbaControl("←", 1 shl 5, controlSize = 46)
-            Box(
-                Modifier.size(46.dp).background(NexoraPanelLight, RoundedCornerShape(12.dp))
-            )
-            GbaControl("→", 1 shl 4, controlSize = 46)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Spacer(Modifier.size(46.dp))
-            GbaControl("↓", 1 shl 7, controlSize = 46)
-            Spacer(Modifier.size(46.dp))
-        }
+        DPadSegment("↑", Modifier.align(Alignment.TopCenter).padding(top = 0.dp))
+        DPadSegment("←", Modifier.align(Alignment.CenterStart))
+        Box(
+            Modifier
+                .size(46.dp)
+                .align(Alignment.Center)
+                .background(NexoraPanelLight, RoundedCornerShape(12.dp))
+        )
+        DPadSegment("→", Modifier.align(Alignment.CenterEnd))
+        DPadSegment("↓", Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+@Composable
+private fun DPadSegment(label: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(46.dp)
+            .background(NexoraPanelLight, RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = NexoraText, fontSize = 19.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -988,12 +1048,16 @@ private fun GbaControl(
 
 
 @Composable
-private fun HomeScreen(onImportGame: () -> Unit, onOpenLibrary: () -> Unit) {
+private fun HomeScreen(
+    games: List<GameEntry>,
+    onImportGame: () -> Unit,
+    onOpenLibrary: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 22.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(
@@ -1010,27 +1074,87 @@ private fun HomeScreen(onImportGame: () -> Unit, onOpenLibrary: () -> Unit) {
                 .fillMaxWidth()
                 .weight(1f)
                 .background(NexoraPanel, RoundedCornerShape(26.dp))
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(stringResource(R.string.featured_label), color = NexoraPink, fontSize = 10.sp, letterSpacing = 2.sp)
-            Spacer(Modifier.height(18.dp))
-            Box(
-                modifier = Modifier
-                    .size(width = 150.dp, height = 190.dp)
-                    .background(NexoraPanelLight, RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("N", color = NexoraPurple, fontSize = 76.sp, fontWeight = FontWeight.Black)
-            }
-            Spacer(Modifier.height(18.dp))
-            Text(stringResource(R.string.no_featured_game), color = NexoraText, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                stringResource(R.string.featured_description),
-                color = NexoraMuted,
-                fontSize = 12.sp
+                "SUA COLEÇÃO",
+                color = NexoraPink,
+                fontSize = 10.sp,
+                letterSpacing = 2.sp,
+                fontWeight = FontWeight.Bold
             )
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    games.size.toString(),
+                    color = NexoraText,
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Black
+                )
+                Text(
+                    if (games.size == 1) " jogo na biblioteca" else " jogos na biblioteca",
+                    color = NexoraMuted,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(start = 8.dp, bottom = 6.dp)
+                )
+            }
+
+            if (games.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("N", color = NexoraPurple, fontSize = 64.sp, fontWeight = FontWeight.Black)
+                        Text("Sua biblioteca está vazia", color = NexoraText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Adicione seus jogos para eles aparecerem aqui.",
+                            color = NexoraMuted,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            } else {
+                Text("Adicionados recentemente", color = NexoraMuted, fontSize = 12.sp)
+                games.take(5).forEach { game ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(NexoraPanelLight, RoundedCornerShape(12.dp))
+                            .clickable(onClick = onOpenLibrary)
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(NexoraBackground, RoundedCornerShape(9.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("G", color = NexoraPurple, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            game.name.substringBeforeLast('.'),
+                            color = NexoraText,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = 11.dp).weight(1f),
+                            maxLines = 1
+                        )
+                        Text("›", color = NexoraMuted, fontSize = 22.sp)
+                    }
+                }
+                if (games.size > 5) {
+                    Text(
+                        "+ ${games.size - 5} outros jogos",
+                        color = NexoraMuted,
+                        fontSize = 11.sp,
+                        modifier = Modifier.clickable(onClick = onOpenLibrary)
+                    )
+                }
+            }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1047,21 +1171,6 @@ private fun HomeScreen(onImportGame: () -> Unit, onOpenLibrary: () -> Unit) {
                 onClick = onOpenLibrary
             )
         }
-    }
-}
-
-@Composable
-private fun QuickAction(modifier: Modifier, symbol: String, title: String, onClick: () -> Unit) {
-    Column(
-        modifier = modifier
-            .background(NexoraPanel, RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 16.dp, horizontal = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(symbol, color = NexoraPurple, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(6.dp))
-        Text(title, color = NexoraText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
