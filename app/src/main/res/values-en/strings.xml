@@ -36,7 +36,7 @@
     <string name="about_description">The beginning of your handheld game universe.</string>
     <string name="technical_status">NATIVE ENGINE STATUS</string>
     <string name="native_bridge_unavailable">The native bridge could not be loaded.</string>
-    <string name="native_core_ready">mGBA 0.10.5 linked; GBA, GB, and GBC support initialized.</string>
+    <string name="native_core_ready">mGBA 0.10.5 linked; GBA, GB, and GBC configured.</string>
     <string name="native_core_init_failed">The mGBA core was found but could not initialize.</string>
     <string name="native_core_create_failed">An mGBA core could not be created.</string>
     <string name="nav_home">Home</string>
