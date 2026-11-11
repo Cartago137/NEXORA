@@ -252,7 +252,7 @@ class MainActivity : ComponentActivity() {
                                 } else {
                                     (uri.lastPathSegment ?: "Game ROM") to 0L
                                 }
-                            } ?: ((uri.lastPathSegment ?: "GBA game") to 0L)
+                            } ?: ((uri.lastPathSegment ?: "Game ROM") to 0L)
 
                             val extension = displayName.first
                                 .substringAfterLast('.', "")
@@ -513,7 +513,7 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
     val frameBitmap = remember(gameName) {
         Bitmap.createBitmap(videoWidth, videoHeight, Bitmap.Config.ARGB_8888)
     }
-    val frameImage = remember { frameBitmap.asImageBitmap() }
+    val frameImage = remember(gameName, frameBitmap) { frameBitmap.asImageBitmap() }
     var frameReady by remember { mutableStateOf(false) }
     var frameError by remember { mutableStateOf(false) }
     var frameVersion by remember { mutableIntStateOf(0) }
@@ -992,7 +992,7 @@ private fun GameLibraryRow(
             contentAlignment = Alignment.Center
         ) {
             val systemLabel = when (game.name.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
-                "gb", "gbc" -> "GB/C"
+                "gb", "gbc" -> "GB/GBC"
                 else -> "GBA"
             }
             Text(systemLabel, color = NexoraPurple, fontSize = 10.sp, fontWeight = FontWeight.Black)
