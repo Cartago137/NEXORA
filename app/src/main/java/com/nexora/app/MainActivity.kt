@@ -1175,6 +1175,21 @@ private fun HomeScreen(
 }
 
 @Composable
+private fun QuickAction(modifier: Modifier, symbol: String, title: String, onClick: () -> Unit) {
+    Column(
+        modifier = modifier
+            .background(NexoraPanel, RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 16.dp, horizontal = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(symbol, color = NexoraPurple, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(6.dp))
+        Text(title, color = NexoraText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
 private fun LibraryScreen(
     games: List<GameEntry>,
     message: String?,
