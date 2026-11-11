@@ -952,30 +952,6 @@ private fun GbaPortraitControlDeck(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun GbaActionCluster() {
-    Column(
-        modifier = Modifier
-            .background(NexoraPanel, RoundedCornerShape(22.dp))
-            .padding(horizontal = 8.dp, vertical = 9.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            GbaControl("L", 1 shl 9, compact = true)
-            GbaControl("R", 1 shl 8, compact = true)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            GbaControl("B", 1 shl 1, controlSize = 56)
-            GbaControl("A", 1 shl 0, controlSize = 56)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            GbaControl("SELECT", 1 shl 2, compact = true)
-            GbaControl("START", 1 shl 3, compact = true)
-        }
-    }
-}
-
-@Composable
 private fun GbaControl(
     label: String,
     keyMask: Int,
