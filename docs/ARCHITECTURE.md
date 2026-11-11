@@ -19,7 +19,7 @@ The APK metadata identifies source revision `17bcb65bad01e23790605ef4ec32fbdb173
 ```text
 Presentation (Kotlin / Compose)
   ├── Home and featured game
-  ├── Library with All games + GBA / GB / GBC categories
+  ├── Unified game library grid with a console filter (All / GBA / GB / GBC)
   ├── Folders, search and history
   ├── Emulator screen and virtual controls
   └── Settings, themes and localization
@@ -50,7 +50,7 @@ The JNI bridge should remain narrow. Kotlin UI code must not depend directly on 
 
 ### Library system categories
 
-The library should provide a combined **All games** view and distinct **GBA**, **GB**, and **GBC** categories. Each imported ROM should have one canonical library entry and a detected system identifier, preferably obtained from the cartridge header through the emulator/core detection path. Category views are filters over the same collection: changing category must not duplicate entries, move save files, or break folder membership, favorites, pinned state, search, multi-selection, or play history. Unknown or unsupported files should remain clearly identified rather than being silently assigned to the wrong console.
+The library should display all imported GBA, GB, and GBC ROMs together in one unified grid by default. A **Console filter** button lets the user choose **All consoles**, **GBA**, **GB**, or **GBC**; the selected filter only changes the visible results. Each imported ROM must have one canonical library entry and a detected system identifier, preferably obtained from the cartridge header through the emulator/core detection path. Filtering must not duplicate entries, move save files, or break folder membership, favorites, pinned state, search, multi-selection, or play history. Unknown or unsupported files should remain clearly identified rather than being silently assigned to the wrong console.
 
 ## 4. Emulator core contract
 
