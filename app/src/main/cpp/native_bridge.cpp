@@ -164,9 +164,12 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
     mCoreConfigLoadDefaults(&core->config, &options);
     mCoreLoadForeignConfig(core, &core->config);
     core->setVideoBuffer(core, gVideoBuffer.data(), kGbaWidth);
-    // Keep mGBA's normal audio queue size; an oversized queue adds latency
-    // without improving the steady frame cadence on Android.
-    core->setAudioBufferSize(core, 2048);
+    // Fast Forward can generate up to three frames of audio before the
+    // Android output worker gets scheduled. mGBA stops adding samples when
+    // this queue reaches its configured limit, so the normal 2048-frame
+    // buffer can drop audio during accelerated batches. Use the GBA core's
+    // supported maximum (8192 frames) to provide safe headroom at 3x.
+    core->setAudioBufferSize(core, 8192);
     logInfo("ROM load stage 6: video buffer configured.");
 
     logInfo("ROM load stage 7: passing ROM to mGBA.");
