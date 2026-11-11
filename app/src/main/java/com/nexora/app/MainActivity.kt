@@ -5,8 +5,10 @@ import android.graphics.Bitmap
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.media.PlaybackParams
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.view.View
@@ -509,6 +511,8 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
     var frameReady by remember { mutableStateOf(false) }
     var frameError by remember { mutableStateOf(false) }
     var frameVersion by remember { mutableIntStateOf(0) }
+    var speedMultiplier by remember { mutableFloatStateOf(1f) }
+    val currentSpeed = rememberUpdatedState(speedMultiplier)
 
     LaunchedEffect(gameName, isAppInForeground) {
         if (!isAppInForeground) {
@@ -566,8 +570,35 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
         // blocking the Compose/UI thread or slowing down video frame pacing.
         audioJob = if (createdAudioTrack != null) {
             launch(Dispatchers.IO) {
-                val audioSamples = ShortArray(4_096)
+                // 4096 stereo frames cover a complete 3x presentation batch in one JNI read.
+                val audioSamples = ShortArray(8_192)
+                var appliedSpeed = 1f
                 while (isActive) {
+                    val requestedSpeed = currentSpeed.value
+                    if (requestedSpeed != appliedSpeed) {
+                        val applied = runCatching {
+                            // Match speed and pitch so fast-forward has the familiar
+                            // higher-pitched sound without a separate pitch-preserving
+                            // time-stretch stage on the audio thread.
+                            createdAudioTrack.setPlaybackParams(
+                                PlaybackParams()
+                                    .setSpeed(requestedSpeed)
+                                    .setPitch(requestedSpeed)
+                            )
+                        }.isSuccess
+                        if (applied) {
+                            appliedSpeed = requestedSpeed
+                        } else {
+                            Log.w("NEXORA_AUDIO", "Fast Forward audio speed $requestedSpeed rejected; returning to 1x")
+                            speedMultiplier = 1f
+                            runCatching {
+                                createdAudioTrack.setPlaybackParams(
+                                    PlaybackParams().setSpeed(1f).setPitch(1f)
+                                )
+                            }
+                            appliedSpeed = 1f
+                        }
+                    }
                     val sampleFrames = runCatching {
                         NativeBridge.nativeReadAudio(audioSamples)
                     }.getOrDefault(0)
@@ -591,7 +622,7 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                             offset += written
                         }
                     } else {
-                        delay(4)
+                        delay(1)
                     }
                 }
             }
@@ -602,19 +633,40 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
             // The GBA runs at 16,777,216 / 280,896 Hz (about 59.7275 FPS).
             // Matching the hardware cadence prevents gradual audio/video drift.
             val targetFrameNanos = 16_742_706L
+            // Pace against an absolute monotonic deadline rather than adding a
+            // fresh relative delay after each frame. A late frame resets the
+            // deadline instead of trying to "catch up" by running frames faster.
+            var nextFrameDeadlineNanos = System.nanoTime()
+            var frameAccumulator = 0f
+            var previousFrameStartNanos = 0L
+            var measuredFrames = 0
+            var totalFrameWorkNanos = 0L
+            var totalFrameIntervalNanos = 0L
+            var missedFrameDeadlines = 0
 
             while (isActive) {
                 val frameStartNanos = System.nanoTime()
+                val framesToRun = run {
+                    frameAccumulator += currentSpeed.value
+                    val count = frameAccumulator.toInt().coerceIn(1, 3)
+                    frameAccumulator -= count
+                    count
+                }
                 val rendered = withContext(Dispatchers.Default) {
                     runCatching {
-                        val success = NativeBridge.nativeRunFrame(pixelBuffer)
+                        var success = true
+                        repeat(framesToRun) {
+                            if (success) success = NativeBridge.nativeRunFrame(pixelBuffer)
+                        }
                         if (success) {
-                            // Keep pixel conversion/copying off the UI thread.
+                            // At accelerated speeds, render only the newest frame.
+                            // Intermediate emulated frames still execute and generate audio.
                             frameBitmap.setPixels(pixelBuffer, 0, 240, 0, 0, 240, 160)
                         }
                         success
                     }.getOrDefault(false)
                 }
+                val frameFinishedNanos = System.nanoTime()
 
                 if (!rendered) {
                     frameError = true
@@ -626,11 +678,41 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                 // bitmap to be painted again even though its object identity is stable.
                 frameVersion++
 
-                val remainingNanos = targetFrameNanos - (System.nanoTime() - frameStartNanos)
+                measuredFrames++
+                totalFrameWorkNanos += frameFinishedNanos - frameStartNanos
+                if (previousFrameStartNanos != 0L) {
+                    totalFrameIntervalNanos += frameStartNanos - previousFrameStartNanos
+                }
+                previousFrameStartNanos = frameStartNanos
+
+                nextFrameDeadlineNanos += targetFrameNanos
+                val remainingNanos = nextFrameDeadlineNanos - frameFinishedNanos
                 if (remainingNanos > 0L) {
-                    delay((remainingNanos / 1_000_000L).coerceAtLeast(1L))
+                    // delay() accepts whole milliseconds; retain the absolute
+                    // deadline so its rounding does not accumulate frame drift.
+                    delay(((remainingNanos + 999_999L) / 1_000_000L).coerceAtLeast(1L))
                 } else {
+                    missedFrameDeadlines++
+                    nextFrameDeadlineNanos = frameFinishedNanos
                     yield()
+                }
+
+                if (measuredFrames == 300) {
+                    if (BuildConfig.DEBUG) {
+                        val averageWorkMs = totalFrameWorkNanos / 300_000_000.0
+                        val averageIntervalMs = totalFrameIntervalNanos / 299_000_000.0
+                        Log.i(
+                            "NEXORA_PERF",
+                            "frames=300 avg_work_ms=$averageWorkMs " +
+                                "avg_interval_ms=$averageIntervalMs " +
+                                "missed_deadlines=$missedFrameDeadlines " +
+                                "audio_underruns=${audioTrack?.underrunCount ?: -1}"
+                        )
+                    }
+                    measuredFrames = 0
+                    totalFrameWorkNanos = 0L
+                    totalFrameIntervalNanos = 0L
+                    missedFrameDeadlines = 0
                 }
             }
         } finally {
@@ -658,59 +740,73 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
         val isLandscape = maxWidth > maxHeight
 
         if (isLandscape) {
-            // Keep the game image centered, with controls on both sides.
+            // Landscape follows the approved handheld arrangement:
+            // L at the upper-left, R at the upper-right, the D-pad stays
+            // on the left, A/B stay on the right, and SELECT/START sit
+            // centered below the game image.
             Row(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(
-                    modifier = Modifier.weight(0.19f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                Box(
+                    modifier = Modifier.width(160.dp).fillMaxSize()
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        GbaControl("↑", 1 shl 6)
-                        Row {
-                            GbaControl("←", 1 shl 5)
-                            GbaControl("↓", 1 shl 7)
-                            GbaControl("→", 1 shl 4)
-                        }
+                    Box(Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 2.dp)) {
+                        GbaControl("L", 1 shl 9, compact = true)
                     }
-                    Row {
+                    Box(Modifier.align(Alignment.CenterStart)) {
+                        GbaDPad()
+                    }
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        GameFrame(frameError, frameReady, frameVersion, frameImage)
+                        FastForwardControl(
+                            speedMultiplier = speedMultiplier,
+                            onSpeedChange = { speedMultiplier = it },
+                            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         GbaControl("SELECT", 1 shl 2, compact = true)
+                        Spacer(Modifier.width(18.dp))
                         GbaControl("START", 1 shl 3, compact = true)
                     }
                 }
 
                 Box(
-                    modifier = Modifier.weight(0.62f).fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.width(160.dp).fillMaxSize()
                 ) {
-                    GameFrame(frameError, frameReady, frameVersion, frameImage)
-                }
-
-                Column(
-                    modifier = Modifier.weight(0.19f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GbaControl("B", 1 shl 1)
-                        GbaControl("A", 1 shl 0)
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GbaControl("L", 1 shl 9, compact = true)
+                    Box(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 2.dp)) {
                         GbaControl("R", 1 shl 8, compact = true)
+                    }
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        GbaControl("B", 1 shl 1, controlSize = 56)
+                        GbaControl("A", 1 shl 0, controlSize = 56)
                     }
                 }
             }
         } else {
-            // Portrait: game first, controls below; no title or exit toolbar.
+            // Portrait: reserve a dedicated, balanced control area below the game.
             Column(
-                modifier = Modifier.fillMaxSize().padding(10.dp),
-                verticalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
@@ -718,37 +814,39 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                     contentAlignment = Alignment.Center
                 ) {
                     GameFrame(frameError, frameReady, frameVersion, frameImage)
+                    FastForwardControl(
+                        speedMultiplier = speedMultiplier,
+                        onSpeedChange = { speedMultiplier = it },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+                    )
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        GbaControl("↑", 1 shl 6)
-                        Row {
-                            GbaControl("←", 1 shl 5)
-                            GbaControl("↓", 1 shl 7)
-                            GbaControl("→", 1 shl 4)
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GbaControl("B", 1 shl 1)
-                        GbaControl("A", 1 shl 0)
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    GbaControl("SELECT", 1 shl 2, compact = true)
-                    GbaControl("START", 1 shl 3, compact = true)
-                    GbaControl("L", 1 shl 9, compact = true)
-                    GbaControl("R", 1 shl 8, compact = true)
-                }
+                GbaPortraitControlDeck(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun FastForwardControl(
+    speedMultiplier: Float,
+    onSpeedChange: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val speedOptions = listOf(1f, 1.5f, 2f, 3f)
+    val currentIndex = speedOptions.indexOf(speedMultiplier).coerceAtLeast(0)
+    val nextSpeed = speedOptions[(currentIndex + 1) % speedOptions.size]
+    TextButton(
+        onClick = { onSpeedChange(nextSpeed) },
+        modifier = modifier
+    ) {
+        Text(
+            text = if (speedMultiplier == 1f) "1×" else "FF ${speedMultiplier}×",
+            color = NexoraText,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -788,12 +886,85 @@ private fun GameFrame(
 
 
 @Composable
-private fun GbaControl(label: String, keyMask: Int, compact: Boolean = false) {
+private fun GbaDPad() {
+    Column(
+        modifier = Modifier
+            .background(NexoraPanel, RoundedCornerShape(22.dp))
+            .padding(7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Spacer(Modifier.size(46.dp))
+            GbaControl("↑", 1 shl 6, controlSize = 46)
+            Spacer(Modifier.size(46.dp))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            GbaControl("←", 1 shl 5, controlSize = 46)
+            Box(
+                Modifier.size(46.dp).background(NexoraPanelLight, RoundedCornerShape(12.dp))
+            )
+            GbaControl("→", 1 shl 4, controlSize = 46)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Spacer(Modifier.size(46.dp))
+            GbaControl("↓", 1 shl 7, controlSize = 46)
+            Spacer(Modifier.size(46.dp))
+        }
+    }
+}
+
+@Composable
+private fun GbaPortraitControlDeck(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Shoulder buttons sit at the upper corners of the control deck.
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            GbaControl("L", 1 shl 9, compact = true)
+            GbaControl("R", 1 shl 8, compact = true)
+        }
+
+        // D-pad on the left, two large face buttons on the right.
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            GbaDPad()
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                GbaControl("B", 1 shl 1, controlSize = 58)
+                GbaControl("A", 1 shl 0, controlSize = 58)
+            }
+        }
+
+        // System buttons are centered along the lower edge, like a handheld console.
+        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            GbaControl("SELECT", 1 shl 2, compact = true)
+            GbaControl("START", 1 shl 3, compact = true)
+        }
+    }
+}
+
+@Composable
+private fun GbaControl(
+    label: String,
+    keyMask: Int,
+    compact: Boolean = false,
+    controlSize: Int = 52
+) {
     Box(
         modifier = Modifier
-            .padding(3.dp)
-            .size(width = if (compact) 58.dp else 52.dp, height = if (compact) 38.dp else 52.dp)
-            .background(NexoraPanelLight, RoundedCornerShape(14.dp))
+            .size(
+                width = if (compact) 54.dp else controlSize.dp,
+                height = if (compact) 36.dp else controlSize.dp
+            )
+            .background(NexoraPanelLight, RoundedCornerShape(if (compact) 11.dp else 16.dp))
             .pointerInput(keyMask) {
                 detectTapGestures(onPress = {
                     NativeBridge.nativeAddKeys(keyMask)
@@ -806,7 +977,12 @@ private fun GbaControl(label: String, keyMask: Int, compact: Boolean = false) {
             },
         contentAlignment = Alignment.Center
     ) {
-        Text(label, color = NexoraText, fontSize = if (compact) 9.sp else 16.sp, fontWeight = FontWeight.Bold)
+        Text(
+            label,
+            color = NexoraText,
+            fontSize = if (compact) 9.sp else 16.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
