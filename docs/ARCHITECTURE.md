@@ -2,13 +2,13 @@
 
 ## 1. Goals
 
-NEXORA is an Android-first GBA emulator with a premium interface and a modular foundation for future systems. The architecture must preserve the existing tested prototype's behavior while moving toward a reproducible source project.
+NEXORA is an Android-first handheld emulator targeting GBA, GB, and GBC in its first release, with a premium interface and a modular foundation for future systems. The architecture must preserve the existing tested prototype's behavior while moving toward a reproducible source project.
 
 ## 2. Confirmed technology direction
 
 - Android application and UI: Kotlin + Jetpack Compose.
 - Native emulation layer: C/C++ with Android NDK and CMake.
-- Initial emulator core: mGBA for Game Boy Advance.
+- Initial emulator core: mGBA for GBA, GB, and GBC.
 - App/native boundary: JNI.
 - Build source of truth: this GitHub repository, with GitHub Actions for repeatable builds.
 
@@ -35,7 +35,8 @@ Emulation abstraction
   └── Core capability reporting
 
 System modules (C/C++)
-  └── GBA adapter and mGBA integration
+  ├── GBA adapter and mGBA integration
+  └── GB/GBC adapter and mGBA integration
 
 Android platform services
   ├── File access and permissions
@@ -48,7 +49,7 @@ The JNI bridge should remain narrow. Kotlin UI code must not depend directly on 
 
 ## 4. Emulator core contract
 
-The application should communicate with an emulator through a stable contract. At minimum, it must eventually cover:
+The application should communicate with an emulator through a stable contract. The current first-release mGBA integration selects the GBA or shared GB/GBC core from the ROM header and reports the active video dimensions to the player UI. At minimum, it must eventually cover:
 
 - initialize and shut down a core;
 - load and unload a user-selected game;
