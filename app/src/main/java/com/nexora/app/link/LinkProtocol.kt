@@ -135,10 +135,9 @@ object LinkProtocol {
     }
 
     fun encode(message: Message): ByteArray {
-        val type: Int
         val payloadBytes = ByteArrayOutputStream()
-        DataOutputStream(payloadBytes).use { out ->
-            type = when (message) {
+        val type = DataOutputStream(payloadBytes).use { out ->
+            when (message) {
                 is Hello -> {
                     out.writeLong(message.sessionId.mostSignificantBits)
                     out.writeLong(message.sessionId.leastSignificantBits)
@@ -170,7 +169,7 @@ object LinkProtocol {
                     out.writeInt(message.transferId.toInt())
                     out.writeLong(message.cycle)
                     out.writeByte(message.receivedWords.size)
-                    message.receivedWords.forEach(out::writeShort)
+                    message.receivedWords.forEach { out.writeShort(it) }
                     out.writeShort(message.sioControl)
                     TYPE_SERIAL_RESULT
                 }
