@@ -50,11 +50,16 @@ This roadmap distinguishes confirmed behavior, repository work, and future goals
 ## Phase 3 — Game library
 
 - [x] Import multiple user-provided GBA files through Android's document picker (initial multi-import implementation).
+- [ ] Organize the library into console categories: **GBA**, **GB**, and **GBC**, with a clear way to switch between them and view all games.
+- [ ] Identify each game's actual system from its ROM header where possible, rather than relying only on the filename extension.
+- [ ] Show each category's games independently while preserving the existing game entries, saves, favorites, and folder membership.
 - [ ] Expand the library with custom folders, favorites, pinned items, search, and batch management.
 - [ ] Build searchable library and metadata handling.
 - [ ] Implement play history.
 - [ ] Ask before deleting an original file when removing a library entry.
 - [ ] Ensure deleting a folder does not delete its games.
+
+**Library category behavior:** GBA, GB, and GBC are separate browsing categories, not separate libraries. A combined **All games** view should remain available; switching categories must not duplicate ROM entries or alter per-game save identity.
 
 **Exit check:** library behavior is tested, including file-safety and batch-action cases.
 
