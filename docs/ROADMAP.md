@@ -6,8 +6,9 @@ This roadmap distinguishes confirmed behavior, repository work, and future goals
 
 - [x] Establish the NEXORA repository and project documentation.
 - [x] Define modular architecture principles.
-- [x] Select Android as the first platform and GBA as the first system.
-- [x] Select mGBA as the GBA core and C/C++ for native integration.
+- [x] Select Android as the first platform.
+- [x] Set GBA, GB, and GBC as first-release systems.
+- [x] Select mGBA for GBA, GB, and GBC cores and C/C++ for native integration.
 - [x] Produce a test APK containing Kotlin/Compose-related app classes and native mGBA-related code.
 - [x] Confirm on the user's device that native in-game GBA saves persist after a full app restart.
 - [x] Locate the exact source revision embedded in the APK (`17bcb65bad01e23790605ef4ec32fbdb173e637a`) in the preserved GitHub branches.
@@ -32,10 +33,11 @@ This roadmap distinguishes confirmed behavior, repository work, and future goals
 
 ## Phase 2 — Emulator stability and compatibility
 
-- [ ] Verify ROM loading and unloading.
+- [ ] Verify ROM loading and unloading for GBA, GB, and GBC.
 - [x] Restore the reusable frame buffer, frame pacing, and native color-channel conversion correction from the preserved rendering-fix branch.
 - [ ] Verify frame execution, frame dimensions, pixel format, and rendering on the target phone.
 - [ ] Confirm whether the rendering correction resolves the previously reported Pokémon FireRed white/small-screen issue.
+- [ ] Verify GB/GBC ROM detection, 160x144 output, correct aspect ratio, and input mapping.
 - [ ] Validate input mapping and virtual controls.
 - [x] Restore the Android AudioTrack pipeline and native audio-buffer handling.
 - [x] Restore per-game battery-save file loading and persistence integration.
@@ -43,16 +45,21 @@ This roadmap distinguishes confirmed behavior, repository work, and future goals
 - [ ] Revalidate audio and save persistence on the new APK.
 - [ ] Test pause/resume, app backgrounding, and process recreation.
 
-**Exit check:** multiple user-provided GBA test ROMs run reliably on real Android devices without UI freezes or corrupted saves.
+**Exit check:** user-provided GBA, GB, and GBC test ROMs run reliably on real Android devices without UI freezes or corrupted saves.
 
 ## Phase 3 — Game library
 
 - [x] Import multiple user-provided GBA files through Android's document picker (initial multi-import implementation).
+- [ ] Keep all imported ROMs together in one unified library grid; add a **Console filter** button to show **All**, **GBA**, **GB**, or **GBC** games on demand.
+- [ ] Identify each game's actual system from its ROM header where possible, rather than relying only on the filename extension.
+- [ ] Show each category's games independently while preserving the existing game entries, saves, favorites, and folder membership.
 - [ ] Expand the library with custom folders, favorites, pinned items, search, and batch management.
 - [ ] Build searchable library and metadata handling.
 - [ ] Implement play history.
 - [ ] Ask before deleting an original file when removing a library entry.
 - [ ] Ensure deleting a folder does not delete its games.
+
+**Library filter behavior:** all GBA, GB, and GBC ROMs appear mixed together in one unified grid by default. A single **Console filter** button lets the user choose **All consoles**, **GBA**, **GB**, or **GBC**. The filter changes only which cards are visible; it must not create separate libraries, duplicate entries, move save files, or alter folder membership, favorites, pinned state, search, multi-selection, or play history.
 
 **Exit check:** library behavior is tested, including file-safety and batch-action cases.
 

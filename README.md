@@ -1,8 +1,8 @@
 # NEXORA
 
-NEXORA is an Android-first Game Boy Advance emulator project with a premium console-inspired experience and a modular architecture intended to support additional systems in the future.
+NEXORA is an Android-first handheld emulator project targeting Game Boy Advance (GBA), Game Boy (GB), and Game Boy Color (GBC) in its first release, using the mGBA core with a premium console-inspired experience and a modular architecture for future systems.
 
-> **Project status:** a test APK has already been produced and tested on a physical Android device. Static inspection of that APK confirms an Android application, Kotlin/Compose-related app classes, a native NEXORA library for ARM64 and x86_64, JNI entry points, and mGBA symbols. The current GitHub repository does **not yet contain the corresponding application/native source project**. The immediate engineering task is to reconcile the tested binary with a maintainable, reproducible source tree.
+> **Project status:** a test APK has already been produced and tested on a physical Android device. Static inspection of that APK confirms an Android application, Kotlin/Compose-related app classes, a native NEXORA library for ARM64 and x86_64, JNI entry points, and mGBA symbols. The application and native source project have been restored to `main`; ongoing work is now focused on first-release system support, validation, and product features.
 
 ## Verified continuity
 
@@ -22,15 +22,15 @@ See [APK audit and source recovery](docs/APK_AUDIT_AND_SOURCE_RECOVERY.md).
 ## Product direction
 
 - **Platform:** Android first.
-- **Initial system:** Game Boy Advance (GBA), using mGBA.
+- **First-release systems:** Game Boy Advance (GBA), Game Boy (GB), and Game Boy Color (GBC), using mGBA.
 - **Application layer:** Kotlin and Jetpack Compose, as indicated by the inspected APK.
 - **Native layer:** C/C++ with Android NDK and JNI.
 - **Future growth:** modular architecture that can accommodate additional console cores without rebuilding the application from scratch.
 - **Languages:** English and Spanish.
 - **Visual identity:** dark, premium interface inspired by deep Gengar-like purples, with restrained violet and pink/red accents.
-- **Orientation-aware experience:** landscape mode evokes the Game Boy Advance; portrait mode evokes the Game Boy Advance SP.
+- **Orientation-aware experience:** the player preserves each system's native aspect ratio, while the overall landscape/portrait layouts remain responsive.
 - **Personalization:** selectable color themes and user-provided console-body skins.
-- **Game library:** searchable collection, custom folders, favorites, pinned items, multi-select actions, and play history.
+- **Game library:** one unified grid mixing GBA, GB, and GBC ROMs, with a **Console filter** button (All / GBA / GB / GBC), plus search, custom folders, favorites, pinned items, multi-select actions, and play history.
 - **Featured game presentation:** a subtle floating 3D game box, not a flat cover or cartridge.
 - **Special hardware features:** support for compatible motion/tilt sensors and rumble is a product goal that still requires implementation and per-game/device validation.
 - **Connectivity:** multiplayer/link functionality is a core product goal, including local Wi-Fi connectivity where technically and legally feasible.
@@ -47,7 +47,7 @@ See [APK audit and source recovery](docs/APK_AUDIT_AND_SOURCE_RECOVERY.md).
 
 ## Repository status
 
-The Android source project has been restored to `main` from preserved development branches in this repository. The APK's embedded Git revision identifies the exact launch-shell snapshot (`17bcb65bad01e23790605ef4ec32fbdb173e637a`). The restored mainline source uses the later CI-verified `feature/audio-saves-orientation` development line, which includes the Kotlin/Compose application, JNI/C++ bridge, pinned mGBA CMake integration, Gradle configuration, license notices, multi-ROM import, reusable video buffers, corrected native color conversion, audio, battery-save loading, and orientation handling.
+The Android source project has been restored to `main` from preserved development branches in this repository. The APK's embedded Git revision identifies the exact launch-shell snapshot (`17bcb65bad01e23790605ef4ec32fbdb173e637a`). The restored mainline source uses the later CI-verified `feature/audio-saves-orientation` development line, which includes the Kotlin/Compose application, JNI/C++ bridge, pinned mGBA CMake integration, Gradle configuration, license notices, multi-ROM import, reusable video buffers, corrected native color conversion, audio, battery-save loading, and orientation handling. GB/GBC first-release integration is being developed separately and must pass Android build and device validation before being described as released.
 
 The `feature/audio-saves-orientation` branch's debug APK build completed successfully in GitHub Actions (run 42711690785). The restored `main` branch now triggers the Android build workflow. The generated APK still requires physical-device validation before it is treated as a release candidate. A successful compile does not replace physical-device testing.
 

@@ -4,11 +4,11 @@ project(nexora_native LANGUAGES C CXX)
 
 include(FetchContent)
 
-# Build only the upstream GBA library. Keep it as a separate shared library
+# Build the upstream GBA + GB/GBC cores. Keep mGBA as a separate shared library
 # so the LGPL-licensed blip_buf component is not statically folded into NEXORA.
 set(LIBMGBA_ONLY ON CACHE BOOL "Build only the mGBA library" FORCE)
 set(M_CORE_GBA ON CACHE BOOL "Build the Game Boy Advance core" FORCE)
-set(M_CORE_GB OFF CACHE BOOL "Do not build the Game Boy core in this GBA milestone" FORCE)
+set(M_CORE_GB ON CACHE BOOL "Build the Game Boy and Game Boy Color core" FORCE)
 set(DISABLE_DEPS ON CACHE BOOL "Avoid optional desktop dependencies" FORCE)
 set(ENABLE_SCRIPTING OFF CACHE BOOL "Disable scripting for the Android core" FORCE)
 set(BUILD_STATIC OFF CACHE BOOL "Use a shared mGBA library" FORCE)

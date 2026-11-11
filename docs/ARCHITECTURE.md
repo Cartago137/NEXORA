@@ -2,13 +2,13 @@
 
 ## 1. Goals
 
-NEXORA is an Android-first GBA emulator with a premium interface and a modular foundation for future systems. The architecture must preserve the existing tested prototype's behavior while moving toward a reproducible source project.
+NEXORA is an Android-first handheld emulator targeting GBA, GB, and GBC in its first release, with a premium interface and a modular foundation for future systems. The architecture must preserve the existing tested prototype's behavior while moving toward a reproducible source project.
 
 ## 2. Confirmed technology direction
 
 - Android application and UI: Kotlin + Jetpack Compose.
 - Native emulation layer: C/C++ with Android NDK and CMake.
-- Initial emulator core: mGBA for Game Boy Advance.
+- Initial emulator core: mGBA for GBA, GB, and GBC.
 - App/native boundary: JNI.
 - Build source of truth: this GitHub repository, with GitHub Actions for repeatable builds.
 
@@ -19,7 +19,8 @@ The APK metadata identifies source revision `17bcb65bad01e23790605ef4ec32fbdb173
 ```text
 Presentation (Kotlin / Compose)
   ├── Home and featured game
-  ├── Library, folders, search and history
+  ├── Unified game library grid with a console filter (All / GBA / GB / GBC)
+  ├── Folders, search and history
   ├── Emulator screen and virtual controls
   └── Settings, themes and localization
 
@@ -35,7 +36,8 @@ Emulation abstraction
   └── Core capability reporting
 
 System modules (C/C++)
-  └── GBA adapter and mGBA integration
+  ├── GBA adapter and mGBA integration
+  └── GB/GBC adapter and mGBA integration
 
 Android platform services
   ├── File access and permissions
@@ -46,9 +48,13 @@ Android platform services
 
 The JNI bridge should remain narrow. Kotlin UI code must not depend directly on mGBA types or internal functions.
 
+### Library system categories
+
+The library should display all imported GBA, GB, and GBC ROMs together in one unified grid by default. A **Console filter** button lets the user choose **All consoles**, **GBA**, **GB**, or **GBC**; the selected filter only changes the visible results. Each imported ROM must have one canonical library entry and a detected system identifier, preferably obtained from the cartridge header through the emulator/core detection path. Filtering must not duplicate entries, move save files, or break folder membership, favorites, pinned state, search, multi-selection, or play history. Unknown or unsupported files should remain clearly identified rather than being silently assigned to the wrong console.
+
 ## 4. Emulator core contract
 
-The application should communicate with an emulator through a stable contract. At minimum, it must eventually cover:
+The application should communicate with an emulator through a stable contract. The current first-release mGBA integration selects the GBA or shared GB/GBC core from the ROM header and reports the active video dimensions to the player UI. At minimum, it must eventually cover:
 
 - initialize and shut down a core;
 - load and unload a user-selected game;
