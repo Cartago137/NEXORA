@@ -30,7 +30,7 @@ See [APK audit and source recovery](docs/APK_AUDIT_AND_SOURCE_RECOVERY.md).
 - **Visual identity:** dark, premium interface inspired by deep Gengar-like purples, with restrained violet and pink/red accents.
 - **Orientation-aware experience:** the player preserves each system's native aspect ratio, while the overall landscape/portrait layouts remain responsive.
 - **Personalization:** selectable color themes and user-provided console-body skins.
-- **Game library:** searchable collection with an **All games** view and separate **GBA**, **GB**, and **GBC** categories, plus custom folders, favorites, pinned items, multi-select actions, and play history.
+- **Game library:** one unified grid mixing GBA, GB, and GBC ROMs, with a **Console filter** button (All / GBA / GB / GBC), plus search, custom folders, favorites, pinned items, multi-select actions, and play history.
 - **Featured game presentation:** a subtle floating 3D game box, not a flat cover or cartridge.
 - **Special hardware features:** support for compatible motion/tilt sensors and rumble is a product goal that still requires implementation and per-game/device validation.
 - **Connectivity:** multiplayer/link functionality is a core product goal, including local Wi-Fi connectivity where technically and legally feasible.
