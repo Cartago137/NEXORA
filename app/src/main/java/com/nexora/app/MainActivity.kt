@@ -248,9 +248,9 @@ class MainActivity : ComponentActivity() {
                                     val size = if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) {
                                         cursor.getLong(sizeIndex)
                                     } else 0L
-                                    (name ?: uri.lastPathSegment ?: "GBA game") to size
+                                    (name ?: uri.lastPathSegment ?: "Game ROM") to size
                                 } else {
-                                    (uri.lastPathSegment ?: "GBA game") to 0L
+                                    (uri.lastPathSegment ?: "Game ROM") to 0L
                                 }
                             } ?: ((uri.lastPathSegment ?: "GBA game") to 0L)
 
@@ -259,7 +259,7 @@ class MainActivity : ComponentActivity() {
                                 .lowercase(Locale.ROOT)
 
                             when {
-                                extension !in setOf("gba", "agb", "bin") -> {
+                                extension !in setOf("gba", "agb", "bin", "gb", "gbc") -> {
                                     invalidCount++
                                     releaseDocumentAccess(uri)
                                 }
@@ -501,9 +501,17 @@ private fun NexoraApp(
 
 @Composable
 private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: () -> Unit) {
-    val pixelBuffer = remember { IntArray(240 * 160) }
-    val frameBitmap = remember {
-        Bitmap.createBitmap(240, 160, Bitmap.Config.ARGB_8888)
+    val videoWidth = remember(gameName) {
+        NativeBridge.nativeGetVideoWidth().takeIf { it > 0 } ?: 240
+    }
+    val videoHeight = remember(gameName) {
+        NativeBridge.nativeGetVideoHeight().takeIf { it > 0 } ?: 160
+    }
+    val isGbFamily = remember(gameName) { NativeBridge.nativeGetPlatform() == 1 }
+    val videoAspectRatio = videoWidth.toFloat() / videoHeight.toFloat()
+    val pixelBuffer = remember(gameName) { IntArray(videoWidth * videoHeight) }
+    val frameBitmap = remember(gameName) {
+        Bitmap.createBitmap(videoWidth, videoHeight, Bitmap.Config.ARGB_8888)
     }
     val frameImage = remember { frameBitmap.asImageBitmap() }
     var frameReady by remember { mutableStateOf(false) }
@@ -610,7 +618,9 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                         val success = NativeBridge.nativeRunFrame(pixelBuffer)
                         if (success) {
                             // Keep pixel conversion/copying off the UI thread.
-                            frameBitmap.setPixels(pixelBuffer, 0, 240, 0, 0, 240, 160)
+                            frameBitmap.setPixels(
+                                pixelBuffer, 0, videoWidth, 0, 0, videoWidth, videoHeight
+                            )
                         }
                         success
                     }.getOrDefault(false)
@@ -687,7 +697,9 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                     modifier = Modifier.weight(0.62f).fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    GameFrame(frameError, frameReady, frameVersion, frameImage)
+                    GameFrame(
+                        frameError, frameReady, frameVersion, frameImage, videoAspectRatio
+                    )
                 }
 
                 Column(
@@ -700,9 +712,11 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                         GbaControl("A", 1 shl 0)
                     }
                     Spacer(Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GbaControl("L", 1 shl 9, compact = true)
-                        GbaControl("R", 1 shl 8, compact = true)
+                    if (!isGbFamily) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            GbaControl("L", 1 shl 9, compact = true)
+                            GbaControl("R", 1 shl 8, compact = true)
+                        }
                     }
                 }
             }
@@ -717,7 +731,9 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    GameFrame(frameError, frameReady, frameVersion, frameImage)
+                    GameFrame(
+                        frameError, frameReady, frameVersion, frameImage, videoAspectRatio
+                    )
                 }
 
                 Row(
@@ -744,8 +760,10 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                 ) {
                     GbaControl("SELECT", 1 shl 2, compact = true)
                     GbaControl("START", 1 shl 3, compact = true)
-                    GbaControl("L", 1 shl 9, compact = true)
-                    GbaControl("R", 1 shl 8, compact = true)
+                    if (!isGbFamily) {
+                        GbaControl("L", 1 shl 9, compact = true)
+                        GbaControl("R", 1 shl 8, compact = true)
+                    }
                 }
             }
         }
@@ -757,7 +775,8 @@ private fun GameFrame(
     frameError: Boolean,
     frameReady: Boolean,
     frameVersion: Int,
-    frameImage: androidx.compose.ui.graphics.ImageBitmap
+    frameImage: androidx.compose.ui.graphics.ImageBitmap,
+    aspectRatio: Float
 ) {
     when {
         frameError -> Text(
@@ -769,10 +788,10 @@ private fun GameFrame(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            // Use the whole available area while preserving the GBA's native 3:2 ratio.
-            val fittedWidth = minOf(maxWidth, maxHeight * 1.5f)
+            // Preserve the active console's native aspect ratio (GBA 3:2, GB/GBC 10:9).
+            val fittedWidth = minOf(maxWidth, maxHeight * aspectRatio)
             Canvas(
-                modifier = Modifier.width(fittedWidth).aspectRatio(1.5f)
+                modifier = Modifier.width(fittedWidth).aspectRatio(aspectRatio)
             ) {
                 frameVersion.let { /* Snapshot read invalidates this draw scope. */ }
                 drawImage(
@@ -972,7 +991,11 @@ private fun GameLibraryRow(
                 .background(NexoraPanelLight, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Text("GBA", color = NexoraPurple, fontSize = 11.sp, fontWeight = FontWeight.Black)
+            val systemLabel = when (game.name.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
+                "gb", "gbc" -> "GB/C"
+                else -> "GBA"
+            }
+            Text(systemLabel, color = NexoraPurple, fontSize = 10.sp, fontWeight = FontWeight.Black)
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(game.name, color = NexoraText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
