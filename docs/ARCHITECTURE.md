@@ -19,7 +19,8 @@ The APK metadata identifies source revision `17bcb65bad01e23790605ef4ec32fbdb173
 ```text
 Presentation (Kotlin / Compose)
   ├── Home and featured game
-  ├── Library, folders, search and history
+  ├── Library with All games + GBA / GB / GBC categories
+  ├── Folders, search and history
   ├── Emulator screen and virtual controls
   └── Settings, themes and localization
 
@@ -46,6 +47,10 @@ Android platform services
 ```
 
 The JNI bridge should remain narrow. Kotlin UI code must not depend directly on mGBA types or internal functions.
+
+### Library system categories
+
+The library should provide a combined **All games** view and distinct **GBA**, **GB**, and **GBC** categories. Each imported ROM should have one canonical library entry and a detected system identifier, preferably obtained from the cartridge header through the emulator/core detection path. Category views are filters over the same collection: changing category must not duplicate entries, move save files, or break folder membership, favorites, pinned state, search, multi-selection, or play history. Unknown or unsupported files should remain clearly identified rather than being silently assigned to the wrong console.
 
 ## 4. Emulator core contract
 
