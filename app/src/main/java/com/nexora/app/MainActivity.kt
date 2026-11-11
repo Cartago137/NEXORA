@@ -570,7 +570,8 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
         // blocking the Compose/UI thread or slowing down video frame pacing.
         audioJob = if (createdAudioTrack != null) {
             launch(Dispatchers.IO) {
-                val audioSamples = ShortArray(4_096)
+                // 4096 stereo frames cover a complete 3x presentation batch in one JNI read.
+                val audioSamples = ShortArray(8_192)
                 var appliedSpeed = 1f
                 while (isActive) {
                     val requestedSpeed = currentSpeed.value
@@ -621,7 +622,7 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                             offset += written
                         }
                     } else {
-                        delay(4)
+                        delay(1)
                     }
                 }
             }
@@ -739,27 +740,67 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
         val isLandscape = maxWidth > maxHeight
 
         if (isLandscape) {
-            // Keep the directional pad independent from the action-button cluster.
+            // Landscape follows the approved handheld arrangement:
+            // L at the upper-left, R at the upper-right, the D-pad stays
+            // on the left, A/B stay on the right, and SELECT/START sit
+            // centered below the game image.
             Row(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                GbaDPad()
-
                 Box(
-                    modifier = Modifier.weight(1f).fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.width(160.dp).fillMaxSize()
                 ) {
-                    GameFrame(frameError, frameReady, frameVersion, frameImage)
-                    FastForwardControl(
-                        speedMultiplier = speedMultiplier,
-                        onSpeedChange = { speedMultiplier = it },
-                        modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
-                    )
+                    Box(Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 2.dp)) {
+                        GbaControl("L", 1 shl 9, compact = true)
+                    }
+                    Box(Modifier.align(Alignment.CenterStart)) {
+                        GbaDPad()
+                    }
                 }
 
-                GbaActionCluster()
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        GameFrame(frameError, frameReady, frameVersion, frameImage)
+                        FastForwardControl(
+                            speedMultiplier = speedMultiplier,
+                            onSpeedChange = { speedMultiplier = it },
+                            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        GbaControl("SELECT", 1 shl 2, compact = true)
+                        Spacer(Modifier.width(18.dp))
+                        GbaControl("START", 1 shl 3, compact = true)
+                    }
+                }
+
+                Box(
+                    modifier = Modifier.width(160.dp).fillMaxSize()
+                ) {
+                    Box(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 2.dp)) {
+                        GbaControl("R", 1 shl 8, compact = true)
+                    }
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        GbaControl("B", 1 shl 1, controlSize = 56)
+                        GbaControl("A", 1 shl 0, controlSize = 56)
+                    }
+                }
             }
         } else {
             // Portrait: reserve a dedicated, balanced control area below the game.
@@ -904,30 +945,6 @@ private fun GbaPortraitControlDeck(modifier: Modifier = Modifier) {
 
         // System buttons are centered along the lower edge, like a handheld console.
         Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            GbaControl("SELECT", 1 shl 2, compact = true)
-            GbaControl("START", 1 shl 3, compact = true)
-        }
-    }
-}
-
-@Composable
-private fun GbaActionCluster() {
-    Column(
-        modifier = Modifier
-            .background(NexoraPanel, RoundedCornerShape(22.dp))
-            .padding(horizontal = 8.dp, vertical = 9.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            GbaControl("L", 1 shl 9, compact = true)
-            GbaControl("R", 1 shl 8, compact = true)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            GbaControl("B", 1 shl 1, controlSize = 56)
-            GbaControl("A", 1 shl 0, controlSize = 56)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             GbaControl("SELECT", 1 shl 2, compact = true)
             GbaControl("START", 1 shl 3, compact = true)
         }
