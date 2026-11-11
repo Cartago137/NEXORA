@@ -1,8 +1,8 @@
 package com.nexora.app
 
 /**
- * JNI boundary for the GBA engine. Rendering and input stay behind this API
- * so another console core can be added without changing the Compose UI.
+ * JNI boundary for the mGBA GBA and GB/GBC engines. Rendering and input stay
+ * behind this API so console-specific details do not leak into Compose.
  */
 object NativeBridge {
     init {
@@ -19,7 +19,14 @@ object NativeBridge {
      */
     external fun nativeLoadRom(path: String): Int
 
-    /** Runs one GBA frame into a reusable 240x160 ARGB pixel buffer. */
+    /** Active frame dimensions; GB/GBC normally use 160x144, GBA uses 240x160. */
+    external fun nativeGetVideoWidth(): Int
+    external fun nativeGetVideoHeight(): Int
+
+    /** Returns 0 for GBA and 1 for the shared GB/GBC core. */
+    external fun nativeGetPlatform(): Int
+
+    /** Runs one frame into a tightly packed ARGB pixel buffer of the active dimensions. */
     external fun nativeRunFrame(output: IntArray): Boolean
 
     /** Opens or creates the per-game battery save file through mGBA. */
