@@ -229,12 +229,13 @@ JNIEXPORT jboolean JNICALL
 Java_com_nexora_app_NativeBridge_nativeRunFrame(
     JNIEnv* env, jobject /* instance */, jintArray output
 ) {
-    if (output == nullptr || env->GetArrayLength(output) < gVideoWidth * gVideoHeight) {
+    if (output == nullptr) {
         return JNI_FALSE;
     }
 
     std::lock_guard<std::mutex> lock(gCoreMutex);
-    if (gActiveCore == nullptr || !gRomLoaded) {
+    if (gActiveCore == nullptr || !gRomLoaded
+        || env->GetArrayLength(output) < gVideoWidth * gVideoHeight) {
         return JNI_FALSE;
     }
 
