@@ -472,7 +472,7 @@ Java_com_nexora_app_NativeBridge_nativeGetGameCode(
     }
     char gameCode[5] = {};
     gActiveCore->getGameCode(gActiveCore, gameCode);
-    gameCode[4] = '\\0';
+    gameCode[4] = '\0';
     return env->NewStringUTF(gameCode);
 }
 
