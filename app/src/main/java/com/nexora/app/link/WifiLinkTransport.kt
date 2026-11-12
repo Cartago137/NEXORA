@@ -134,12 +134,31 @@ class WifiLinkTransport private constructor(
                 handshakeOutput.write(LinkProtocol.encode(hello))
                 handshakeOutput.flush()
 
-                val ack = readOne(peer)
-                require(ack is LinkProtocol.HelloAck && ack.accepted) {
-                    "Peer rejected the NEXORA Link handshake"
+                val peerHello = readOne(peer)
+                if (peerHello !is LinkProtocol.Hello) {
+                    throw IllegalArgumentException("Peer did not send a Link handshake")
                 }
-                require(ack.assignedPlayerId == 1 && ack.playerCount == 2) {
-                    "Invalid peer assignment in Link handshake"
+                val rejection = when {
+                    peerHello.sessionId != sessionId -> "Room code/session does not match"
+                    peerHello.playerId != 1 || peerHello.maxPlayers != 2 ->
+                        "Invalid joining player configuration"
+                    peerHello.gameCode != gameCode || peerHello.romCrc32 != romCrc32 ->
+                        "The two devices must use the same GBA game and ROM revision"
+                    else -> null
+                }
+                if (rejection != null) {
+                    handshakeOutput.write(
+                        LinkProtocol.encode(
+                            LinkProtocol.HelloAck(
+                                accepted = false,
+                                assignedPlayerId = 1,
+                                playerCount = 2,
+                                reason = rejection
+                            )
+                        )
+                    )
+                    handshakeOutput.flush()
+                    throw IllegalArgumentException(rejection)
                 }
                 handshakeOutput.write(
                     LinkProtocol.encode(
@@ -203,10 +222,12 @@ class WifiLinkTransport private constructor(
                 val handshakeOutput = DataOutputStream(peer.getOutputStream())
                 handshakeOutput.write(
                     LinkProtocol.encode(
-                        LinkProtocol.HelloAck(
-                            accepted = true,
-                            assignedPlayerId = 1,
-                            playerCount = 2
+                        LinkProtocol.Hello(
+                            sessionId = expectedSessionId,
+                            playerId = 1,
+                            maxPlayers = 2,
+                            gameCode = gameCode,
+                            romCrc32 = romCrc32
                         )
                     )
                 )
