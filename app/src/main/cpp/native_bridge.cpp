@@ -48,12 +48,15 @@ void logInfo(const char* message) {
 }
 
 
+void detachRemoteSioDriverLocked();
+
 void unloadActiveCore() {
     if (gActiveCore == nullptr) {
         return;
     }
 
     if (gRomLoaded) {
+        detachRemoteSioDriverLocked();
         gActiveCore->unloadROM(gActiveCore);
         gRomLoaded = false;
     }
@@ -183,6 +186,7 @@ static void remoteSioEvent(struct mTiming* timing, void* context, uint32_t cycle
     if (remote->role == 0) {
         uint16_t received = 0xFFFF;
         bool completed = false;
+        bool hasResult = false;
         {
             std::unique_lock<std::mutex> lock(gLinkMutex);
             completed = gLinkCondition.wait_for(lock, kLinkTransferTimeout, [&] {
@@ -192,6 +196,7 @@ static void remoteSioEvent(struct mTiming* timing, void* context, uint32_t cycle
             if (completed && gLinkResultReady &&
                 gLinkResultTransferId == remote->currentTransferId && !gLinkFault) {
                 received = gLinkResultWord;
+                hasResult = true;
                 gLinkResultReady = false;
                 gLinkExpectedTransferId = 0;
             } else {
@@ -199,7 +204,7 @@ static void remoteSioEvent(struct mTiming* timing, void* context, uint32_t cycle
                 gLinkConnected = false;
             }
         }
-        finishRemoteTransfer(remote, remote->localWord, received, !completed || received == 0xFFFF);
+        finishRemoteTransfer(remote, remote->localWord, received, !hasResult);
         gLinkCondition.notify_all();
         return;
     }
@@ -816,6 +821,27 @@ Java_com_nexora_app_NativeBridge_nativeLinkAttach(JNIEnv*, jobject, jint role) {
     GBASIOSetDriver(&gba->sio, &gRemoteSio.driver, SIO_MULTI);
     gRemoteSio.attached = gba->sio.drivers.multiplayer == &gRemoteSio.driver;
     return gRemoteSio.attached ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_nexora_app_NativeBridge_nativeLinkDetach(JNIEnv*, jobject) {
+    {
+        std::lock_guard<std::mutex> lock(gLinkMutex);
+        gLinkConnected = false;
+        gLinkIncoming.clear();
+        gLinkOutgoing.clear();
+        gLinkResultReady = false;
+        gLinkExpectedTransferId = 0;
+    }
+    gLinkCondition.notify_all();
+    std::lock_guard<std::mutex> coreLock(gCoreMutex);
+    detachRemoteSioDriverLocked();
+    gRemoteSio.role = -1;
+    {
+        std::lock_guard<std::mutex> lock(gLinkMutex);
+        gLinkFault = false;
+    }
 }
 
 extern "C"
