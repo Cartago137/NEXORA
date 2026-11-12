@@ -6,7 +6,7 @@
 
 ## O que esta etapa entrega
 
-`WifiLinkTransport.kt` implementa o primeiro transporte direto na mesma rede Wi-Fi: um aparelho abre um socket TCP, o outro conecta usando endereço/porta e ID de sessão, e ambos validam código do jogo e CRC32 antes de aceitar a sessão. Há timeout de conexão/handshake, TCP_NODELAY, keepalive, leitura em thread dedicada, escrita sincronizada e encerramento explícito. A permissão Android `INTERNET` foi adicionada para permitir sockets locais.
+`WifiLinkTransport.kt` implementa o primeiro transporte direto na mesma rede Wi-Fi (porta TCP padrão 38271; o host aguarda um participante por até 30 segundos): um aparelho abre um socket TCP, o outro conecta usando endereço/porta e ID de sessão, e ambos validam código do jogo e CRC32 antes de aceitar a sessão. Há timeout de conexão/handshake, TCP_NODELAY, keepalive, leitura em thread dedicada, escrita sincronizada e encerramento explícito. A permissão Android `INTERNET` foi adicionada para permitir sockets locais.
 
 Os testes de transporte exercitam dois peers locais, handshake, troca de mensagens e rejeição de ROM incompatível.
 
