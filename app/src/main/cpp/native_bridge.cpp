@@ -460,6 +460,36 @@ Java_com_nexora_app_NativeBridge_nativeClearKeys(
     }
 }
 
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_nexora_app_NativeBridge_nativeGetGameCode(
+    JNIEnv* env, jobject /* instance */
+) {
+    std::lock_guard<std::mutex> lock(gCoreMutex);
+    if (gActiveCore == nullptr || !gRomLoaded || gActiveCore->getGameCode == nullptr) {
+        return env->NewStringUTF("");
+    }
+    char gameCode[5] = {};
+    gActiveCore->getGameCode(gActiveCore, gameCode);
+    gameCode[4] = '\\0';
+    return env->NewStringUTF(gameCode);
+}
+
+extern "C"
+JNIEXPORT jlong JNICALL
+Java_com_nexora_app_NativeBridge_nativeGetRomCrc32(
+    JNIEnv* /* env */, jobject /* instance */
+) {
+    std::lock_guard<std::mutex> lock(gCoreMutex);
+    if (gActiveCore == nullptr || !gRomLoaded || gActiveCore->checksum == nullptr) {
+        return 0;
+    }
+    uint32_t checksum = 0;
+    gActiveCore->checksum(gActiveCore, &checksum, mCHECKSUM_CRC32);
+    return static_cast<jlong>(checksum);
+}
+
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_nexora_app_NativeBridge_nativeUnloadRom(JNIEnv* /* env */, jobject /* instance */) {
