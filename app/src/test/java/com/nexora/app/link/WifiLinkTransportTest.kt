@@ -23,6 +23,7 @@ class WifiLinkTransportTest {
                 sessionId = sessionId
             )
         }
+        Thread.sleep(100) // Give the host worker time to bind the ephemeral test port.
 
         val client = WifiLinkTransport.join(
             hostAddress = "127.0.0.1",
@@ -70,6 +71,7 @@ class WifiLinkTransportTest {
                 sessionId = sessionId
             )
         }
+        Thread.sleep(100) // Give the host worker time to bind the ephemeral test port.
 
         val failure = runCatching {
             WifiLinkTransport.join(
