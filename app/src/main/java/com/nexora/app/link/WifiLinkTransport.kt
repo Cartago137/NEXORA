@@ -15,9 +15,9 @@ import kotlin.concurrent.thread
 /**
  * Direct local-Wi-Fi transport for a two-device GBA Link session.
  *
- * Call host() or join() from an IO thread. This class only transports framed
- * protocol messages; it does not claim to emulate GBA serial timing. The
- * native SIO adapter will consume these messages in a later integration step.
+ * Call host() or join() from an IO thread. This class transports framed
+ * protocol messages only; GBA serial timing remains the responsibility of
+ * the native SIO adapter, which is a separate integration step.
  */
 class WifiLinkTransport private constructor(
     private val socket: Socket,
@@ -36,7 +36,7 @@ class WifiLinkTransport private constructor(
     private val writeLock = Any()
     private val output = DataOutputStream(socket.getOutputStream())
 
-    /** Sends one complete protocol message as a single synchronized frame. */
+    /** Sends one complete protocol message as a synchronized frame. */
     fun send(message: LinkProtocol.Message) {
         check(!closed.get()) { "Link session is closed" }
         val frame = LinkProtocol.encode(message)
@@ -48,8 +48,8 @@ class WifiLinkTransport private constructor(
     }
 
     /**
-     * Starts the background receive loop. Callbacks run on its dedicated
-     * daemon thread and should dispatch UI work to the main thread themselves.
+     * Starts the background receive loop. Callbacks run on a dedicated daemon
+     * thread; UI callbacks must be dispatched to Android's main thread.
      */
     fun startReceiving(
         onMessage: (LinkProtocol.Message) -> Unit,
@@ -89,13 +89,12 @@ class WifiLinkTransport private constructor(
                 output.flush()
             }
         }
-        closeSocket()
+        runCatching { socket.close() }
     }
 
     private fun closeSocket() {
-        if (closed.compareAndSet(false, true) || !socket.isClosed) {
-            runCatching { socket.close() }
-        }
+        closed.set(true)
+        runCatching { socket.close() }
     }
 
     companion object {
@@ -106,7 +105,7 @@ class WifiLinkTransport private constructor(
 
         /**
          * Opens a one-peer LAN room. Returns after a compatible peer completes
-         * the protocol handshake. Run on Dispatchers.IO / a worker thread.
+         * the handshake. Run on Dispatchers.IO or another worker thread.
          */
         fun host(
             gameCode: String,
@@ -115,11 +114,12 @@ class WifiLinkTransport private constructor(
             sessionId: UUID = UUID.randomUUID()
         ): WifiLinkTransport {
             val server = ServerSocket()
+            var peer: Socket? = null
             try {
                 server.reuseAddress = true
                 server.bind(InetSocketAddress(port))
                 server.soTimeout = ACCEPT_TIMEOUT_MS
-                val peer = server.accept()
+                peer = server.accept()
                 configure(peer)
                 peer.soTimeout = HANDSHAKE_TIMEOUT_MS
 
@@ -130,9 +130,9 @@ class WifiLinkTransport private constructor(
                     gameCode = gameCode,
                     romCrc32 = romCrc32
                 )
-                val output = DataOutputStream(peer.getOutputStream())
-                output.write(LinkProtocol.encode(hello))
-                output.flush()
+                val handshakeOutput = DataOutputStream(peer.getOutputStream())
+                handshakeOutput.write(LinkProtocol.encode(hello))
+                handshakeOutput.flush()
 
                 val ack = readOne(peer)
                 require(ack is LinkProtocol.HelloAck && ack.accepted) {
@@ -147,6 +147,7 @@ class WifiLinkTransport private constructor(
                     Session(sessionId, 0, 1, gameCode, romCrc32)
                 )
             } catch (error: Throwable) {
+                runCatching { peer?.close() }
                 throw error
             } finally {
                 runCatching { server.close() }
@@ -154,9 +155,9 @@ class WifiLinkTransport private constructor(
         }
 
         /**
-         * Joins a host on the same Wi-Fi network. The expected session ID is
-         * obtained out-of-band (the future room UI will display/share it).
-         * Run on Dispatchers.IO / a worker thread.
+         * Joins a host on the same Wi-Fi network. The session ID is shared
+         * out-of-band; the future room UI will display/share it with the peer.
+         * Run on Dispatchers.IO or another worker thread.
          */
         fun join(
             hostAddress: String,
@@ -173,17 +174,24 @@ class WifiLinkTransport private constructor(
                 peer.soTimeout = HANDSHAKE_TIMEOUT_MS
 
                 val hello = readOne(peer)
-                require(hello is LinkProtocol.Hello) { "Host did not send a Link handshake" }
-                require(hello.sessionId == expectedSessionId) { "Room code/session does not match" }
-                require(hello.playerId == 0 && hello.maxPlayers == 2) {
-                    "Unsupported host player configuration"
+                if (hello !is LinkProtocol.Hello) {
+                    rejectHandshake(peer, "Host did not send a Link handshake")
+                    throw IllegalArgumentException("Host did not send a Link handshake")
                 }
-                require(hello.gameCode == gameCode && hello.romCrc32 == romCrc32) {
-                    "The two devices must use the same GBA game and ROM revision"
+                val rejection = when {
+                    hello.sessionId != expectedSessionId -> "Room code/session does not match"
+                    hello.playerId != 0 || hello.maxPlayers != 2 -> "Unsupported host player configuration"
+                    hello.gameCode != gameCode || hello.romCrc32 != romCrc32 ->
+                        "The two devices must use the same GBA game and ROM revision"
+                    else -> null
+                }
+                if (rejection != null) {
+                    rejectHandshake(peer, rejection)
+                    throw IllegalArgumentException(rejection)
                 }
 
-                val output = DataOutputStream(peer.getOutputStream())
-                output.write(
+                val handshakeOutput = DataOutputStream(peer.getOutputStream())
+                handshakeOutput.write(
                     LinkProtocol.encode(
                         LinkProtocol.HelloAck(
                             accepted = true,
@@ -192,7 +200,7 @@ class WifiLinkTransport private constructor(
                         )
                     )
                 )
-                output.flush()
+                handshakeOutput.flush()
 
                 val finalAck = readOne(peer)
                 require(finalAck is LinkProtocol.HelloAck && finalAck.accepted) {
@@ -217,6 +225,23 @@ class WifiLinkTransport private constructor(
             socket.keepAlive = true
             socket.receiveBufferSize = 64 * 1024
             socket.sendBufferSize = 64 * 1024
+        }
+
+        private fun rejectHandshake(socket: Socket, reason: String) {
+            runCatching {
+                val output = DataOutputStream(socket.getOutputStream())
+                output.write(
+                    LinkProtocol.encode(
+                        LinkProtocol.HelloAck(
+                            accepted = false,
+                            assignedPlayerId = 1,
+                            playerCount = 2,
+                            reason = reason
+                        )
+                    )
+                )
+                output.flush()
+            }
         }
 
         private fun readOne(socket: Socket): LinkProtocol.Message {
