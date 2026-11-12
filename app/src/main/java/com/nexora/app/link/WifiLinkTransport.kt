@@ -17,9 +17,9 @@ import kotlin.concurrent.thread
 /**
  * Direct local-Wi-Fi transport for a two-device GBA Link session.
  *
- * Call host() or join() from an IO thread. This class transports framed
- * protocol messages only; GBA serial timing remains the responsibility of
- * the native SIO adapter, which is a separate integration step.
+ * Call host() or join() from an IO thread. This class handles room discovery,
+ * compatibility handshake and framed TCP messages. Native mGBA SIO timing is
+ * handled by NativeBridge; this transport never runs emulation callbacks.
  */
 class WifiLinkTransport private constructor(
     private val socket: Socket,
@@ -216,8 +216,8 @@ class WifiLinkTransport private constructor(
         }
 
         /**
-         * Joins a host on the same Wi-Fi network. The session ID is shared
-         * out-of-band; the future room UI will display/share it with the peer.
+         * Joins a host on the same Wi-Fi network. The session ID is derived
+         * from the four-digit room code displayed by the host.
          * Run on Dispatchers.IO or another worker thread.
          */
         fun join(
