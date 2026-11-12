@@ -4,7 +4,9 @@ import java.io.Closeable
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.EOFException
+import java.net.Inet4Address
 import java.net.InetSocketAddress
+import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.ArrayDeque
@@ -99,9 +101,37 @@ class WifiLinkTransport private constructor(
 
     companion object {
         const val DEFAULT_PORT = 38_271
+
+        /** Maps the four-digit local room code to the same session ID on both phones. */
+        fun roomSessionId(roomCode: String): UUID {
+            require(roomCode.matches(Regex("[0-9]{4}"))) {
+                "Room code must contain exactly four digits"
+            }
+            return UUID.nameUUIDFromBytes(
+                "NEXORA-GBA-LINK:$roomCode".toByteArray(Charsets.US_ASCII)
+            )
+        }
+
+        /** Returns the device's preferred private IPv4 address for a LAN room. */
+        fun localIpv4Address(): String {
+            val candidates = NetworkInterface.getNetworkInterfaces()
+                ?.toList()
+                ?.filter { it.isUp && !it.isLoopback }
+                ?.flatMap { network ->
+                    network.inetAddresses.toList()
+                        .filterIsInstance<Inet4Address>()
+                        .filter { it.isSiteLocalAddress && !it.isLoopbackAddress }
+                        .map { network.name.lowercase() to it.hostAddress }
+                }
+                .orEmpty()
+            return candidates.firstOrNull { it.first.startsWith("wlan") }?.second
+                ?: candidates.firstOrNull { it.first.startsWith("ap") }?.second
+                ?: candidates.firstOrNull()?.second
+                ?: "IP indisponível"
+        }
         private const val CONNECT_TIMEOUT_MS = 8_000
         private const val HANDSHAKE_TIMEOUT_MS = 12_000
-        private const val ACCEPT_TIMEOUT_MS = 30_000
+        private const val ACCEPT_TIMEOUT_MS = 120_000
 
         /**
          * Opens a one-peer LAN room. Returns after a compatible peer completes
@@ -111,13 +141,15 @@ class WifiLinkTransport private constructor(
             gameCode: String,
             romCrc32: Long,
             port: Int = DEFAULT_PORT,
-            sessionId: UUID = UUID.randomUUID()
+            sessionId: UUID = UUID.randomUUID(),
+            onListening: ((String) -> Unit)? = null
         ): WifiLinkTransport {
             val server = ServerSocket()
             var peer: Socket? = null
             try {
                 server.reuseAddress = true
                 server.bind(InetSocketAddress(port))
+                runCatching { onListening?.invoke(localIpv4Address()) }
                 server.soTimeout = ACCEPT_TIMEOUT_MS
                 peer = server.accept()
                 configure(peer)
