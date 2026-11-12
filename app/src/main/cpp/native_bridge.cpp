@@ -123,6 +123,7 @@ bool gLinkConnected = false;
 bool gLinkFault = false;
 bool gLinkResultReady = false;
 uint64_t gLinkResultTransferId = 0;
+uint64_t gLinkExpectedTransferId = 0;
 uint16_t gLinkResultWord = 0xFFFF;
 
 constexpr size_t kLinkQueueLimit = 32;
@@ -137,6 +138,9 @@ static bool queueLinkOutgoing(const RemoteLinkPacket& packet) {
         return false;
     }
     gLinkOutgoing.push_back(packet);
+    if (packet.kind == RemotePacketKind::SerialTransfer) {
+        gLinkExpectedTransferId = packet.transferId;
+    }
     gLinkCondition.notify_all();
     return true;
 }
@@ -189,6 +193,7 @@ static void remoteSioEvent(struct mTiming* timing, void* context, uint32_t cycle
                 gLinkResultTransferId == remote->currentTransferId && !gLinkFault) {
                 received = gLinkResultWord;
                 gLinkResultReady = false;
+                gLinkExpectedTransferId = 0;
             } else {
                 gLinkFault = true;
                 gLinkConnected = false;
@@ -230,12 +235,14 @@ static void remoteSioDeinit(GBASIODriver* driver) {
     remote->transferActive = false;
 }
 
+static uint16_t remoteSioWriteRegister(GBASIODriver* driver, uint32_t address, uint16_t value);
+
 static bool remoteSioLoad(GBASIODriver* driver) {
     auto* remote = reinterpret_cast<RemoteSioDriver*>(driver);
     if (!driver->p || remote->role < 0 || remote->role > 1) return false;
     remote->loaded = true;
     remote->transferActive = false;
-    driver->writeRegister = nullptr; // Replaced below after the callback declaration.
+    driver->writeRegister = remoteSioWriteRegister;
     GBASIO* sio = driver->p;
     setRemoteSioStatus(sio, remote->role, false, false);
     if (remote->role == 1) sio->rcnt |= 4;
@@ -793,6 +800,7 @@ Java_com_nexora_app_NativeBridge_nativeLinkAttach(JNIEnv*, jobject, jint role) {
         gLinkOutgoing.clear();
         gLinkResultReady = false;
         gLinkResultTransferId = 0;
+        gLinkExpectedTransferId = 0;
         gLinkResultWord = 0xFFFF;
     }
 
@@ -878,8 +886,7 @@ Java_com_nexora_app_NativeBridge_nativeLinkReceiveSerialResult(
     }
     std::lock_guard<std::mutex> lock(gLinkMutex);
     if (!gLinkConnected || gLinkFault || gRemoteSio.role != 0 ||
-        !gRemoteSio.transferActive ||
-        gRemoteSio.currentTransferId != static_cast<uint64_t>(transferId)) {
+        gLinkExpectedTransferId != static_cast<uint64_t>(transferId)) {
         return JNI_FALSE;
     }
     gLinkResultTransferId = static_cast<uint64_t>(transferId);
