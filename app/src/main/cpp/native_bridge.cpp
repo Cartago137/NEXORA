@@ -169,7 +169,6 @@ static void finishRemoteTransfer(RemoteSioDriver* remote, uint16_t player0Word,
     gba->memory.io[REG_SIOMULTI1 >> 1] = player1Word;
     gba->memory.io[REG_SIOMULTI2 >> 1] = 0xFFFF;
     gba->memory.io[REG_SIOMULTI3 >> 1] = 0xFFFF;
-    sio->rcnt |= 1;
     setRemoteSioStatus(sio, remote->role, false, failed);
     if (sio->siocnt & (1u << 14)) {
         GBARaiseIRQ(gba, GBA_IRQ_SIO, 0);
@@ -250,8 +249,6 @@ static bool remoteSioLoad(GBASIODriver* driver) {
     driver->writeRegister = remoteSioWriteRegister;
     GBASIO* sio = driver->p;
     setRemoteSioStatus(sio, remote->role, false, false);
-    if (remote->role == 1) sio->rcnt |= 4;
-    else sio->rcnt &= static_cast<uint16_t>(~4u);
     return true;
 }
 
@@ -354,7 +351,6 @@ static void processRemoteIncomingTransfers() {
     gRemoteSio.currentBaud = packet.baudCode;
     gRemoteSio.remoteWord = packet.dataOut;
     gRemoteSio.transferActive = true;
-    gba->sio.rcnt &= static_cast<uint16_t>(~1u);
     setRemoteSioStatus(&gba->sio, 1, true, false);
     const int32_t cycles = GBASIOCyclesPerTransfer[packet.baudCode][1];
     mTimingDeschedule(&gba->timing, &gRemoteSio.event);
