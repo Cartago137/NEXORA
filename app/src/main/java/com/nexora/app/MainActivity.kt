@@ -45,6 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -574,7 +575,10 @@ private fun NexoraApp(
                     PlayerScreen(
                         gameName = activeGameName!!,
                         isAppInForeground = isAppInForeground,
-                        onOpenLink = { showLinkDialog = true },
+                        onOpenLink = {
+                            hostIp = WifiLinkTransport.localIpv4Address()
+                            showLinkDialog = true
+                        },
                         onExit = {
                             disconnectLink()
                             onExitGame()
@@ -629,20 +633,57 @@ private fun NexoraApp(
                                         ) { Text("Criar sala") }
                                         if (roomCode != null) {
                                             Text("Código da sala: ${roomCode}", color = NexoraPink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                                            Text("IP do anfitrião: $hostIp:${WifiLinkTransport.DEFAULT_PORT}", color = NexoraText, fontSize = 12.sp)
+                                            Text(
+                                                "IP DO ANFITRIÃO",
+                                                color = NexoraMuted,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold
+)
+                                            Text(
+                                                "$hostIp:${WifiLinkTransport.DEFAULT_PORT}",
+                                                color = NexoraText,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(NexoraPanelLight, RoundedCornerShape(12.dp))
+                                                    .padding(horizontal = 12.dp, vertical = 11.dp)
+                                            )
                                             Text("O outro jogador deve informar esse IP e o código.", color = NexoraMuted, fontSize = 11.sp)
                                         }
                                         TextField(
                                             value = joinIp,
                                             onValueChange = { joinIp = it },
                                             label = { Text("IP do anfitrião") },
-                                            singleLine = true
+                                            singleLine = true,
+                                            colors = TextFieldDefaults.colors(
+                                                focusedTextColor = NexoraText,
+                                                unfocusedTextColor = NexoraText,
+                                                focusedContainerColor = NexoraPanelLight,
+                                                unfocusedContainerColor = NexoraPanelLight,
+                                                focusedLabelColor = NexoraPurple,
+                                                unfocusedLabelColor = NexoraMuted,
+                                                cursorColor = NexoraPurple,
+                                                focusedIndicatorColor = NexoraPurple,
+                                                unfocusedIndicatorColor = NexoraMuted
+                                            )
                                         )
                                         TextField(
                                             value = joinCode,
                                             onValueChange = { joinCode = it.filter(Char::isDigit).take(4) },
                                             label = { Text("Código de 4 dígitos") },
-                                            singleLine = true
+                                            singleLine = true,
+                                            colors = TextFieldDefaults.colors(
+                                                focusedTextColor = NexoraText,
+                                                unfocusedTextColor = NexoraText,
+                                                focusedContainerColor = NexoraPanelLight,
+                                                unfocusedContainerColor = NexoraPanelLight,
+                                                focusedLabelColor = NexoraPurple,
+                                                unfocusedLabelColor = NexoraMuted,
+                                                cursorColor = NexoraPurple,
+                                                focusedIndicatorColor = NexoraPurple,
+                                                unfocusedIndicatorColor = NexoraMuted
+                                            )
                                         )
                                         Button(
                                             onClick = {
@@ -682,7 +723,10 @@ private fun NexoraApp(
                                 TextButton(onClick = { showLinkDialog = false }, enabled = !linkBusy) {
                                     Text("Fechar", color = NexoraText)
                                 }
-                            }
+                            },
+                            containerColor = NexoraPanel,
+                            titleContentColor = NexoraText,
+                            textContentColor = NexoraText
                         )
                     }
                 } else when (selectedTab) {
