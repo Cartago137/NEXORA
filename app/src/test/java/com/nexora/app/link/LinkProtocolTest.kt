@@ -1,11 +1,32 @@
 package com.nexora.app.link
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.UUID
 
 class LinkProtocolTest {
+    @Test
+    fun roomCodeCreatesTheSameSessionForHostAndJoiner() {
+        val hostSession = WifiLinkTransport.roomSessionId("4827")
+        val joinSession = WifiLinkTransport.roomSessionId("4827")
+
+        assertEquals(hostSession, joinSession)
+        assertNotEquals(hostSession, WifiLinkTransport.roomSessionId("4828"))
+    }
+
+    @Test
+    fun roomCodeMustContainExactlyFourDigits() {
+        assertThrows(IllegalArgumentException::class.java) {
+            WifiLinkTransport.roomSessionId("123")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            WifiLinkTransport.roomSessionId("12A4")
+        }
+    }
+
     @Test
     fun helloRoundTrips() {
         val message = LinkProtocol.Hello(
