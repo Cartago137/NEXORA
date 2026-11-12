@@ -44,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +66,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import com.nexora.app.link.LinkProtocol
+import com.nexora.app.link.WifiLinkTransport
+import java.security.SecureRandom
 
 private val NexoraBackground = Color(0xFF100B18)
 private val NexoraPanel = Color(0xFF1D1428)
@@ -367,6 +371,168 @@ private fun NexoraApp(
     var activeGameName by remember { mutableStateOf<String?>(null) }
     var gamePendingRemoval by remember { mutableStateOf<GameEntry?>(null) }
     var removalFailed by remember { mutableStateOf(false) }
+    var showLinkDialog by remember { mutableStateOf(false) }
+    var linkTransport by remember { mutableStateOf<WifiLinkTransport?>(null) }
+    var linkMessage by remember { mutableStateOf<String?>(null) }
+    var linkBusy by remember { mutableStateOf(false) }
+    var roomCode by remember { mutableStateOf<String?>(null) }
+    var hostIp by remember { mutableStateOf(WifiLinkTransport.localIpv4Address()) }
+    var joinIp by remember { mutableStateOf("") }
+    var joinCode by remember { mutableStateOf("") }
+    val linkScope = rememberCoroutineScope()
+    val roomCodeRandom = remember { SecureRandom() }
+
+    fun disconnectLink() {
+        val active = linkTransport
+        NativeBridge.nativeLinkSetConnected(false)
+        if (active != null) {
+            runCatching { active.send(LinkProtocol.Goodbye("Disconnected by player")) }
+            active.close()
+        }
+        linkTransport = null
+        linkBusy = false
+        linkScope.launch(Dispatchers.IO) {
+            runCatching { NativeBridge.nativeLinkDetach() }
+        }
+        linkMessage = "Conexão encerrada."
+    }
+
+    fun installLinkTransport(transport: WifiLinkTransport) {
+        NativeBridge.nativeLinkSetConnected(true)
+        if (!NativeBridge.nativeLinkAttach(transport.session.localPlayerId)) {
+            NativeBridge.nativeLinkSetConnected(false)
+            transport.close()
+            linkBusy = false
+            linkMessage = "Não foi possível ativar o cabo Link no núcleo GBA."
+            return
+        }
+
+        linkTransport = transport
+        linkBusy = false
+        linkMessage = "Conectado. Entre no Cable Club dentro do jogo para iniciar a troca."
+        transport.startReceiving(
+            onMessage = { message ->
+                when (message) {
+                    is LinkProtocol.SerialTransfer -> {
+                        val accepted = message.mode == LinkProtocol.SerialMode.MULTIPLAYER &&
+                            message.bitWidth == 16 &&
+                            NativeBridge.nativeLinkReceiveSerialTransfer(
+                                message.transferId,
+                                message.cycle,
+                                message.baudCode,
+                                message.dataOut and 0xFFFF,
+                                message.sioControl,
+                                message.rcnt
+                            )
+                        if (!accepted) {
+                            NativeBridge.nativeLinkSetConnected(false)
+                            linkScope.launch {
+                                linkMessage = "Transferência GBA rejeitada ou fora de sequência."
+                            }
+                        }
+                    }
+                    is LinkProtocol.SerialResult -> {
+                        val localWord = message.receivedWords.getOrNull(1)
+                            ?: message.receivedWords.firstOrNull()
+                            ?: 0xFFFF
+                        NativeBridge.nativeLinkReceiveSerialResult(
+                            message.transferId,
+                            message.cycle,
+                            localWord,
+                            message.sioControl,
+                            0
+                        )
+                    }
+                    is LinkProtocol.Ping -> runCatching {
+                        transport.send(LinkProtocol.Pong(message.nonce))
+                    }
+                    is LinkProtocol.Goodbye -> NativeBridge.nativeLinkSetConnected(false)
+                    is LinkProtocol.ProtocolError -> {
+                        NativeBridge.nativeLinkSetConnected(false)
+                        linkScope.launch {
+                            linkMessage = "O outro aparelho encerrou a conexão: ${message.message}"
+                        }
+                    }
+                    else -> Unit
+                }
+            },
+            onDisconnected = { error ->
+                NativeBridge.nativeLinkSetConnected(false)
+                linkScope.launch(Dispatchers.IO) {
+                    runCatching { NativeBridge.nativeLinkDetach() }
+                }
+                linkScope.launch {
+                    if (linkTransport === transport) linkTransport = null
+                    linkBusy = false
+                    linkMessage = error?.message?.let { "Conexão perdida: $it" }
+                        ?: "O outro aparelho encerrou a conexão."
+                }
+            }
+        )
+    }
+
+    LaunchedEffect(linkTransport) {
+        val active = linkTransport ?: return@LaunchedEffect
+        while (isActive && linkTransport === active) {
+            if (NativeBridge.nativeLinkStatus() != 1) {
+                NativeBridge.nativeLinkSetConnected(false)
+                active.close()
+                withContext(Dispatchers.IO) {
+                    runCatching { NativeBridge.nativeLinkDetach() }
+                }
+                if (linkTransport === active) linkTransport = null
+                linkBusy = false
+                linkMessage = "A sessão Link foi interrompida."
+                break
+            }
+
+            val packet = NativeBridge.nativeLinkTakeOutgoing()
+            if (packet == null) {
+                delay(2)
+                continue
+            }
+            if (packet.size != 7) {
+                linkMessage = "O núcleo gerou um evento Link inválido."
+                disconnectLink()
+                break
+            }
+            val message = when (packet[0].toInt()) {
+                1 -> LinkProtocol.SerialTransfer(
+                    transferId = packet[1],
+                    cycle = packet[2],
+                    mode = LinkProtocol.SerialMode.MULTIPLAYER,
+                    baudCode = packet[3].toInt(),
+                    bitWidth = 16,
+                    dataOut = packet[4].toInt() and 0xFFFF,
+                    sioControl = packet[5].toInt() and 0xFFFF,
+                    rcnt = packet[6].toInt() and 0xFFFF
+                )
+                2 -> LinkProtocol.SerialResult(
+                    transferId = packet[1],
+                    cycle = packet[2],
+                    receivedWords = listOf(0xFFFF, packet[4].toInt() and 0xFFFF),
+                    sioControl = packet[5].toInt() and 0xFFFF
+                )
+                else -> {
+                    linkMessage = "O núcleo gerou um tipo de evento Link desconhecido."
+                    disconnectLink()
+                    break
+                }
+            }
+            try {
+                withContext(Dispatchers.IO) { active.send(message) }
+            } catch (error: Throwable) {
+                NativeBridge.nativeLinkSetConnected(false)
+                active.close()
+                withContext(Dispatchers.IO) {
+                    runCatching { NativeBridge.nativeLinkDetach() }
+                }
+                if (linkTransport === active) linkTransport = null
+                linkMessage = "Falha ao enviar dados Link: ${error.message ?: "erro de rede"}"
+                break
+            }
+        }
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = NexoraBackground) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -407,11 +573,117 @@ private fun NexoraApp(
                     PlayerScreen(
                         gameName = activeGameName!!,
                         isAppInForeground = isAppInForeground,
+                        onOpenLink = { showLinkDialog = true },
                         onExit = {
+                            disconnectLink()
                             onExitGame()
                             activeGameName = null
                         }
                     )
+                    if (showLinkDialog) {
+                        val gameCode = NativeBridge.nativeGetGameCode()
+                        val romCrc32 = NativeBridge.nativeGetRomCrc32()
+                        AlertDialog(
+                            onDismissRequest = { if (!linkBusy) showLinkDialog = false },
+                            title = { Text("GBA Link Cable", color = NexoraText) },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    if (linkTransport != null) {
+                                        Text("Sala conectada", color = NexoraPurple, fontWeight = FontWeight.Bold)
+                                        Text("Jogador ${linkTransport!!.session.localPlayerId + 1} conectado ao outro aparelho.", color = NexoraText)
+                                        Text("Abra o Centro Pokémon e fale com a enfermeira no segundo andar para entrar no Cable Club.", color = NexoraMuted, fontSize = 12.sp)
+                                        Button(onClick = { disconnectLink() }) { Text("Desconectar") }
+                                    } else {
+                                        Text("Os dois aparelhos precisam estar na mesma rede Wi-Fi e usar a mesma ROM.", color = NexoraMuted, fontSize = 12.sp)
+                                        Button(
+                                            onClick = {
+                                                val code = (1000 + roomCodeRandom.nextInt(9000)).toString()
+                                                roomCode = code
+                                                hostIp = WifiLinkTransport.localIpv4Address()
+                                                linkBusy = true
+                                                linkMessage = "Sala criada. Aguardando o outro aparelho..."
+                                                linkScope.launch {
+                                                    try {
+                                                        val session = withContext(Dispatchers.IO) {
+                                                            WifiLinkTransport.host(
+                                                                gameCode = gameCode,
+                                                                romCrc32 = romCrc32,
+                                                                sessionId = WifiLinkTransport.roomSessionId(code),
+                                                                onListening = { address ->
+                                                                    linkScope.launch {
+                                                                        hostIp = address
+                                                                        linkMessage = "Aguardando o outro aparelho..."
+                                                                    }
+                                                                }
+                                                            )
+                                                        }
+                                                        installLinkTransport(session)
+                                                    } catch (error: Throwable) {
+                                                        linkBusy = false
+                                                        linkMessage = "Não foi possível criar a sala: ${error.message ?: "tempo esgotado"}"
+                                                    }
+                                                }
+                                            },
+                                            enabled = !linkBusy && gameCode.length == 4 && romCrc32 != 0L
+                                        ) { Text("Criar sala") }
+                                        if (roomCode != null) {
+                                            Text("Código da sala: ${roomCode}", color = NexoraPink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                            Text("IP do anfitrião: $hostIp:${WifiLinkTransport.DEFAULT_PORT}", color = NexoraText, fontSize = 12.sp)
+                                            Text("O outro jogador deve informar esse IP e o código.", color = NexoraMuted, fontSize = 11.sp)
+                                        }
+                                        TextField(
+                                            value = joinIp,
+                                            onValueChange = { joinIp = it },
+                                            label = { Text("IP do anfitrião") },
+                                            singleLine = true
+                                        )
+                                        TextField(
+                                            value = joinCode,
+                                            onValueChange = { joinCode = it.filter(Char::isDigit).take(4) },
+                                            label = { Text("Código de 4 dígitos") },
+                                            singleLine = true
+                                        )
+                                        Button(
+                                            onClick = {
+                                                linkBusy = true
+                                                linkMessage = "Conectando à sala..."
+                                                val code = joinCode
+                                                val address = joinIp.trim()
+                                                linkScope.launch {
+                                                    try {
+                                                        val session = withContext(Dispatchers.IO) {
+                                                            WifiLinkTransport.join(
+                                                                hostAddress = address,
+                                                                expectedSessionId = WifiLinkTransport.roomSessionId(code),
+                                                                gameCode = gameCode,
+                                                                romCrc32 = romCrc32
+                                                            )
+                                                        }
+                                                        installLinkTransport(session)
+                                                    } catch (error: Throwable) {
+                                                        linkBusy = false
+                                                        linkMessage = "Não foi possível entrar na sala: ${error.message ?: "erro de rede"}"
+                                                    }
+                                                }
+                                            },
+                                            enabled = !linkBusy && joinIp.isNotBlank() &&
+                                                joinCode.length == 4 && gameCode.length == 4 &&
+                                                romCrc32 != 0L
+                                        ) { Text("Entrar na sala") }
+                                        if (linkBusy) Text("Aguardando conexão...", color = NexoraPurple, fontSize = 12.sp)
+                                    }
+                                    linkMessage?.let {
+                                        Text(it, color = if (linkTransport != null) NexoraPurple else NexoraMuted, fontSize = 12.sp)
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showLinkDialog = false }, enabled = !linkBusy) {
+                                    Text("Fechar", color = NexoraText)
+                                }
+                            }
+                        )
+                    }
                 } else when (selectedTab) {
                     NexoraTab.HOME -> HomeScreen(
                         games = games,
@@ -505,7 +777,7 @@ private fun NexoraApp(
 }
 
 @Composable
-private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: () -> Unit) {
+private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onOpenLink: () -> Unit, onExit: () -> Unit) {
     val pixelBuffer = remember { IntArray(240 * 160) }
     val frameBitmap = remember {
         Bitmap.createBitmap(240, 160, Bitmap.Config.ARGB_8888)
@@ -782,11 +1054,18 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                         contentAlignment = Alignment.Center
                     ) {
                         GameFrame(frameError, frameReady, frameVersion, frameImage)
-                        FastForwardControl(
-                            speedMultiplier = speedMultiplier,
-                            onSpeedChange = { speedMultiplier = it },
-                            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
-                        )
+                        Row(
+                            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = onOpenLink) {
+                                Text("LINK", color = NexoraPink, fontWeight = FontWeight.Bold)
+                            }
+                            FastForwardControl(
+                                speedMultiplier = speedMultiplier,
+                                onSpeedChange = { speedMultiplier = it }
+                            )
+                        }
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
@@ -827,11 +1106,18 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                     contentAlignment = Alignment.Center
                 ) {
                     GameFrame(frameError, frameReady, frameVersion, frameImage)
-                    FastForwardControl(
-                        speedMultiplier = speedMultiplier,
-                        onSpeedChange = { speedMultiplier = it },
-                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
-                    )
+                    Row(
+                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = onOpenLink) {
+                            Text("LINK", color = NexoraPink, fontWeight = FontWeight.Bold)
+                        }
+                        FastForwardControl(
+                            speedMultiplier = speedMultiplier,
+                            onSpeedChange = { speedMultiplier = it }
+                        )
+                    }
                 }
 
                 GbaPortraitControlDeck(
