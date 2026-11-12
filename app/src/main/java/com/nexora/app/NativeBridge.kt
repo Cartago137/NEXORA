@@ -49,6 +49,40 @@ object NativeBridge {
     /** Returns the active ROM CRC32 as an unsigned value stored in a Long, or zero when unavailable. */
     external fun nativeGetRomCrc32(): Long
 
+    /** Attaches the GBA MULTI SIO driver after the Wi-Fi handshake (0=host/P0, 1=client/P1). */
+    external fun nativeLinkAttach(role: Int): Boolean
+
+    /** Updates the transport connection state without waiting for the emulation-core lock. */
+    external fun nativeLinkSetConnected(connected: Boolean)
+
+    /** 1=connected, 0=disconnected, -1=link transfer/queue failure. */
+    external fun nativeLinkStatus(): Int
+
+    /** Queues a host-to-client GBA MULTI transfer for the native SIO driver. */
+    external fun nativeLinkReceiveSerialTransfer(
+        transferId: Long,
+        cycle: Long,
+        baudCode: Int,
+        dataOut: Int,
+        sioControl: Int,
+        rcnt: Int
+    ): Boolean
+
+    /** Supplies the client's 16-bit response to the pending host transfer. */
+    external fun nativeLinkReceiveSerialResult(
+        transferId: Long,
+        cycle: Long,
+        dataOut: Int,
+        sioControl: Int,
+        rcnt: Int
+    ): Boolean
+
+    /** Returns one outgoing serial event as [kind, id, cycle, baud, data, SIOCNT, RCNT]. */
+    external fun nativeLinkTakeOutgoing(): LongArray?
+
+    /** Detaches the native Link driver and clears session queues. */
+    external fun nativeLinkDetach()
+
     /** Stops the active session and releases the native core. */
     external fun nativeUnloadRom()
 }
