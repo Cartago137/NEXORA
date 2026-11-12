@@ -496,7 +496,7 @@ private fun NexoraApp(
                 disconnectLink()
                 break
             }
-            val message = when (packet[0].toInt()) {
+            val message: LinkProtocol.Message? = when (packet[0].toInt()) {
                 1 -> LinkProtocol.SerialTransfer(
                     transferId = packet[1],
                     cycle = packet[2],
@@ -513,11 +513,12 @@ private fun NexoraApp(
                     receivedWords = listOf(0xFFFF, packet[4].toInt() and 0xFFFF),
                     sioControl = packet[5].toInt() and 0xFFFF
                 )
-                else -> {
-                    linkMessage = "O núcleo gerou um tipo de evento Link desconhecido."
-                    disconnectLink()
-                    break
-                }
+                else -> null
+            }
+            if (message == null) {
+                linkMessage = "O núcleo gerou um tipo de evento Link desconhecido."
+                disconnectLink()
+                break
             }
             try {
                 withContext(Dispatchers.IO) { active.send(message) }
