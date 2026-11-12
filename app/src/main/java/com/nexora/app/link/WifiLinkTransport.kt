@@ -141,6 +141,16 @@ class WifiLinkTransport private constructor(
                 require(ack.assignedPlayerId == 1 && ack.playerCount == 2) {
                     "Invalid peer assignment in Link handshake"
                 }
+                handshakeOutput.write(
+                    LinkProtocol.encode(
+                        LinkProtocol.HelloAck(
+                            accepted = true,
+                            assignedPlayerId = 1,
+                            playerCount = 2
+                        )
+                    )
+                )
+                handshakeOutput.flush()
                 peer.soTimeout = 0
                 return WifiLinkTransport(
                     peer,
