@@ -5,6 +5,15 @@
 #include <mgba/core/interface.h>
 #include <mgba/core/blip_buf.h>
 #include <mgba-util/vfs.h>
+#include <mgba/gba/interface.h>
+#include <mgba/internal/gba/gba.h>
+#include <mgba/internal/gba/io.h>
+#include <mgba/internal/gba/sio.h>
+#include <mgba/core/timing.h>
+
+#include <condition_variable>
+#include <cstdint>
+#include <deque>
 
 #include <array>
 #include <algorithm>
@@ -73,6 +82,282 @@ jint toAndroidArgb(color_t pixel) {
     return static_cast<jint>(0xFF000000u | (static_cast<unsigned>(red) << 16)
         | (static_cast<unsigned>(green) << 8) | static_cast<unsigned>(blue));
 }
+
+enum class RemotePacketKind : int64_t {
+    SerialTransfer = 1,
+    SerialResult = 2
+};
+
+struct RemoteLinkPacket {
+    RemotePacketKind kind = RemotePacketKind::SerialTransfer;
+    uint64_t transferId = 0;
+    uint64_t cycle = 0;
+    int baudCode = 0;
+    uint16_t dataOut = 0;
+    uint16_t sioControl = 0;
+    uint16_t rcnt = 0;
+};
+
+struct RemoteSioDriver {
+    GBASIODriver driver{};
+    mTimingEvent event{};
+    int role = -1;
+    bool attached = false;
+    bool loaded = false;
+    bool transferActive = false;
+    uint64_t nextTransferId = 1;
+    uint64_t currentTransferId = 0;
+    uint64_t lastIncomingTransferId = 0;
+    uint64_t currentCycle = 0;
+    uint16_t localWord = 0xFFFF;
+    uint16_t remoteWord = 0xFFFF;
+    int currentBaud = 0;
+};
+
+std::mutex gLinkMutex;
+std::condition_variable gLinkCondition;
+std::deque<RemoteLinkPacket> gLinkOutgoing;
+std::deque<RemoteLinkPacket> gLinkIncoming;
+RemoteSioDriver gRemoteSio;
+bool gLinkConnected = false;
+bool gLinkFault = false;
+bool gLinkResultReady = false;
+uint64_t gLinkResultTransferId = 0;
+uint16_t gLinkResultWord = 0xFFFF;
+
+constexpr size_t kLinkQueueLimit = 32;
+constexpr auto kLinkTransferTimeout = std::chrono::milliseconds(4000);
+
+static bool queueLinkOutgoing(const RemoteLinkPacket& packet) {
+    std::lock_guard<std::mutex> lock(gLinkMutex);
+    if (!gLinkConnected || gLinkFault || gLinkOutgoing.size() >= kLinkQueueLimit) {
+        gLinkFault = true;
+        gLinkConnected = false;
+        gLinkCondition.notify_all();
+        return false;
+    }
+    gLinkOutgoing.push_back(packet);
+    gLinkCondition.notify_all();
+    return true;
+}
+
+static void setRemoteSioStatus(GBASIO* sio, int role, bool busy, bool error) {
+    uint16_t value = sio->siocnt;
+    value &= static_cast<uint16_t>(~((3u << 4) | (1u << 2) | (1u << 3) | (1u << 6) | (1u << 7)));
+    value |= static_cast<uint16_t>((role & 0x3) << 4);
+    value |= static_cast<uint16_t>(1u << 3); // The remote endpoint is present and ready.
+    if (role == 1) value |= static_cast<uint16_t>(1u << 2); // P1 is the multiplayer slave.
+    if (busy) value |= static_cast<uint16_t>(1u << 7);
+    if (error) value |= static_cast<uint16_t>(1u << 6);
+    sio->siocnt = value;
+}
+
+static void finishRemoteTransfer(RemoteSioDriver* remote, uint16_t player0Word,
+                                 uint16_t player1Word, bool failed) {
+    GBASIO* sio = remote->driver.p;
+    if (!sio || !sio->p) return;
+    GBA* gba = sio->p;
+
+    gba->memory.io[REG_SIOMULTI0 >> 1] = player0Word;
+    gba->memory.io[REG_SIOMULTI1 >> 1] = player1Word;
+    gba->memory.io[REG_SIOMULTI2 >> 1] = 0xFFFF;
+    gba->memory.io[REG_SIOMULTI3 >> 1] = 0xFFFF;
+    sio->rcnt |= 1;
+    setRemoteSioStatus(sio, remote->role, false, failed);
+    if (sio->siocnt & (1u << 14)) {
+        GBARaiseIRQ(gba, GBA_IRQ_SIO, 0);
+    }
+    remote->transferActive = false;
+}
+
+static void remoteSioEvent(struct mTiming* timing, void* context, uint32_t cyclesLate) {
+    (void) timing;
+    (void) cyclesLate;
+    auto* remote = static_cast<RemoteSioDriver*>(context);
+    if (!remote || !remote->loaded || !remote->transferActive) return;
+
+    if (remote->role == 0) {
+        uint16_t received = 0xFFFF;
+        bool completed = false;
+        {
+            std::unique_lock<std::mutex> lock(gLinkMutex);
+            completed = gLinkCondition.wait_for(lock, kLinkTransferTimeout, [&] {
+                return !gLinkConnected || gLinkFault ||
+                    (gLinkResultReady && gLinkResultTransferId == remote->currentTransferId);
+            });
+            if (completed && gLinkResultReady &&
+                gLinkResultTransferId == remote->currentTransferId && !gLinkFault) {
+                received = gLinkResultWord;
+                gLinkResultReady = false;
+            } else {
+                gLinkFault = true;
+                gLinkConnected = false;
+            }
+        }
+        finishRemoteTransfer(remote, remote->localWord, received, !completed || received == 0xFFFF);
+        gLinkCondition.notify_all();
+        return;
+    }
+
+    const uint16_t localWord =
+        remote->driver.p->p->memory.io[REG_SIOMLT_SEND >> 1];
+    finishRemoteTransfer(remote, remote->remoteWord, localWord, false);
+
+    RemoteLinkPacket response;
+    response.kind = RemotePacketKind::SerialResult;
+    response.transferId = remote->currentTransferId;
+    response.cycle = remote->currentCycle;
+    response.dataOut = localWord;
+    response.sioControl = remote->driver.p->siocnt;
+    response.rcnt = remote->driver.p->rcnt;
+    queueLinkOutgoing(response);
+}
+
+static bool remoteSioInit(GBASIODriver* driver) {
+    auto* remote = reinterpret_cast<RemoteSioDriver*>(driver);
+    remote->event.context = remote;
+    remote->event.name = "NEXORA remote GBA Link Cable";
+    remote->event.callback = remoteSioEvent;
+    remote->event.priority = 0x80;
+    remote->loaded = false;
+    remote->transferActive = false;
+    return true;
+}
+
+static void remoteSioDeinit(GBASIODriver* driver) {
+    auto* remote = reinterpret_cast<RemoteSioDriver*>(driver);
+    remote->loaded = false;
+    remote->transferActive = false;
+}
+
+static bool remoteSioLoad(GBASIODriver* driver) {
+    auto* remote = reinterpret_cast<RemoteSioDriver*>(driver);
+    if (!driver->p || remote->role < 0 || remote->role > 1) return false;
+    remote->loaded = true;
+    remote->transferActive = false;
+    driver->writeRegister = nullptr; // Replaced below after the callback declaration.
+    GBASIO* sio = driver->p;
+    setRemoteSioStatus(sio, remote->role, false, false);
+    if (remote->role == 1) sio->rcnt |= 4;
+    else sio->rcnt &= static_cast<uint16_t>(~4u);
+    return true;
+}
+
+static bool remoteSioUnload(GBASIODriver* driver) {
+    auto* remote = reinterpret_cast<RemoteSioDriver*>(driver);
+    if (driver->p && driver->p->p &&
+        mTimingIsScheduled(&driver->p->p->timing, &remote->event)) {
+        mTimingDeschedule(&driver->p->p->timing, &remote->event);
+    }
+    remote->loaded = false;
+    remote->transferActive = false;
+    gLinkCondition.notify_all();
+    return true;
+}
+
+static uint16_t remoteSioWriteRegister(GBASIODriver* driver, uint32_t address, uint16_t value) {
+    auto* remote = reinterpret_cast<RemoteSioDriver*>(driver);
+    GBASIO* sio = driver->p;
+    if (!sio || !sio->p) return value;
+
+    if (address == REG_SIOCNT) {
+        value &= 0xFF83;
+        value |= sio->siocnt & 0x007C;
+
+        if (remote->role == 0 && remote->loaded && !remote->transferActive &&
+            (value & 0x0080)) {
+            const int baud = value & 0x3;
+            const uint64_t transferId = remote->nextTransferId++;
+            const uint64_t cycle = mTimingGlobalTime(&sio->p->timing);
+            const uint16_t localWord = sio->p->memory.io[REG_SIOMLT_SEND >> 1];
+            RemoteLinkPacket request;
+            request.kind = RemotePacketKind::SerialTransfer;
+            request.transferId = transferId;
+            request.cycle = cycle;
+            request.baudCode = baud;
+            request.dataOut = localWord;
+            request.sioControl = value;
+            request.rcnt = sio->rcnt;
+
+            if (transferId == 0 || transferId > 0xFFFFFFFFULL ||
+                !queueLinkOutgoing(request)) {
+                value &= static_cast<uint16_t>(~0x0080u);
+                setRemoteSioStatus(sio, remote->role, false, true);
+                return value;
+            }
+
+            remote->currentTransferId = transferId;
+            remote->currentCycle = cycle;
+            remote->currentBaud = baud;
+            remote->localWord = localWord;
+            remote->transferActive = true;
+            sio->rcnt &= static_cast<uint16_t>(~1u);
+            setRemoteSioStatus(sio, remote->role, true, false);
+            const int32_t cycles = GBASIOCyclesPerTransfer[baud][1];
+            mTimingDeschedule(&sio->p->timing, &remote->event);
+            mTimingSchedule(&sio->p->timing, &remote->event, cycles);
+            return sio->siocnt;
+        }
+
+        // The joining endpoint is the hardware slave: it waits for the host's clock.
+        if (remote->role == 1 || remote->transferActive) {
+            value &= static_cast<uint16_t>(~0x0080u);
+        }
+        return value;
+    }
+    return value;
+}
+
+static void processRemoteIncomingTransfers() {
+    if (!gActiveCore || !gRomLoaded || !gRemoteSio.attached ||
+        gRemoteSio.role != 1 || !gRemoteSio.loaded || gRemoteSio.transferActive) {
+        return;
+    }
+    auto* gba = static_cast<GBA*>(gActiveCore->board);
+    if (!gba || gba->sio.mode != SIO_MULTI) return;
+
+    RemoteLinkPacket packet;
+    {
+        std::lock_guard<std::mutex> lock(gLinkMutex);
+        if (!gLinkConnected || gLinkFault || gLinkIncoming.empty()) return;
+        packet = gLinkIncoming.front();
+        if (packet.transferId <= gRemoteSio.lastIncomingTransferId) {
+            gLinkIncoming.pop_front();
+            return;
+        }
+        if (packet.transferId != gRemoteSio.lastIncomingTransferId + 1) {
+            gLinkFault = true;
+            gLinkConnected = false;
+            gLinkCondition.notify_all();
+            return;
+        }
+        gLinkIncoming.pop_front();
+    }
+
+    gRemoteSio.lastIncomingTransferId = packet.transferId;
+    gRemoteSio.currentTransferId = packet.transferId;
+    gRemoteSio.currentCycle = packet.cycle;
+    gRemoteSio.currentBaud = packet.baudCode;
+    gRemoteSio.remoteWord = packet.dataOut;
+    gRemoteSio.transferActive = true;
+    gba->sio.rcnt &= static_cast<uint16_t>(~1u);
+    setRemoteSioStatus(&gba->sio, 1, true, false);
+    const int32_t cycles = GBASIOCyclesPerTransfer[packet.baudCode][1];
+    mTimingDeschedule(&gba->timing, &gRemoteSio.event);
+    mTimingSchedule(&gba->timing, &gRemoteSio.event, cycles);
+}
+
+static void detachRemoteSioDriverLocked() {
+    if (!gRemoteSio.attached) return;
+    if (gActiveCore && gRomLoaded && gActiveCore->board) {
+        auto* gba = static_cast<GBA*>(gActiveCore->board);
+        GBASIOSetDriver(&gba->sio, nullptr, SIO_MULTI);
+    }
+    gRemoteSio.attached = false;
+    gRemoteSio.loaded = false;
+    gRemoteSio.transferActive = false;
+}
+
 } // namespace
 
 extern "C"
@@ -221,6 +506,8 @@ Java_com_nexora_app_NativeBridge_nativeRunFrame(
     if (gActiveCore == nullptr || !gRomLoaded) {
         return JNI_FALSE;
     }
+
+    processRemoteIncomingTransfers();
 
     if (gFrameCount == 0) {
         logInfo("Frame stage 1: entering the first mGBA runFrame call.");
@@ -488,6 +775,144 @@ Java_com_nexora_app_NativeBridge_nativeGetRomCrc32(
     uint32_t checksum = 0;
     gActiveCore->checksum(gActiveCore, &checksum, mCHECKSUM_CRC32);
     return static_cast<jlong>(checksum);
+}
+
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_nexora_app_NativeBridge_nativeLinkAttach(JNIEnv*, jobject, jint role) {
+    if (role < 0 || role > 1) return JNI_FALSE;
+    std::lock_guard<std::mutex> coreLock(gCoreMutex);
+    if (!gActiveCore || !gRomLoaded || !gActiveCore->board) return JNI_FALSE;
+
+    detachRemoteSioDriverLocked();
+    {
+        std::lock_guard<std::mutex> linkLock(gLinkMutex);
+        if (!gLinkConnected || gLinkFault) return JNI_FALSE;
+        gLinkIncoming.clear();
+        gLinkOutgoing.clear();
+        gLinkResultReady = false;
+        gLinkResultTransferId = 0;
+        gLinkResultWord = 0xFFFF;
+    }
+
+    gRemoteSio = RemoteSioDriver{};
+    gRemoteSio.role = role;
+    gRemoteSio.driver.init = remoteSioInit;
+    gRemoteSio.driver.deinit = remoteSioDeinit;
+    gRemoteSio.driver.load = remoteSioLoad;
+    gRemoteSio.driver.unload = remoteSioUnload;
+    gRemoteSio.driver.writeRegister = remoteSioWriteRegister;
+
+    auto* gba = static_cast<GBA*>(gActiveCore->board);
+    GBASIOSetDriver(&gba->sio, &gRemoteSio.driver, SIO_MULTI);
+    gRemoteSio.attached = gba->sio.drivers.multiplayer == &gRemoteSio.driver;
+    return gRemoteSio.attached ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_nexora_app_NativeBridge_nativeLinkSetConnected(JNIEnv*, jobject, jboolean connected) {
+    {
+        std::lock_guard<std::mutex> lock(gLinkMutex);
+        gLinkConnected = connected == JNI_TRUE && !gLinkFault;
+        if (!gLinkConnected) {
+            gLinkIncoming.clear();
+            gLinkOutgoing.clear();
+        }
+    }
+    gLinkCondition.notify_all();
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_nexora_app_NativeBridge_nativeLinkStatus(JNIEnv*, jobject) {
+    std::lock_guard<std::mutex> lock(gLinkMutex);
+    if (gLinkFault) return -1;
+    return gLinkConnected ? 1 : 0;
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_nexora_app_NativeBridge_nativeLinkReceiveSerialTransfer(
+    JNIEnv*, jobject, jlong transferId, jlong cycle, jint baudCode,
+    jint dataOut, jint sioControl, jint rcnt) {
+    if (transferId <= 0 || static_cast<uint64_t>(transferId) > 0xFFFFFFFFULL ||
+        cycle < 0 || baudCode < 0 || baudCode > 3 ||
+        dataOut < 0 || dataOut > 0xFFFF ||
+        sioControl < 0 || sioControl > 0xFFFF ||
+        rcnt < 0 || rcnt > 0xFFFF) {
+        return JNI_FALSE;
+    }
+    std::lock_guard<std::mutex> lock(gLinkMutex);
+    if (!gLinkConnected || gLinkFault || gRemoteSio.role != 1 ||
+        gLinkIncoming.size() >= kLinkQueueLimit) {
+        gLinkFault = true;
+        gLinkConnected = false;
+        gLinkCondition.notify_all();
+        return JNI_FALSE;
+    }
+    RemoteLinkPacket packet;
+    packet.kind = RemotePacketKind::SerialTransfer;
+    packet.transferId = static_cast<uint64_t>(transferId);
+    packet.cycle = static_cast<uint64_t>(cycle);
+    packet.baudCode = baudCode;
+    packet.dataOut = static_cast<uint16_t>(dataOut);
+    packet.sioControl = static_cast<uint16_t>(sioControl);
+    packet.rcnt = static_cast<uint16_t>(rcnt);
+    gLinkIncoming.push_back(packet);
+    gLinkCondition.notify_all();
+    return JNI_TRUE;
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_nexora_app_NativeBridge_nativeLinkReceiveSerialResult(
+    JNIEnv*, jobject, jlong transferId, jlong cycle, jint dataOut,
+    jint sioControl, jint rcnt) {
+    if (transferId <= 0 || static_cast<uint64_t>(transferId) > 0xFFFFFFFFULL ||
+        cycle < 0 || dataOut < 0 || dataOut > 0xFFFF ||
+        sioControl < 0 || sioControl > 0xFFFF ||
+        rcnt < 0 || rcnt > 0xFFFF) {
+        return JNI_FALSE;
+    }
+    std::lock_guard<std::mutex> lock(gLinkMutex);
+    if (!gLinkConnected || gLinkFault || gRemoteSio.role != 0 ||
+        !gRemoteSio.transferActive ||
+        gRemoteSio.currentTransferId != static_cast<uint64_t>(transferId)) {
+        return JNI_FALSE;
+    }
+    gLinkResultTransferId = static_cast<uint64_t>(transferId);
+    gLinkResultWord = static_cast<uint16_t>(dataOut);
+    gLinkResultReady = true;
+    gLinkCondition.notify_all();
+    return JNI_TRUE;
+}
+
+extern "C"
+JNIEXPORT jlongArray JNICALL
+Java_com_nexora_app_NativeBridge_nativeLinkTakeOutgoing(JNIEnv* env, jobject) {
+    RemoteLinkPacket packet;
+    {
+        std::lock_guard<std::mutex> lock(gLinkMutex);
+        if (gLinkOutgoing.empty()) return nullptr;
+        packet = gLinkOutgoing.front();
+        gLinkOutgoing.pop_front();
+    }
+    const jlong values[7] = {
+        static_cast<jlong>(packet.kind),
+        static_cast<jlong>(packet.transferId),
+        static_cast<jlong>(packet.cycle),
+        static_cast<jlong>(packet.baudCode),
+        static_cast<jlong>(packet.dataOut),
+        static_cast<jlong>(packet.sioControl),
+        static_cast<jlong>(packet.rcnt)
+    };
+    jlongArray result = env->NewLongArray(7);
+    if (!result) return nullptr;
+    env->SetLongArrayRegion(result, 0, 7, values);
+    if (env->ExceptionCheck()) return nullptr;
+    return result;
 }
 
 extern "C"
