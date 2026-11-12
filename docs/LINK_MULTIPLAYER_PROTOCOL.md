@@ -8,7 +8,7 @@
 
 `WifiLinkTransport.kt` implementa o primeiro transporte direto na mesma rede Wi-Fi (porta TCP padrão 38271; o host aguarda um participante por até 30 segundos): um aparelho abre um socket TCP, o outro conecta usando endereço/porta e ID de sessão, e ambos validam código do jogo e CRC32 antes de aceitar a sessão. Há timeout de conexão/handshake, TCP_NODELAY, keepalive, leitura em thread dedicada, escrita sincronizada e encerramento explícito. A permissão Android `INTERNET` foi adicionada para permitir sockets locais.
 
-Os testes de transporte exercitam dois peers locais, handshake, troca de mensagens e rejeição de ROM incompatível.
+Os testes de transporte exercitam dois peers locais, handshake, troca de mensagens e rejeição de ROM incompatível. A ponte JNI também expõe o código de jogo GBA e o CRC32 da ROM ativa para alimentar essa validação sem depender do nome do arquivo.
 
 `LinkProtocol.kt` define mensagens binárias versionadas e um decodificador incremental independente de transporte. O decodificador lida com leituras TCP fragmentadas e com vários quadros recebidos juntos, limita o tamanho dos dados e rejeita versões, tipos e comprimentos inválidos.
 
