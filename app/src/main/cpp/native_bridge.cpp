@@ -294,8 +294,9 @@ static uint16_t remoteSioWriteRegister(GBASIODriver* driver, uint32_t address, u
             if (transferId == 0 || transferId > 0xFFFFFFFFULL ||
                 !queueLinkOutgoing(request)) {
                 value &= static_cast<uint16_t>(~0x0080u);
+                sio->siocnt = value;
                 setRemoteSioStatus(sio, remote->role, false, true);
-                return value;
+                return sio->siocnt;
             }
 
             remote->currentTransferId = transferId;
@@ -303,6 +304,7 @@ static uint16_t remoteSioWriteRegister(GBASIODriver* driver, uint32_t address, u
             remote->currentBaud = baud;
             remote->localWord = localWord;
             remote->transferActive = true;
+            sio->siocnt = value;
             sio->rcnt &= static_cast<uint16_t>(~1u);
             setRemoteSioStatus(sio, remote->role, true, false);
             const int32_t cycles = GBASIOCyclesPerTransfer[baud][1];
