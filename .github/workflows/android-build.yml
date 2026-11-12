@@ -2,7 +2,7 @@ name: Android build
 
 on:
   pull_request:
-    branches: [main, recovery/stable-launch-shell]
+    branches: [main, recovery/stable-launch-shell, feature/touch-drag-home-catalog]
   push:
     branches: [main, recovery/stable-launch-shell, feature/multi-game-playback]
   workflow_dispatch:
