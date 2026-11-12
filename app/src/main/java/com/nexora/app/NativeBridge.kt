@@ -43,6 +43,12 @@ object NativeBridge {
     /** Releases only the supplied key bits. */
     external fun nativeClearKeys(keys: Int)
 
+    /** Returns the four-character GBA game code for the active ROM, or empty when no ROM is loaded. */
+    external fun nativeGetGameCode(): String
+
+    /** Returns the active ROM CRC32 as an unsigned value stored in a Long, or zero when unavailable. */
+    external fun nativeGetRomCrc32(): Long
+
     /** Stops the active session and releases the native core. */
     external fun nativeUnloadRom()
 }
