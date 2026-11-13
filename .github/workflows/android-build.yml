@@ -2,9 +2,9 @@ name: Android build
 
 on:
   pull_request:
-    branches: [main, recovery/stable-launch-shell]
+    branches: [main, recovery/stable-launch-shell, feature/restore-touch-controls]
   push:
-    branches: [main, recovery/stable-launch-shell, feature/multi-game-playback]
+    branches: [main, recovery/stable-launch-shell, feature/multi-game-playback, feature/restore-touch-controls, feature/library-folders]
   workflow_dispatch:
 
 concurrency:

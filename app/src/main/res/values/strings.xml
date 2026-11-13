@@ -70,4 +70,24 @@
     <string name="home_library_cta">BIBLIOTECA</string>
     <string name="home_add_cta">＋ ADICIONAR</string>
     <string name="home_featured_game">JOGO EM DESTAQUE</string>
+    <string name="create_folder">Criar pasta</string>
+    <string name="search_games">Pesquisar jogos</string>
+    <string name="all_games">Todos</string>
+    <string name="unfiled_games">Sem pasta</string>
+    <string name="unpin">Desafixar</string>
+    <string name="pin">Fixar</string>
+    <string name="delete_folder">Excluir pasta</string>
+    <string name="selected_games_count">%1$d jogo(s) selecionado(s)</string>
+    <string name="move_to_folder">Mover para pasta</string>
+    <string name="no_games_in_view">Nenhum jogo encontrado nesta visualização.</string>
+    <string name="folder_name">Nome da pasta</string>
+    <string name="create">Criar</string>
+    <string name="selected">Selecionado</string>
+    <string name="select">Selecionar</string>
+    <string name="select_games">Selecionar jogos</string>
+    <string name="delete_folder_question">Excluir a pasta %1$s? Os jogos continuarão na Biblioteca.</string>
+    <string name="favorite_selected">Favoritar selecionados</string>
+    <string name="pin_selected">Fixar selecionados</string>
+    <string name="remove_selected">Remover selecionados</string>
+    <string name="remove_selected_question">Remover %1$d jogo(s) da Biblioteca? Os arquivos originais continuarão no celular.</string>
 </resources>
