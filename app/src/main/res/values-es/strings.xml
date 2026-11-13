@@ -1,0 +1,17 @@
+<resources>
+    <string name="home_welcome">BIENVENIDO DE NUEVO</string>
+    <string name="home_continue">Continúa tu aventura</string>
+    <string name="home_subtitle_new">Tu universo de juegos te está esperando.</string>
+    <string name="home_featured_eyebrow">RETOMA DONDE LO DEJASTE</string>
+    <string name="home_last_game">ÚLTIMO JUEGO</string>
+    <string name="home_gba_label">GAME BOY ADVANCE</string>
+    <string name="home_next_adventure">TU PRÓXIMA AVENTURA</string>
+    <string name="home_collection_start">Tu colección comienza aquí</string>
+    <string name="home_add_game_hint">Añade un juego para empezar.</string>
+    <string name="home_add_games_cta">AÑADIR JUEGOS</string>
+    <string name="home_continue_exploring">SIGUE EXPLORANDO</string>
+    <string name="home_view_library">VER BIBLIOTECA</string>
+    <string name="home_play">JUGAR</string>
+    <string name="home_library_cta">BIBLIOTECA</string>
+    <string name="home_add_cta">＋ AÑADIR</string>
+</resources>
