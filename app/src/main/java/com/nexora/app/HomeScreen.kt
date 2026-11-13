@@ -51,6 +51,7 @@ private val HomeMuted = Color(0xFFB7AFC2)
 internal fun NexoraHomeScreen(
     games: List<GameEntry>,
     featuredGame: GameEntry?,
+    isLastPlayed: Boolean,
     onImportGame: () -> Unit,
     onOpenLibrary: () -> Unit,
     onPlayGame: (GameEntry) -> Unit
@@ -115,7 +116,7 @@ internal fun NexoraHomeScreen(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(9.dp)
                         ) {
-                            Text(stringResource(R.string.home_last_game), color = HomePink, fontSize = 9.sp,
+                            Text(stringResource(if (isLastPlayed) R.string.home_last_game else R.string.home_featured_game), color = HomePink, fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                             Text(featuredGame.name.substringBeforeLast('.'), color = HomeText,
                                 fontSize = if (wide) 23.sp else 18.sp, fontWeight = FontWeight.Bold,
