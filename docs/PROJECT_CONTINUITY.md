@@ -20,7 +20,7 @@ This document is the durable handoff point for work across ChatGPT conversations
 - PR #29 contains the restored touch-control layout and the Library folder work. It has not been merged.
 - New working branch: `feature/player-speed-and-touch-gestures`
 - New draft PR: [#30 — Add runtime emulation speed and continuous D-pad gestures](https://github.com/Cartago137/NEXORA/pull/30)
-- Implementation commit: `7432b8619f9d00f61370a622c7bedc07cc9cb8a0`
+- Implementation commits: `7432b8619f9d00f61370a622c7bedc07cc9cb8a0`, `7b2be717f3c8556b5af5515a7ed737451607cb0a`
 - CI trigger correction commit: `5e8c69e033d62b65683bf74491bc3c00803297d0`
 - New work must branch from the latest accepted development line and remain in a draft PR until reviewed and physically tested.
 - Do not merge PR #29 or the new work without the user's explicit approval.
@@ -107,8 +107,9 @@ At the end of every substantial work session:
 
 1. Implementation is now present on `feature/player-speed-and-touch-gestures`: live 1.0x/1.5x/2.0x/3.0x selector, frame pacing scaling, AudioTrack playback-rate scaling, and one continuous D-pad gesture surface.
 2. CI workflow triggers were expanded so pushes to the feature branch and pull requests targeting `feature/library-folders` run Android builds.
-3. Review compiler/build results and fix any issues before calling the implementation build-ready.
-4. Add/update unit or instrumentation tests where practical and document what cannot be tested without the physical device.
-5. Build debug and release APKs in GitHub Actions.
-6. Update this handoff file with the exact CI run, artifacts, and test status.
-7. Ask the user to test the APK on the Motorola G54; only then mark physical validation complete.
+3. Current build run: PR run `43529338911` was started against the earlier implementation commit; a fresh run for the latest head must be confirmed. The earlier duplicate run `43529324514` was cancelled by GitHub Actions concurrency.
+4. Review compiler/build results and fix any issues before calling the implementation build-ready.
+5. Add/update unit or instrumentation tests where practical and document what cannot be tested without the physical device.
+6. Build debug and release APKs in GitHub Actions.
+7. Update this handoff file with the exact CI run, artifacts, and test status.
+8. Ask the user to test the APK on the Motorola G54; only then mark physical validation complete.
