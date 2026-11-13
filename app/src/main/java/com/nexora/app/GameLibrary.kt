@@ -11,7 +11,8 @@ import org.json.JSONObject
 data class GameEntry(
     val name: String,
     val uri: String,
-    val sizeBytes: Long
+    val sizeBytes: Long,
+    val lastPlayedAt: Long = 0L
 )
 
 object GameLibraryStore {
@@ -31,7 +32,8 @@ object GameLibraryStore {
                         GameEntry(
                             name = item.getString("name"),
                             uri = item.getString("uri"),
-                            sizeBytes = item.optLong("sizeBytes", 0L)
+                            sizeBytes = item.optLong("sizeBytes", 0L),
+                            lastPlayedAt = item.optLong("lastPlayedAt", 0L)
                         )
                     )
                 }
@@ -47,6 +49,7 @@ object GameLibraryStore {
                     .put("name", game.name)
                     .put("uri", game.uri)
                     .put("sizeBytes", game.sizeBytes)
+                    .put("lastPlayedAt", game.lastPlayedAt)
             )
         }
 
