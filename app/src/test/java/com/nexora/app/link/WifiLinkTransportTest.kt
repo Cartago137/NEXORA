@@ -10,6 +10,33 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WifiLinkTransportTest {
+
+    @Test
+    fun joinAddressAcceptsTheDisplayedHostAndPort() {
+        assertEquals(
+            "192.168.0.102" to 38_271,
+            WifiLinkTransport.parseHostEndpoint("192.168.0.102:38271", 38_271)
+        )
+    }
+
+    @Test
+    fun joinAddressAcceptsHostWithoutPortAndTrimsWhitespace() {
+        assertEquals(
+            "192.168.0.102" to 38_271,
+            WifiLinkTransport.parseHostEndpoint("  192.168.0.102  ", 38_271)
+        )
+    }
+
+    @Test
+    fun joinAddressRejectsInvalidExplicitPort() {
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            WifiLinkTransport.parseHostEndpoint("192.168.0.102:abc", 38_271)
+        }
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            WifiLinkTransport.parseHostEndpoint("192.168.0.102:70000", 38_271)
+        }
+    }
+
     @Test
     fun twoLocalPeersCompleteHandshakeAndExchangeMessage() {
         val port = ServerSocket(0).use { it.localPort }
