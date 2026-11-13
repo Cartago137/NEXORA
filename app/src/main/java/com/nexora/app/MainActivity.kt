@@ -223,6 +223,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var games by remember { mutableStateOf(GameLibraryStore.load(this@MainActivity)) }
+            var folders by remember { mutableStateOf(GameLibraryStore.loadFolders(this@MainActivity)) }
             var libraryMessage by remember { mutableStateOf<String?>(null) }
             var isLoadingGame by remember { mutableStateOf(false) }
 
@@ -319,6 +320,7 @@ class MainActivity : ComponentActivity() {
                     nativeStatus = -1,
                     isAppInForeground = isAppInForeground,
                     games = games,
+                    folders = folders,
                     libraryMessage = libraryMessage,
                     isLoadingGame = isLoadingGame,
                     onImportGame = { romPicker.launch(arrayOf("*/*")) },
@@ -364,6 +366,39 @@ class MainActivity : ComponentActivity() {
                             libraryMessage = null
                         }
                         removedSuccessfully
+                    },
+                    onCreateFolder = { name ->
+                        val folder = GameFolder(
+                            id = "folder_${System.currentTimeMillis()}",
+                            name = name.trim()
+                        )
+                        folders = folders + folder
+                        GameLibraryStore.saveFolders(this@MainActivity, folders)
+                    },
+                    onDeleteFolder = { folder ->
+                        folders = folders.filterNot { it.id == folder.id }
+                        games = games.map { if (it.folderId == folder.id) it.copy(folderId = null) else it }
+                        GameLibraryStore.saveFolders(this@MainActivity, folders)
+                        GameLibraryStore.save(this@MainActivity, games)
+                    },
+                    onToggleFolderPin = { folder ->
+                        folders = folders.map {
+                            if (it.id == folder.id) it.copy(isPinned = !it.isPinned) else it
+                        }
+                        GameLibraryStore.saveFolders(this@MainActivity, folders)
+                    },
+                    onToggleGamePin = { game ->
+                        games = games.map {
+                            if (it.uri == game.uri) it.copy(isPinned = !it.isPinned) else it
+                        }
+                        GameLibraryStore.save(this@MainActivity, games)
+                    },
+                    onMoveGamesToFolder = { selected, folderId ->
+                        val selectedUris = selected.map { it.uri }.toSet()
+                        games = games.map {
+                            if (it.uri in selectedUris) it.copy(folderId = folderId) else it
+                        }
+                        GameLibraryStore.save(this@MainActivity, games)
                     }
                 )
             }
@@ -376,13 +411,19 @@ private fun NexoraApp(
     nativeStatus: Int,
     isAppInForeground: Boolean,
     games: List<GameEntry>,
+    folders: List<GameFolder>,
     libraryMessage: String?,
     isLoadingGame: Boolean,
     onImportGame: () -> Unit,
     onPlayGame: (GameEntry, (Int) -> Unit) -> Unit,
     onClearLibraryMessage: () -> Unit,
     onExitGame: () -> Unit,
-    onRemoveGame: (GameEntry, Boolean) -> Boolean
+    onRemoveGame: (GameEntry, Boolean) -> Boolean,
+    onCreateFolder: (String) -> Unit,
+    onDeleteFolder: (GameFolder) -> Unit,
+    onToggleFolderPin: (GameFolder) -> Unit,
+    onToggleGamePin: (GameEntry) -> Unit,
+    onMoveGamesToFolder: (List<GameEntry>, String?) -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(NexoraTab.HOME) }
     var activeGameName by remember { mutableStateOf<String?>(null) }
@@ -762,6 +803,7 @@ private fun NexoraApp(
                     )
                     NexoraTab.LIBRARY -> LibraryScreen(
                         games = games,
+                        folders = folders,
                         message = libraryMessage,
                         isLoadingGame = isLoadingGame,
                         onImportGame = onImportGame,
@@ -774,7 +816,12 @@ private fun NexoraApp(
                         onRemoveGame = { game ->
                             removalFailed = false
                             gamePendingRemoval = game
-                        }
+                        },
+                        onCreateFolder = onCreateFolder,
+                        onDeleteFolder = onDeleteFolder,
+                        onToggleFolderPin = onToggleFolderPin,
+                        onToggleGamePin = onToggleGamePin,
+                        onMoveGamesToFolder = onMoveGamesToFolder
                     )
                     NexoraTab.HISTORY -> HistoryScreen()
                     NexoraTab.SETTINGS -> SettingsScreen(nativeStatus)
