@@ -1712,28 +1712,65 @@ private fun QuickAction(modifier: Modifier, symbol: String, title: String, onCli
 @Composable
 private fun LibraryScreen(
     games: List<GameEntry>,
+    folders: List<GameFolder>,
     message: String?,
     isLoadingGame: Boolean,
     onImportGame: () -> Unit,
     onPlayGame: (GameEntry) -> Unit,
     onClearMessage: () -> Unit,
-    onRemoveGame: (GameEntry) -> Unit
+    onRemoveGame: (GameEntry) -> Unit,
+    onCreateFolder: (String) -> Unit,
+    onDeleteFolder: (GameFolder) -> Unit,
+    onToggleFolderPin: (GameFolder) -> Unit,
+    onToggleGamePin: (GameEntry) -> Unit,
+    onMoveGamesToFolder: (List<GameEntry>, String?) -> Unit
 ) {
+    var currentFolderId by remember { mutableStateOf<String?>(null) }
+    var selectionMode by remember { mutableStateOf(false) }
+    val selectedUris = remember { mutableStateListOf<String>() }
+    var showCreateFolder by remember { mutableStateOf(false) }
+    var folderName by remember { mutableStateOf("") }
+    var folderPendingDeletion by remember { mutableStateOf<GameFolder?>(null) }
+    var showMoveDialog by remember { mutableStateOf(false) }
+
+    val currentFolder = folders.firstOrNull { it.id == currentFolderId }
+    val visibleGames = games
+        .filter { it.folderId == currentFolderId }
+        .sortedWith(compareByDescending<GameEntry> { it.isPinned }.thenByDescending { it.lastPlayedAt }.thenBy { it.name.lowercase() })
+    val orderedFolders = folders.sortedWith(compareByDescending<GameFolder> { it.isPinned }.thenBy { it.name.lowercase() })
+    val selectedGames = games.filter { it.uri in selectedUris }
+
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.library_label), color = NexoraText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    currentFolder?.name ?: stringResource(R.string.library_label),
+                    color = NexoraText,
+                    fontSize = 25.sp,
+                    fontWeight = FontWeight.Bold
+                )
                 Text(stringResource(R.string.library_game_count, games.size), color = NexoraMuted, fontSize = 12.sp)
-                Text(stringResource(R.string.library_not_playable_yet), color = NexoraMuted, fontSize = 10.sp)
             }
-            Button(onClick = onImportGame) {
-                Text(stringResource(R.string.add_games))
+            if (!selectionMode) {
+                TextButton(onClick = { showCreateFolder = true }) {
+                    Text("＋ PASTA", color = NexoraPurple, fontWeight = FontWeight.Bold)
+                }
+                Button(onClick = onImportGame) {
+                    Text(stringResource(R.string.add_games))
+                }
+            } else {
+                TextButton(onClick = {
+                    selectionMode = false
+                    selectedUris.clear()
+                }) {
+                    Text("CANCELAR", color = NexoraPink)
+                }
             }
         }
 
@@ -1746,6 +1783,105 @@ private fun LibraryScreen(
             )
         }
 
+        if (currentFolderId == null && orderedFolders.isNotEmpty()) {
+            Text("SUAS PASTAS", color = NexoraMuted, fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                items(orderedFolders, key = { it.id }) { folder ->
+                    Column(
+                        modifier = Modifier
+                            .width(132.dp)
+                            .background(NexoraPanel, RoundedCornerShape(16.dp))
+                            .clickable { currentFolderId = folder.id }
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("▰", color = NexoraPurple, fontSize = 22.sp, modifier = Modifier.weight(1f))
+                            if (folder.isPinned) Text("📌", fontSize = 11.sp)
+                        }
+                        Text(folder.name, color = NexoraText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text("${games.count { it.folderId == folder.id }} JOGO(S)", color = NexoraMuted, fontSize = 9.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(
+                                onClick = { onToggleFolderPin(folder) },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(if (folder.isPinned) "DESFIXAR" else "FIXAR", color = NexoraPurple, fontSize = 9.sp)
+                            }
+                            TextButton(onClick = { folderPendingDeletion = folder }) {
+                                Text("×", color = NexoraPink, fontSize = 15.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (currentFolderId != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = {
+                    currentFolderId = null
+                    selectedUris.clear()
+                    selectionMode = false
+                }) {
+                    Text("‹ TODAS AS PASTAS", color = NexoraPurple)
+                }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { folderPendingDeletion = currentFolder }) {
+                    Text("EXCLUIR PASTA", color = NexoraPink, fontSize = 10.sp)
+                }
+            }
+        }
+
+        if (games.isNotEmpty() && visibleGames.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (currentFolder == null) "JOGOS SEM PASTA" else "JOGOS NA PASTA",
+                    color = NexoraMuted,
+                    fontSize = 10.sp,
+                    letterSpacing = 1.4.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                if (!selectionMode) {
+                    TextButton(onClick = { selectionMode = true }) {
+                        Text("SELECIONAR", color = NexoraPurple, fontSize = 10.sp)
+                    }
+                } else {
+                    Text("${selectedGames.size} SELECIONADO(S)", color = NexoraPurple, fontSize = 10.sp)
+                }
+            }
+        }
+
+        if (selectionMode && selectedGames.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().background(NexoraPanelLight, RoundedCornerShape(14.dp)).padding(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { showMoveDialog = true }, modifier = Modifier.weight(1f)) {
+                    Text("MOVER", color = NexoraText, fontSize = 10.sp)
+                }
+                TextButton(
+                    onClick = {
+                        val shouldPin = selectedGames.any { !it.isPinned }
+                        selectedGames.forEach { game ->
+                            if (game.isPinned != shouldPin) onToggleGamePin(game)
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("FIXAR", color = NexoraText, fontSize = 10.sp)
+                }
+                TextButton(onClick = {
+                    selectedUris.clear()
+                    selectionMode = false
+                }) {
+                    Text("OK", color = NexoraPurple)
+                }
+            }
+        }
+
         if (games.isEmpty()) {
             EmptyScreen(
                 eyebrow = stringResource(R.string.library_label),
@@ -1753,15 +1889,40 @@ private fun LibraryScreen(
                 description = stringResource(R.string.library_empty_description),
                 symbol = "▦"
             )
+        } else if (visibleGames.isEmpty()) {
+            Column(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("▰", color = NexoraPurple, fontSize = 42.sp)
+                Text(
+                    if (currentFolder == null) "Todos os jogos estão organizados em pastas." else "Esta pasta ainda está vazia.",
+                    color = NexoraMuted,
+                    fontSize = 13.sp
+                )
+                if (currentFolder != null) {
+                    TextButton(onClick = { currentFolderId = null }) {
+                        Text("VOLTAR À BIBLIOTECA", color = NexoraPurple)
+                    }
+                }
+            }
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                items(games, key = { it.uri }) { game ->
+                items(visibleGames, key = { it.uri }) { game ->
                     GameLibraryRow(
                         game = game,
                         isLoading = isLoadingGame,
+                        selectionMode = selectionMode,
+                        isSelected = game.uri in selectedUris,
+                        onSelect = {
+                            if (game.uri in selectedUris) selectedUris.remove(game.uri)
+                            else selectedUris.add(game.uri)
+                        },
+                        onTogglePin = { onToggleGamePin(game) },
                         onPlay = { onPlayGame(game) },
                         onRemove = { onRemoveGame(game) }
                     )
@@ -1769,40 +1930,161 @@ private fun LibraryScreen(
             }
         }
     }
+
+    if (showCreateFolder) {
+        AlertDialog(
+            onDismissRequest = { showCreateFolder = false; folderName = "" },
+            containerColor = NexoraPanel,
+            title = { Text("Criar pasta", color = NexoraText) },
+            text = {
+                TextField(
+                    value = folderName,
+                    onValueChange = { folderName = it.take(28) },
+                    singleLine = true,
+                    placeholder = { Text("Nome da pasta") },
+                    colors = TextFieldDefaults.colors(
+                        focusedTextColor = NexoraText,
+                        unfocusedTextColor = NexoraText,
+                        focusedContainerColor = NexoraPanelLight,
+                        unfocusedContainerColor = NexoraPanelLight
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = folderName.isNotBlank() && folders.none { it.name.equals(folderName.trim(), true) },
+                    onClick = {
+                        onCreateFolder(folderName.trim())
+                        folderName = ""
+                        showCreateFolder = false
+                    }
+                ) { Text("CRIAR", color = NexoraPurple) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateFolder = false; folderName = "" }) {
+                    Text("CANCELAR", color = NexoraMuted)
+                }
+            }
+        )
+    }
+
+    folderPendingDeletion?.let { folder ->
+        AlertDialog(
+            onDismissRequest = { folderPendingDeletion = null },
+            containerColor = NexoraPanel,
+            title = { Text("Excluir pasta?", color = NexoraText) },
+            text = {
+                Text(
+                    "A pasta \"${folder.name}\" será removida. Os jogos continuarão na Biblioteca, fora de qualquer pasta.",
+                    color = NexoraMuted
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteFolder(folder)
+                    if (currentFolderId == folder.id) currentFolderId = null
+                    folderPendingDeletion = null
+                }) { Text("EXCLUIR PASTA", color = NexoraPink) }
+            },
+            dismissButton = {
+                TextButton(onClick = { folderPendingDeletion = null }) {
+                    Text("CANCELAR", color = NexoraMuted)
+                }
+            }
+        )
+    }
+
+    if (showMoveDialog) {
+        AlertDialog(
+            onDismissRequest = { showMoveDialog = false },
+            containerColor = NexoraPanel,
+            title = { Text("Mover jogos para", color = NexoraText) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    folders.forEach { folder ->
+                        TextButton(
+                            onClick = {
+                                onMoveGamesToFolder(selectedGames, folder.id)
+                                selectedUris.clear()
+                                selectionMode = false
+                                showMoveDialog = false
+                            }
+                        ) {
+                            Text("▰  ${folder.name}", color = NexoraText)
+                        }
+                    }
+                    TextButton(
+                        onClick = {
+                            onMoveGamesToFolder(selectedGames, null)
+                            selectedUris.clear()
+                            selectionMode = false
+                            showMoveDialog = false
+                        }
+                    ) { Text("Remover da pasta", color = NexoraPurple) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMoveDialog = false }) {
+                    Text("FECHAR", color = NexoraMuted)
+                }
+            }
+        )
+    }
 }
 
 @Composable
 private fun GameLibraryRow(
     game: GameEntry,
     isLoading: Boolean,
+    selectionMode: Boolean,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+    onTogglePin: () -> Unit,
     onPlay: () -> Unit,
     onRemove: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(NexoraPanel, RoundedCornerShape(16.dp))
-            .padding(14.dp),
+            .background(if (isSelected) NexoraPanelLight else NexoraPanel, RoundedCornerShape(16.dp))
+            .clickable(enabled = selectionMode) { onSelect() }
+            .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(9.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .background(NexoraPanelLight, RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("GBA", color = NexoraPurple, fontSize = 11.sp, fontWeight = FontWeight.Black)
+        if (selectionMode) {
+            Text(if (isSelected) "☑" else "□", color = NexoraPurple, fontSize = 21.sp)
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(NexoraPanelLight, RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("GBA", color = NexoraPurple, fontSize = 11.sp, fontWeight = FontWeight.Black)
+            }
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(game.name, color = NexoraText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Text(formatFileSize(game.sizeBytes), color = NexoraMuted, fontSize = 11.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(game.name, color = NexoraText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                if (game.isPinned) Text("  📌", fontSize = 10.sp)
+            }
+            Text(formatFileSize(game.sizeBytes), color = NexoraMuted, fontSize = 10.sp)
         }
-        TextButton(onClick = onPlay, enabled = !isLoading) {
-            Text(stringResource(R.string.load_game), color = NexoraPurple)
-        }
-        TextButton(onClick = onRemove, enabled = !isLoading) {
-            Text(stringResource(R.string.remove), color = NexoraPink)
+        if (selectionMode) {
+            TextButton(onClick = onSelect) {
+                Text(if (isSelected) "OK" else "＋", color = NexoraPurple)
+            }
+        } else {
+            TextButton(onClick = onTogglePin) {
+                Text(if (game.isPinned) "📌" else "＋", color = NexoraPurple, fontSize = 12.sp)
+            }
+            TextButton(onClick = onPlay, enabled = !isLoading) {
+                Text(stringResource(R.string.load_game), color = NexoraPurple)
+            }
+            TextButton(onClick = onRemove, enabled = !isLoading) {
+                Text(stringResource(R.string.remove), color = NexoraPink)
+            }
         }
     }
 }
