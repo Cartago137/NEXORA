@@ -1,6 +1,6 @@
 # NEXORA — Project Continuity and Engineering State
 
-Last updated: 2026-11-13 (player speed and continuous D-pad implementation started)
+Last updated: 2026-11-13 (mascot branding approved for next update)
 
 This document is the durable handoff point for work across ChatGPT conversations. Update it whenever a meaningful implementation, decision, test result, or blocker changes. Do not rely on chat summaries as the only record.
 
@@ -20,6 +20,7 @@ This document is the durable handoff point for work across ChatGPT conversations
 - PR #29 contains the restored touch-control layout and the Library folder work. It has not been merged.
 - New working branch: `feature/player-speed-and-touch-gestures`
 - New draft PR: [#30 — Add runtime emulation speed and continuous D-pad gestures](https://github.com/Cartago137/NEXORA/pull/30)
+- Current PR #30 head: `0c30a5612f3455f56112acdefc19aa6d30740ddd`; PR is open and remains draft.
 - Implementation commits: `7432b8619f9d00f61370a622c7bedc07cc9cb8a0`, `7b2be717f3c8556b5af5515a7ed737451607cb0a`, `42d814b90983ed6806693844356f6913460ef35b`
 - CI trigger correction commit: `5e8c69e033d62b65683bf74491bc3c00803297d0`
 - New work must branch from the latest accepted development line and remain in a draft PR until reviewed and physically tested.
@@ -76,6 +77,20 @@ Implementation investigation:
 - A continuous gesture needs one gesture owner for the whole D-pad surface, with the active direction recalculated from the finger's current coordinates.
 - Update only the direction bits when the finger moves; preserve non-D-pad key bits already held by other controls.
 
+## Approved mascot / brand asset for the next app update
+
+The user supplied an original hand-drawn cat mascot image in the conversation on 2026-11-13 and explicitly approved using it in the next NEXORA update.
+
+- Rotate the supplied source image 90 degrees clockwise (to the right) to make the cat upright.
+- Preserve the original drawing's character and linework; do not redesign or replace it with a generic cat.
+- Prepare a clean digital asset with the paper background removed / transparent where feasible, keeping the original orange-red line color unless a carefully reviewed brand-compatible variant is needed.
+- Use the mascot as the app launcher icon, adapting/cropping safely for Android adaptive icon masks and legibility at small sizes.
+- Also use it on the splash screen and in a few restrained UI locations where it adds identity without clutter; include it in the About screen / brand attribution.
+- Keep the established dark, premium NEXORA visual identity (deep purple/graphite with restrained violet and pink-red accents). The mascot should complement, not replace, the geometric N brand mark unless the user later asks for that.
+- Treat this as approved scope for the next update, not as permission to merge any PR.
+- The original uploaded photo is currently available in the conversation attachment; it has not yet been committed as a repository asset. Before implementation, retrieve/materialize the exact attachment, rotate clockwise, clean it carefully, and commit source plus generated Android icon resources.
+- Validate launcher icon rendering on Android adaptive icon masks and splash/UI appearance; do not claim physical-device validation until tested on the user's Motorola G54.
+
 ## Validation checklist
 
 ### Build and static checks
@@ -91,6 +106,7 @@ Implementation investigation:
 - Speed: 1.0x, 1.5x, 2.0x, 3.0x; rapid switching; return to 1.0x; audio remains stable and does not accumulate delay.
 - Existing ROM loading, frame rendering, audio, in-game saves, and save persistence after fully closing/reopening the app.
 - Library folders and safe deletion behavior.
+- Mascot launcher icon, adaptive icon crop, splash screen, and restrained in-app placements.
 
 The user does not currently have a second phone for multiplayer testing. Never claim real two-device multiplayer validation without two physical devices.
 
@@ -105,11 +121,12 @@ At the end of every substantial work session:
 
 ## Next engineering steps
 
-1. Implementation is now present on `feature/player-speed-and-touch-gestures`: live 1.0x/1.5x/2.0x/3.0x selector, frame pacing scaling, AudioTrack playback-rate scaling, and one continuous D-pad gesture surface.
+1. Implementation is present on `feature/player-speed-and-touch-gestures`: live 1.0x/1.5x/2.0x/3.0x selector, frame pacing scaling, AudioTrack playback-rate scaling, and one continuous D-pad gesture surface.
 2. CI workflow triggers were expanded so pushes to the feature branch and pull requests targeting `feature/library-folders` run Android builds.
-3. Current build run: PR run `43529338911` was started against the earlier implementation commit; a fresh run for the latest head must be confirmed. The earlier duplicate run `43529324514` was cancelled by GitHub Actions concurrency.
+3. Current PR #30 head is `0c30a5612f3455f56112acdefc19aa6d30740ddd`; verify the latest GitHub Actions build status before calling this implementation build-ready.
 4. Review compiler/build results and fix any issues before calling the implementation build-ready.
 5. Add/update unit or instrumentation tests where practical and document what cannot be tested without the physical device.
 6. Build debug and release APKs in GitHub Actions.
-7. Update this handoff file with the exact CI run, artifacts, and test status.
-8. Ask the user to test the APK on the Motorola G54; only then mark physical validation complete.
+7. The next planned product update includes the approved cat mascot integration described above.
+8. Update this handoff file with the exact CI run, artifacts, and test status.
+9. Ask the user to test the APK on the Motorola G54; only then mark physical validation complete.
