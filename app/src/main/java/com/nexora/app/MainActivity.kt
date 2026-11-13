@@ -381,6 +381,7 @@ private fun NexoraApp(
     onSaveFolders: (List<GameFolder>) -> Unit,
     onUpdateGame: (GameEntry) -> Unit,
     onDeleteFolder: (GameFolder) -> Unit,
+    onRemoveSelectedGames: (List<GameEntry>) -> Unit,
     isLoadingGame: Boolean,
     onImportGame: () -> Unit,
     onPlayGame: (GameEntry, (Int) -> Unit) -> Unit,
@@ -474,6 +475,7 @@ private fun NexoraApp(
                         onSaveFolders = onSaveFolders,
                         onUpdateGame = onUpdateGame,
                         onDeleteFolder = onDeleteFolder,
+                        onRemoveSelectedGames = { selected -> selected.forEach { onRemoveGame(it, false) } },
                         message = libraryMessage,
                         isLoadingGame = isLoadingGame,
                         onImportGame = onImportGame,
@@ -1008,7 +1010,8 @@ private fun LibraryScreen(
     onRemoveGame: (GameEntry) -> Unit,
     onSaveFolders: (List<GameFolder>) -> Unit,
     onUpdateGame: (GameEntry) -> Unit,
-    onDeleteFolder: (GameFolder) -> Unit
+    onDeleteFolder: (GameFolder) -> Unit,
+    onRemoveSelectedGames: (List<GameEntry>) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFolderId by remember { mutableStateOf<String?>(null) }
@@ -1017,6 +1020,7 @@ private fun LibraryScreen(
     var showCreateFolder by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
     var showMoveDialog by remember { mutableStateOf(false) }
+    var showRemoveSelectedDialog by remember { mutableStateOf(false) }
     var folderPendingDelete by remember { mutableStateOf<GameFolder?>(null) }
 
     val configuration = LocalConfiguration.current
@@ -1135,18 +1139,54 @@ private fun LibraryScreen(
                     color = NexoraText,
                     fontSize = 12.sp
                 )
-                Row {
-                    TextButton(
-                        onClick = { showMoveDialog = true },
-                        enabled = selectedGameUris.isNotEmpty()
-                    ) {
-                        Text(stringResource(R.string.move_to_folder), color = NexoraPurple)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    item {
+                        TextButton(
+                            onClick = { showMoveDialog = true },
+                            enabled = selectedGameUris.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.move_to_folder), color = NexoraPurple)
+                        }
                     }
-                    TextButton(onClick = {
-                        selectionMode = false
-                        selectedGameUris = emptySet()
-                    }) {
-                        Text(stringResource(R.string.cancel), color = NexoraMuted)
+                    item {
+                        TextButton(
+                            onClick = {
+                                val selected = games.filter { it.uri in selectedGameUris }
+                                val markFavorite = !selected.all { it.isFavorite }
+                                selected.forEach { onUpdateGame(it.copy(isFavorite = markFavorite)) }
+                            },
+                            enabled = selectedGameUris.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.favorite_selected), color = NexoraPink)
+                        }
+                    }
+                    item {
+                        TextButton(
+                            onClick = {
+                                val selected = games.filter { it.uri in selectedGameUris }
+                                val markPinned = !selected.all { it.isPinned }
+                                selected.forEach { onUpdateGame(it.copy(isPinned = markPinned)) }
+                            },
+                            enabled = selectedGameUris.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.pin_selected), color = NexoraPurple)
+                        }
+                    }
+                    item {
+                        TextButton(
+                            onClick = { showRemoveSelectedDialog = true },
+                            enabled = selectedGameUris.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.remove_selected), color = NexoraPink)
+                        }
+                    }
+                    item {
+                        TextButton(onClick = {
+                            selectionMode = false
+                            selectedGameUris = emptySet()
+                        }) {
+                            Text(stringResource(R.string.cancel), color = NexoraMuted)
+                        }
                     }
                 }
             }
@@ -1250,6 +1290,30 @@ private fun LibraryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showCreateFolder = false; newFolderName = "" }) {
+                    Text(stringResource(R.string.cancel), color = NexoraMuted)
+                }
+            }
+        )
+    }
+
+    if (showRemoveSelectedDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoveSelectedDialog = false },
+            containerColor = NexoraPanel,
+            title = { Text(stringResource(R.string.remove_selected), color = NexoraText) },
+            text = { Text(stringResource(R.string.remove_selected_question, selectedGameUris.size), color = NexoraMuted) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRemoveSelectedGames(games.filter { it.uri in selectedGameUris })
+                    selectedGameUris = emptySet()
+                    selectionMode = false
+                    showRemoveSelectedDialog = false
+                }) {
+                    Text(stringResource(R.string.remove_only), color = NexoraPink)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveSelectedDialog = false }) {
                     Text(stringResource(R.string.cancel), color = NexoraMuted)
                 }
             }
