@@ -227,11 +227,11 @@ class WifiLinkTransport private constructor(
             romCrc32: Long,
             port: Int = DEFAULT_PORT
         ): WifiLinkTransport {
-            require(hostAddress.isNotBlank()) { "Host address is required" }
+            val (host, targetPort) = parseHostEndpoint(hostAddress, port)
             val peer = Socket()
             try {
                 configure(peer)
-                peer.connect(InetSocketAddress(hostAddress, port), CONNECT_TIMEOUT_MS)
+                peer.connect(InetSocketAddress(host, targetPort), CONNECT_TIMEOUT_MS)
                 peer.soTimeout = HANDSHAKE_TIMEOUT_MS
 
                 val hello = readOne(peer)
@@ -281,6 +281,46 @@ class WifiLinkTransport private constructor(
                 runCatching { peer.close() }
                 throw error
             }
+        }
+
+
+        /**
+         * Accepts either a plain host/IP (using the default port) or host:port.
+         * This matches the exact endpoint shown to the host player in the LINK dialog.
+         */
+        internal fun parseHostEndpoint(address: String, defaultPort: Int): Pair<String, Int> {
+            val value = address.trim()
+            require(value.isNotEmpty()) { "Host address is required" }
+            require(defaultPort in 1..65_535) { "Invalid Link port" }
+
+            if (value.startsWith("[")) {
+                val closingBracket = value.indexOf(']')
+                require(closingBracket > 1) { "Invalid bracketed host address" }
+                val host = value.substring(1, closingBracket)
+                val suffix = value.substring(closingBracket + 1)
+                val targetPort = when {
+                    suffix.isEmpty() -> defaultPort
+                    suffix.startsWith(":") -> suffix.substring(1).toIntOrNull()
+                        ?: throw IllegalArgumentException("Invalid Link port")
+                    else -> throw IllegalArgumentException("Invalid host address")
+                }
+                require(targetPort in 1..65_535) { "Invalid Link port" }
+                return host to targetPort
+            }
+
+            val firstColon = value.indexOf(':')
+            val lastColon = value.lastIndexOf(':')
+            if (firstColon >= 0 && firstColon == lastColon) {
+                val host = value.substring(0, firstColon)
+                val targetPort = value.substring(firstColon + 1).toIntOrNull()
+                    ?: throw IllegalArgumentException("Invalid Link port")
+                require(host.isNotBlank()) { "Host address is required" }
+                require(targetPort in 1..65_535) { "Invalid Link port" }
+                return host to targetPort
+            }
+
+            // Multiple colons indicate an unbracketed IPv6 literal; keep the default port.
+            return value to defaultPort
         }
 
         private fun configure(socket: Socket) {
