@@ -381,7 +381,6 @@ private fun NexoraApp(
     onSaveFolders: (List<GameFolder>) -> Unit,
     onUpdateGame: (GameEntry) -> Unit,
     onDeleteFolder: (GameFolder) -> Unit,
-    onRemoveSelectedGames: (List<GameEntry>) -> Unit,
     isLoadingGame: Boolean,
     onImportGame: () -> Unit,
     onPlayGame: (GameEntry, (Int) -> Unit) -> Unit,
