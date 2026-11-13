@@ -86,4 +86,8 @@
     <string name="select">Selecionar</string>
     <string name="select_games">Selecionar jogos</string>
     <string name="delete_folder_question">Excluir a pasta %1$s? Os jogos continuarão na Biblioteca.</string>
+    <string name="favorite_selected">Favoritar selecionados</string>
+    <string name="pin_selected">Fixar selecionados</string>
+    <string name="remove_selected">Remover selecionados</string>
+    <string name="remove_selected_question">Remover %1$d jogo(s) da Biblioteca? Os arquivos originais continuarão no celular.</string>
 </resources>
