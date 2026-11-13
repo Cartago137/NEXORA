@@ -59,6 +59,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -1017,6 +1019,7 @@ private fun LibraryScreen(
     var showMoveDialog by remember { mutableStateOf(false) }
     var folderPendingDelete by remember { mutableStateOf<GameFolder?>(null) }
 
+    val configuration = LocalConfiguration.current
     val sortedFolders = folders.sortedByDescending { it.isPinned }
     val visibleGames = games
         .filter { game ->
@@ -1180,7 +1183,7 @@ private fun LibraryScreen(
             }
         } else {
             BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                val columns = if (maxWidth > maxHeight) 5 else 3
+                val columns = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 5 else 3
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(columns),
                     modifier = Modifier.fillMaxSize(),
