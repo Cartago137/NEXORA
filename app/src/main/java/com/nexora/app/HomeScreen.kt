@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 
 private val HomePanel = Color(0xFF1D1428)
 private val HomePanelLight = Color(0xFF30213F)
@@ -62,15 +63,15 @@ internal fun NexoraHomeScreen(
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text("BEM-VINDO DE VOLTA", color = HomePink, fontSize = 10.sp,
+            Text(stringResource(R.string.home_welcome), color = HomePink, fontSize = 10.sp,
                 fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp)
-            Text("Continue sua aventura", color = HomeText, fontSize = 25.sp,
+            Text(stringResource(R.string.home_continue), color = HomeText, fontSize = 25.sp,
                 fontWeight = FontWeight.Bold)
-            Text("Seu universo de jogos está esperando.", color = HomeMuted, fontSize = 13.sp)
+            Text(stringResource(R.string.home_subtitle_new), color = HomeMuted, fontSize = 13.sp)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("CONTINUE DE ONDE PAROU", color = HomePink, fontSize = 10.sp,
+            Text(stringResource(R.string.home_featured_eyebrow), color = HomePink, fontSize = 10.sp,
                 fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
             BoxWithConstraints(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp))
@@ -106,7 +107,7 @@ internal fun NexoraHomeScreen(
                                 Text(featuredGame.name.firstOrNull()?.uppercase() ?: "N",
                                     color = HomePurple, fontSize = if (wide) 72.sp else 54.sp,
                                     fontWeight = FontWeight.Black)
-                                Text("GAME BOY ADVANCE", color = HomeMuted, fontSize = 7.sp,
+                                Text(stringResource(R.string.home_gba_label), color = HomeMuted, fontSize = 7.sp,
                                     letterSpacing = 1.sp)
                             }
                         }
@@ -114,15 +115,15 @@ internal fun NexoraHomeScreen(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(9.dp)
                         ) {
-                            Text("ÚLTIMO JOGO", color = HomePink, fontSize = 9.sp,
+                            Text(stringResource(R.string.home_last_game), color = HomePink, fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                             Text(featuredGame.name.substringBeforeLast('.'), color = HomeText,
                                 fontSize = if (wide) 23.sp else 18.sp, fontWeight = FontWeight.Bold,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text("GAME BOY ADVANCE", color = HomeMuted, fontSize = 10.sp)
+                            Text(stringResource(R.string.home_gba_label), color = HomeMuted, fontSize = 10.sp)
                             Button(onClick = { onPlayGame(featuredGame) },
                                 modifier = Modifier.fillMaxWidth()) {
-                                Text("JOGAR", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                                Text(stringResource(R.string.home_play), fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
                             }
                         }
                     }
@@ -144,14 +145,14 @@ internal fun NexoraHomeScreen(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("SUA PRÓXIMA AVENTURA", color = HomePink, fontSize = 9.sp,
+                            Text(stringResource(R.string.home_next_adventure), color = HomePink, fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
-                            Text("Sua coleção começa aqui", color = HomeText, fontSize = 18.sp,
+                            Text(stringResource(R.string.home_collection_start), color = HomeText, fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold)
-                            Text("Adicione um jogo para começar a jogar.",
+                            Text(stringResource(R.string.home_add_game_hint),
                                 color = HomeMuted, fontSize = 11.sp)
                             Button(onClick = onImportGame, modifier = Modifier.fillMaxWidth()) {
-                                Text("ADICIONAR JOGOS")
+                                Text(stringResource(R.string.home_add_games_cta))
                             }
                         }
                     }
@@ -162,10 +163,10 @@ internal fun NexoraHomeScreen(
         if (games.size > 1) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("CONTINUE EXPLORANDO", color = HomeText, fontSize = 13.sp,
+                    Text(stringResource(R.string.home_continue_exploring), color = HomeText, fontSize = 13.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
                         modifier = Modifier.weight(1f))
-                    Text("VER BIBLIOTECA", color = HomePink, fontSize = 9.sp,
+                    Text(stringResource(R.string.home_view_library), color = HomePink, fontSize = 9.sp,
                         fontWeight = FontWeight.Bold, modifier = Modifier.clickable(onClick = onOpenLibrary))
                 }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -195,10 +196,10 @@ internal fun NexoraHomeScreen(
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(onClick = onOpenLibrary, modifier = Modifier.weight(1f)) {
-                Text("BIBLIOTECA")
+                Text(stringResource(R.string.home_library_cta))
             }
             Button(onClick = onImportGame, modifier = Modifier.weight(1f)) {
-                Text("＋ ADICIONAR")
+                Text(stringResource(R.string.home_add_cta))
             }
         }
         Spacer(Modifier.height(8.dp))
