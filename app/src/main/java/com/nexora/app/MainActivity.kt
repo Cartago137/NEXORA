@@ -18,6 +18,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -36,8 +37,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -323,6 +332,10 @@ class MainActivity : ComponentActivity() {
                                 }
                             } else {
                                 libraryMessage = null
+                                games = games.map { entry ->
+                                    if (entry.uri == game.uri) entry.copy(lastPlayedAt = System.currentTimeMillis()) else entry
+                                }
+                                GameLibraryStore.save(this@MainActivity, games)
                             }
                             onLoaded(status)
                         }
@@ -732,6 +745,12 @@ private fun NexoraApp(
                 } else when (selectedTab) {
                     NexoraTab.HOME -> HomeScreen(
                         games = games,
+                        isLoadingGame = isLoadingGame,
+                        onPlayGame = { game ->
+                            onPlayGame(game) { status ->
+                                if (status == 4) activeGameName = game.name
+                            }
+                        },
                         onImportGame = {
                             selectedTab = NexoraTab.LIBRARY
                             onImportGame()
@@ -1381,114 +1400,214 @@ private fun GbaControl(
 @Composable
 private fun HomeScreen(
     games: List<GameEntry>,
+    isLoadingGame: Boolean,
+    onPlayGame: (GameEntry) -> Unit,
     onImportGame: () -> Unit,
     onOpenLibrary: () -> Unit
 ) {
+    val featuredGame = games.filter { it.lastPlayedAt > 0L }.maxByOrNull { it.lastPlayedAt }
+        ?: games.lastOrNull()
+    val otherGames = games
+        .filterNot { it.uri == featuredGame?.uri }
+        .sortedWith(compareByDescending<GameEntry> { it.lastPlayedAt }.thenBy { games.indexOf(it) })
+        .take(8)
+
+    val floatTransition = rememberInfiniteTransition()
+    val floatOffset by floatTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1900),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 22.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 22.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
-                stringResource(R.string.home_headline),
-                color = NexoraText,
-                fontSize = 25.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(stringResource(R.string.home_subtitle), color = NexoraMuted, fontSize = 13.sp)
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .background(NexoraPanel, RoundedCornerShape(26.dp))
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                "SUA COLEÇÃO",
+                "BEM-VINDO DE VOLTA",
                 color = NexoraPink,
                 fontSize = 10.sp,
                 letterSpacing = 2.sp,
                 fontWeight = FontWeight.Bold
             )
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    games.size.toString(),
-                    color = NexoraText,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Black
-                )
-                Text(
-                    if (games.size == 1) " jogo na biblioteca" else " jogos na biblioteca",
-                    color = NexoraMuted,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(start = 8.dp, bottom = 6.dp)
-                )
-            }
+            Text(
+                "Continue sua aventura",
+                color = NexoraText,
+                fontSize = 23.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
 
-            if (games.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
+        if (featuredGame != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(
+                        Brush.verticalGradient(listOf(NexoraPanelLight, NexoraPanel, NexoraBackground)),
+                        RoundedCornerShape(26.dp)
+                    )
+                    .padding(horizontal = 18.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    if (featuredGame.lastPlayedAt > 0L) "SEU ÚLTIMO JOGO" else "EM DESTAQUE",
+                    color = NexoraPink,
+                    fontSize = 10.sp,
+                    letterSpacing = 2.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("N", color = NexoraPurple, fontSize = 64.sp, fontWeight = FontWeight.Black)
-                        Text("Sua biblioteca está vazia", color = NexoraText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Adicione seus jogos para eles aparecerem aqui.",
-                            color = NexoraMuted,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            } else {
-                Text("Adicionados recentemente", color = NexoraMuted, fontSize = 12.sp)
-                games.take(5).forEach { game ->
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(NexoraPanelLight, RoundedCornerShape(12.dp))
-                            .clickable(onClick = onOpenLibrary)
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.graphicsLayer {
+                            translationY = floatOffset
+                            rotationY = -9f
+                            shadowElevation = 22.dp.toPx()
+                        }
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
-                                .background(NexoraBackground, RoundedCornerShape(9.dp)),
+                                .size(width = 132.dp, height = 184.dp)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(NexoraPurple, Color(0xFF44216E), Color(0xFF21152F))
+                                    ),
+                                    RoundedCornerShape(topStart = 9.dp, bottomStart = 9.dp)
+                                )
+                                .padding(13.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("G", color = NexoraPurple, fontWeight = FontWeight.Bold)
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("NEXORA", color = NexoraText.copy(alpha = 0.78f), fontSize = 9.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Black)
+                                Text(
+                                    featuredGame.name.substringBeforeLast('.'),
+                                    color = NexoraText,
+                                    fontSize = 16.sp,
+                                    lineHeight = 19.sp,
+                                    fontWeight = FontWeight.Black,
+                                    maxLines = 4
+                                )
+                                Text("GAME BOY ADVANCE", color = NexoraText.copy(alpha = 0.75f), fontSize = 7.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
-                        Text(
-                            game.name.substringBeforeLast('.'),
-                            color = NexoraText,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(start = 11.dp).weight(1f),
-                            maxLines = 1
+                        Box(
+                            modifier = Modifier
+                                .width(10.dp)
+                                .height(184.dp)
+                                .background(Color(0xFF382052), RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
                         )
-                        Text("›", color = NexoraMuted, fontSize = 22.sp)
                     }
                 }
-                if (games.size > 5) {
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
                     Text(
-                        "+ ${games.size - 5} outros jogos",
-                        color = NexoraMuted,
-                        fontSize = 11.sp,
-                        modifier = Modifier.clickable(onClick = onOpenLibrary)
+                        featuredGame.name.substringBeforeLast('.'),
+                        color = NexoraText,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
                     )
+                    Text(
+                        if (featuredGame.lastPlayedAt > 0L) "Retome de onde você parou" else "Seu primeiro jogo está esperando",
+                        color = NexoraMuted,
+                        fontSize = 11.sp
+                    )
+                    Button(
+                        onClick = { onPlayGame(featuredGame) },
+                        enabled = !isLoadingGame,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (isLoadingGame) "Abrindo..." else "JOGAR")
+                    }
                 }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(NexoraPanel, RoundedCornerShape(26.dp))
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("N", color = NexoraPurple, fontSize = 64.sp, fontWeight = FontWeight.Black)
+                Text("Sua próxima aventura começa aqui", color = NexoraText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Adicione jogos à sua biblioteca para vê-los em destaque.", color = NexoraMuted, fontSize = 12.sp)
+                TextButton(onClick = onImportGame) { Text("ADICIONAR JOGOS", color = NexoraPurple) }
             }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (otherGames.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (otherGames.any { it.lastPlayedAt > 0L }) "JOGADOS RECENTEMENTE" else "OUTROS JOGOS",
+                        color = NexoraMuted,
+                        fontSize = 10.sp,
+                        letterSpacing = 1.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onOpenLibrary) {
+                        Text("VER TODOS", color = NexoraPurple, fontSize = 10.sp)
+                    }
+                }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(otherGames, key = { it.uri }) { game ->
+                        Column(
+                            modifier = Modifier
+                                .size(width = 126.dp, height = 76.dp)
+                                .background(NexoraPanel, RoundedCornerShape(15.dp))
+                                .clickable(enabled = !isLoadingGame) { onPlayGame(game) }
+                                .padding(11.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                game.name.substringBeforeLast('.'),
+                                color = NexoraText,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 2
+                            )
+                            Text(
+                                if (game.lastPlayedAt > 0L) "JOGADO" else "NA BIBLIOTECA",
+                                color = NexoraPurple,
+                                fontSize = 8.sp,
+                                letterSpacing = 1.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        } else if (games.isNotEmpty()) {
+            TextButton(onClick = onOpenLibrary, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                Text("ABRIR BIBLIOTECA", color = NexoraPurple)
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             QuickAction(
                 modifier = Modifier.weight(1f),
                 symbol = "＋",
