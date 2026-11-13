@@ -751,7 +751,6 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
         }
     }
 }
-}
 
 @Composable
 private fun GameFrame(
