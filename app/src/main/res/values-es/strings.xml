@@ -14,4 +14,5 @@
     <string name="home_play">JUGAR</string>
     <string name="home_library_cta">BIBLIOTECA</string>
     <string name="home_add_cta">＋ AÑADIR</string>
+    <string name="home_featured_game">JUEGO DESTACADO</string>
 </resources>
