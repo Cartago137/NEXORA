@@ -54,4 +54,19 @@
     <string name="remove_only">Só remover da biblioteca</string>
     <string name="cancel">Cancelar</string>
     <string name="delete_original_failed">Não foi possível apagar o arquivo original. Ele continua na sua biblioteca.</string>
+    <string name="home_welcome">BEM-VINDO DE VOLTA</string>
+    <string name="home_continue">Continue sua aventura</string>
+    <string name="home_subtitle_new">Seu universo de jogos está esperando.</string>
+    <string name="home_featured_eyebrow">CONTINUE DE ONDE PAROU</string>
+    <string name="home_last_game">ÚLTIMO JOGO</string>
+    <string name="home_gba_label">GAME BOY ADVANCE</string>
+    <string name="home_next_adventure">SUA PRÓXIMA AVENTURA</string>
+    <string name="home_collection_start">Sua coleção começa aqui</string>
+    <string name="home_add_game_hint">Adicione um jogo para começar a jogar.</string>
+    <string name="home_add_games_cta">ADICIONAR JOGOS</string>
+    <string name="home_continue_exploring">CONTINUE EXPLORANDO</string>
+    <string name="home_view_library">VER BIBLIOTECA</string>
+    <string name="home_play">JOGAR</string>
+    <string name="home_library_cta">BIBLIOTECA</string>
+    <string name="home_add_cta">＋ ADICIONAR</string>
 </resources>
