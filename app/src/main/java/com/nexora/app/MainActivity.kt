@@ -33,6 +33,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -203,6 +209,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var games by remember { mutableStateOf(GameLibraryStore.load(this@MainActivity)) }
+            var folders by remember { mutableStateOf(GameFolderStore.load(this@MainActivity)) }
             var libraryMessage by remember { mutableStateOf<String?>(null) }
             var isLoadingGame by remember { mutableStateOf(false) }
 
@@ -299,7 +306,22 @@ class MainActivity : ComponentActivity() {
                     nativeStatus = -1,
                     isAppInForeground = isAppInForeground,
                     games = games,
+                    folders = folders,
                     libraryMessage = libraryMessage,
+                    onSaveFolders = { updatedFolders ->
+                        folders = updatedFolders
+                        GameFolderStore.save(this@MainActivity, folders)
+                    },
+                    onUpdateGame = { updatedGame ->
+                        games = games.map { if (it.uri == updatedGame.uri) updatedGame else it }
+                        GameLibraryStore.save(this@MainActivity, games)
+                    },
+                    onDeleteFolder = { folder ->
+                        folders = folders.filterNot { it.id == folder.id }
+                        games = games.map { if (it.folderId == folder.id) it.copy(folderId = null) else it }
+                        GameFolderStore.save(this@MainActivity, folders)
+                        GameLibraryStore.save(this@MainActivity, games)
+                    },
                     isLoadingGame = isLoadingGame,
                     onImportGame = { romPicker.launch(arrayOf("*/*")) },
                     onPlayGame = { game, onLoaded ->
@@ -352,7 +374,11 @@ private fun NexoraApp(
     nativeStatus: Int,
     isAppInForeground: Boolean,
     games: List<GameEntry>,
+    folders: List<GameFolder>,
     libraryMessage: String?,
+    onSaveFolders: (List<GameFolder>) -> Unit,
+    onUpdateGame: (GameEntry) -> Unit,
+    onDeleteFolder: (GameFolder) -> Unit,
     isLoadingGame: Boolean,
     onImportGame: () -> Unit,
     onPlayGame: (GameEntry, (Int) -> Unit) -> Unit,
@@ -442,6 +468,10 @@ private fun NexoraApp(
                     )
                     NexoraTab.LIBRARY -> LibraryScreen(
                         games = games,
+                        folders = folders,
+                        onSaveFolders = onSaveFolders,
+                        onUpdateGame = onUpdateGame,
+                        onDeleteFolder = onDeleteFolder,
                         message = libraryMessage,
                         isLoadingGame = isLoadingGame,
                         onImportGame = onImportGame,
