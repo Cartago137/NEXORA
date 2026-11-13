@@ -432,6 +432,7 @@ private fun NexoraApp(
                     NexoraTab.HOME -> NexoraHomeScreen(
                         games = games,
                         featuredGame = games.firstOrNull { it.uri == lastPlayedUri } ?: games.firstOrNull(),
+                        isLastPlayed = lastPlayedUri != null && games.any { it.uri == lastPlayedUri },
                         onImportGame = {
                             selectedTab = NexoraTab.LIBRARY
                             onImportGame()
