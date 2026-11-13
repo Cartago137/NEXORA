@@ -54,4 +54,19 @@
     <string name="remove_only">Remove from library only</string>
     <string name="cancel">Cancel</string>
     <string name="delete_original_failed">The original file could not be deleted. It remains in your library.</string>
+    <string name="home_welcome">WELCOME BACK</string>
+    <string name="home_continue">Continue your adventure</string>
+    <string name="home_subtitle_new">Your game universe is waiting.</string>
+    <string name="home_featured_eyebrow">PICK UP WHERE YOU LEFT OFF</string>
+    <string name="home_last_game">LAST PLAYED</string>
+    <string name="home_gba_label">GAME BOY ADVANCE</string>
+    <string name="home_next_adventure">YOUR NEXT ADVENTURE</string>
+    <string name="home_collection_start">Your collection starts here</string>
+    <string name="home_add_game_hint">Add a game to start playing.</string>
+    <string name="home_add_games_cta">ADD GAMES</string>
+    <string name="home_continue_exploring">KEEP EXPLORING</string>
+    <string name="home_view_library">VIEW LIBRARY</string>
+    <string name="home_play">PLAY</string>
+    <string name="home_library_cta">LIBRARY</string>
+    <string name="home_add_cta">＋ ADD</string>
 </resources>
