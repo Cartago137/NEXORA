@@ -1232,12 +1232,12 @@ private fun LibraryScreen(
                 TextButton(onClick = {
                     val cleanName = newFolderName.trim()
                     if (cleanName.isNotEmpty() && folders.none { it.name.equals(cleanName, true) }) {
-                        onSaveFolders(folders + GameFolder(
+                        val createdFolder = GameFolder(
                             id = java.util.UUID.randomUUID().toString(),
                             name = cleanName
-                        ))
-                        selectedFolderId = folders.lastOrNull()?.id
-                            ?.takeIf { folders.size > 0 } // selection is corrected below after save
+                        )
+                        onSaveFolders(folders + createdFolder)
+                        selectedFolderId = createdFolder.id
                         showCreateFolder = false
                         newFolderName = ""
                     }
