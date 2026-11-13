@@ -15,4 +15,20 @@
     <string name="home_library_cta">BIBLIOTECA</string>
     <string name="home_add_cta">＋ AÑADIR</string>
     <string name="home_featured_game">JUEGO DESTACADO</string>
+    <string name="create_folder">Crear carpeta</string>
+    <string name="search_games">Buscar juegos</string>
+    <string name="all_games">Todos</string>
+    <string name="unfiled_games">Sin carpeta</string>
+    <string name="unpin">Desfijar</string>
+    <string name="pin">Fijar</string>
+    <string name="delete_folder">Eliminar carpeta</string>
+    <string name="selected_games_count">%1$d juego(s) seleccionado(s)</string>
+    <string name="move_to_folder">Mover a carpeta</string>
+    <string name="no_games_in_view">No se encontraron juegos en esta vista.</string>
+    <string name="folder_name">Nombre de la carpeta</string>
+    <string name="create">Crear</string>
+    <string name="selected">Seleccionado</string>
+    <string name="select">Seleccionar</string>
+    <string name="select_games">Seleccionar juegos</string>
+    <string name="delete_folder_question">¿Eliminar la carpeta %1$s? Los juegos permanecerán en la Biblioteca.</string>
 </resources>
