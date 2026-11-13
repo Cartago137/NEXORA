@@ -11,7 +11,15 @@ import org.json.JSONObject
 data class GameEntry(
     val name: String,
     val uri: String,
-    val sizeBytes: Long
+    val sizeBytes: Long,
+    val folderId: String? = null,
+    val isFavorite: Boolean = false,
+    val isPinned: Boolean = false
+)
+
+data class GameFolder(
+    val id: String,
+    val name: String
 )
 
 object GameLibraryStore {
@@ -31,7 +39,10 @@ object GameLibraryStore {
                         GameEntry(
                             name = item.getString("name"),
                             uri = item.getString("uri"),
-                            sizeBytes = item.optLong("sizeBytes", 0L)
+                            sizeBytes = item.optLong("sizeBytes", 0L),
+                            folderId = item.optString("folderId").takeIf { it.isNotBlank() },
+                            isFavorite = item.optBoolean("isFavorite", false),
+                            isPinned = item.optBoolean("isPinned", false)
                         )
                     )
                 }
@@ -47,6 +58,9 @@ object GameLibraryStore {
                     .put("name", game.name)
                     .put("uri", game.uri)
                     .put("sizeBytes", game.sizeBytes)
+                    .put("folderId", game.folderId ?: "")
+                    .put("isFavorite", game.isFavorite)
+                    .put("isPinned", game.isPinned)
             )
         }
 
