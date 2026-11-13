@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, recovery/stable-launch-shell]
   push:
-    branches: [main, recovery/stable-launch-shell, feature/multi-game-playback]
+    branches: [main, recovery/stable-launch-shell, feature/multi-game-playback, feature/pokemon-link-room]
   workflow_dispatch:
 
 concurrency:
@@ -43,6 +43,9 @@ jobs:
         run: |
           sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.2.12479018"
           if [ -d "$ANDROID_HOME/platforms/android-37.0" ] && [ ! -e "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+
+      - name: Run JVM unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest
 
       - name: Assemble debug APK
         run: gradle --no-daemon :app:assembleDebug
