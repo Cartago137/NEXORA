@@ -20,7 +20,7 @@ This document is the durable handoff point for work across ChatGPT conversations
 - PR #29 contains the restored touch-control layout and the Library folder work. It has not been merged.
 - New working branch: `feature/player-speed-and-touch-gestures`
 - New draft PR: [#30 — Add runtime emulation speed and continuous D-pad gestures](https://github.com/Cartago137/NEXORA/pull/30)
-- Implementation commits: `7432b8619f9d00f61370a622c7bedc07cc9cb8a0`, `7b2be717f3c8556b5af5515a7ed737451607cb0a`
+- Implementation commits: `7432b8619f9d00f61370a622c7bedc07cc9cb8a0`, `7b2be717f3c8556b5af5515a7ed737451607cb0a`, `42d814b90983ed6806693844356f6913460ef35b`
 - CI trigger correction commit: `5e8c69e033d62b65683bf74491bc3c00803297d0`
 - New work must branch from the latest accepted development line and remain in a draft PR until reviewed and physically tested.
 - Do not merge PR #29 or the new work without the user's explicit approval.
