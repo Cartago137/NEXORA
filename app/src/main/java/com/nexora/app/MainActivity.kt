@@ -1,6 +1,7 @@
 package com.nexora.app
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.media.AudioAttributes
 import android.media.AudioFormat
@@ -31,6 +32,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -58,6 +60,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
@@ -1445,7 +1448,11 @@ private fun HomeScreen(
         }
 
         if (featuredGame != null) {
-            Column(
+            val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val coverWidth = if (isLandscape) 116.dp else 132.dp
+            val coverHeight = if (isLandscape) 156.dp else 184.dp
+
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
@@ -1453,85 +1460,101 @@ private fun HomeScreen(
                         Brush.verticalGradient(listOf(NexoraPanelLight, NexoraPanel, NexoraBackground)),
                         RoundedCornerShape(26.dp)
                     )
-                    .padding(horizontal = 18.dp, vertical = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
+                    .padding(if (isLandscape) 14.dp else 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(if (isLandscape) 18.dp else 20.dp)
             ) {
-                Text(
-                    if (featuredGame.lastPlayedAt > 0L) "SEU ÚLTIMO JOGO" else "EM DESTAQUE",
-                    color = NexoraPink,
-                    fontSize = 10.sp,
-                    letterSpacing = 2.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
+                // A capa permanece à esquerda nos dois formatos; o conteúdo fica à direita.
                 Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Row(
-                        modifier = Modifier.graphicsLayer {
-                            translationY = floatOffset
-                            rotationY = -9f
-                            shadowElevation = 22.dp.toPx()
-                        }
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(width = 132.dp, height = 184.dp)
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(NexoraPurple, Color(0xFF44216E), Color(0xFF21152F))
-                                    ),
-                                    RoundedCornerShape(topStart = 9.dp, bottomStart = 9.dp)
-                                )
-                                .padding(13.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("NEXORA", color = NexoraText.copy(alpha = 0.78f), fontSize = 9.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Black)
-                                Text(
-                                    featuredGame.name.substringBeforeLast('.'),
-                                    color = NexoraText,
-                                    fontSize = 16.sp,
-                                    lineHeight = 19.sp,
-                                    fontWeight = FontWeight.Black,
-                                    maxLines = 4
-                                )
-                                Text("GAME BOY ADVANCE", color = NexoraText.copy(alpha = 0.75f), fontSize = 7.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        Box(
-                            modifier = Modifier
-                                .width(10.dp)
-                                .height(184.dp)
-                                .background(Color(0xFF382052), RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
-                        )
+                    modifier = Modifier.graphicsLayer {
+                        translationY = floatOffset
+                        rotationY = -9f
+                        shadowElevation = 22.dp.toPx()
                     }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = coverWidth, height = coverHeight)
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(NexoraPurple, Color(0xFF44216E), Color(0xFF21152F))
+                                ),
+                                RoundedCornerShape(topStart = 9.dp, bottomStart = 9.dp)
+                            )
+                            .padding(if (isLandscape) 9.dp else 13.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("NEXORA", color = NexoraText.copy(alpha = 0.78f), fontSize = 8.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Black)
+                            Text(
+                                featuredGame.name.substringBeforeLast('.'),
+                                color = NexoraText,
+                                fontSize = if (isLandscape) 13.sp else 16.sp,
+                                lineHeight = if (isLandscape) 15.sp else 19.sp,
+                                fontWeight = FontWeight.Black,
+                                maxLines = 4
+                            )
+                            Text("GAME BOY ADVANCE", color = NexoraText.copy(alpha = 0.75f), fontSize = 6.sp, letterSpacing = 0.7.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(8.dp)
+                            .height(coverHeight)
+                            .background(Color(0xFF382052), RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
+                    )
                 }
 
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    horizontalAlignment = Alignment.Start,
+                    verticalArrangement = Arrangement.Center
                 ) {
+                    Text(
+                        if (featuredGame.lastPlayedAt > 0L) "SEU ÚLTIMO JOGO" else "EM DESTAQUE",
+                        color = NexoraPink,
+                        fontSize = 9.sp,
+                        letterSpacing = 1.3.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(7.dp))
                     Text(
                         featuredGame.name.substringBeforeLast('.'),
                         color = NexoraText,
-                        fontSize = 17.sp,
+                        fontSize = if (isLandscape) 17.sp else 19.sp,
+                        lineHeight = if (isLandscape) 20.sp else 23.sp,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1
+                        maxLines = 2
                     )
+                    Text(
+                        "GAME BOY ADVANCE",
+                        color = NexoraMuted,
+                        fontSize = 9.sp,
+                        letterSpacing = 1.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(NexoraPurple.copy(alpha = 0.65f))
+                    )
+                    Spacer(modifier = Modifier.height(9.dp))
                     Text(
                         if (featuredGame.lastPlayedAt > 0L) "Retome de onde você parou" else "Seu primeiro jogo está esperando",
                         color = NexoraMuted,
-                        fontSize = 11.sp
+                        fontSize = if (isLandscape) 10.sp else 11.sp,
+                        lineHeight = 14.sp,
+                        maxLines = 2
                     )
+                    Spacer(modifier = Modifier.height(10.dp))
                     Button(
                         onClick = { onPlayGame(featuredGame) },
                         enabled = !isLoadingGame,
