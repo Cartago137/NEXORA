@@ -31,4 +31,8 @@
     <string name="select">Seleccionar</string>
     <string name="select_games">Seleccionar juegos</string>
     <string name="delete_folder_question">¿Eliminar la carpeta %1$s? Los juegos permanecerán en la Biblioteca.</string>
+    <string name="favorite_selected">Marcar favoritos</string>
+    <string name="pin_selected">Fijar seleccionados</string>
+    <string name="remove_selected">Eliminar seleccionados</string>
+    <string name="remove_selected_question">¿Eliminar %1$d juego(s) de la Biblioteca? Los archivos originales permanecerán en el teléfono.</string>
 </resources>
