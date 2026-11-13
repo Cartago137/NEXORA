@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, recovery/stable-launch-shell]
   push:
-    branches: [main, recovery/stable-launch-shell, feature/multi-game-playback]
+    branches: [main, recovery/stable-launch-shell, feature/multi-game-playback, feature/pokemon-link-room]
   workflow_dispatch:
 
 concurrency:
