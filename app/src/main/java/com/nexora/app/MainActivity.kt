@@ -35,7 +35,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Checkbox
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.LazyRow
@@ -1229,7 +1229,7 @@ private fun LibraryScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(visibleGames, key = { it.uri }) { game ->
+                    gridItems(visibleGames, key = { it.uri }) { game ->
                         GameLibraryCard(
                             game = game,
                             isLoading = isLoadingGame,
