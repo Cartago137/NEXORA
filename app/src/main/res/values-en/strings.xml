@@ -86,4 +86,8 @@
     <string name="select">Select</string>
     <string name="select_games">Select games</string>
     <string name="delete_folder_question">Delete the folder %1$s? The games will remain in your Library.</string>
+    <string name="favorite_selected">Favorite selected</string>
+    <string name="pin_selected">Pin selected</string>
+    <string name="remove_selected">Remove selected</string>
+    <string name="remove_selected_question">Remove %1$d game(s) from the Library? The original files will remain on your phone.</string>
 </resources>
