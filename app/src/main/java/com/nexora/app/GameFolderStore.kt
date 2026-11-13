@@ -21,7 +21,7 @@ object GameFolderStore {
                     val id = item.optString("id")
                     val name = item.optString("name").trim()
                     if (id.isNotBlank() && name.isNotBlank()) {
-                        add(GameFolder(id = id, name = name))
+                        add(GameFolder(id = id, name = name, isPinned = item.optBoolean("isPinned", false)))
                     }
                 }
             }
@@ -35,6 +35,7 @@ object GameFolderStore {
                 JSONObject()
                     .put("id", folder.id)
                     .put("name", folder.name)
+                    .put("isPinned", folder.isPinned)
             )
         }
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
