@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -363,6 +364,25 @@ private fun NexoraApp(
     var activeGameName by remember { mutableStateOf<String?>(null) }
     var gamePendingRemoval by remember { mutableStateOf<GameEntry?>(null) }
     var removalFailed by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    var lastPlayedUri by remember {
+        mutableStateOf(
+            context.getSharedPreferences("nexora_home", android.content.Context.MODE_PRIVATE)
+                .getString("last_played_uri", null)
+        )
+    }
+    val startGame: (GameEntry) -> Unit = { game ->
+        onPlayGame(game) { status ->
+            if (status == 4) {
+                activeGameName = game.name
+                lastPlayedUri = game.uri
+                context.getSharedPreferences("nexora_home", android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .putString("last_played_uri", game.uri)
+                    .apply()
+            }
+        }
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = NexoraBackground) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -409,23 +429,22 @@ private fun NexoraApp(
                         }
                     )
                 } else when (selectedTab) {
-                    NexoraTab.HOME -> HomeScreen(
+                    NexoraTab.HOME -> NexoraHomeScreen(
+                        games = games,
+                        featuredGame = games.firstOrNull { it.uri == lastPlayedUri } ?: games.firstOrNull(),
                         onImportGame = {
                             selectedTab = NexoraTab.LIBRARY
                             onImportGame()
                         },
-                        onOpenLibrary = { selectedTab = NexoraTab.LIBRARY }
+                        onOpenLibrary = { selectedTab = NexoraTab.LIBRARY },
+                        onPlayGame = startGame
                     )
                     NexoraTab.LIBRARY -> LibraryScreen(
                         games = games,
                         message = libraryMessage,
                         isLoadingGame = isLoadingGame,
                         onImportGame = onImportGame,
-                        onPlayGame = { game ->
-                            onPlayGame(game) { status ->
-                                if (status == 4) activeGameName = game.name
-                            }
-                        },
+                        onPlayGame = { game -> startGame(game) },
                         onClearMessage = onClearLibraryMessage,
                         onRemoveGame = { game ->
                             removalFailed = false
