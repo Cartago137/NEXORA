@@ -69,4 +69,5 @@
     <string name="home_play">PLAY</string>
     <string name="home_library_cta">LIBRARY</string>
     <string name="home_add_cta">＋ ADD</string>
+    <string name="home_featured_game">FEATURED GAME</string>
 </resources>
