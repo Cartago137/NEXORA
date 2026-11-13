@@ -19,7 +19,8 @@ data class GameEntry(
 
 data class GameFolder(
     val id: String,
-    val name: String
+    val name: String,
+    val isPinned: Boolean = false
 )
 
 object GameLibraryStore {
