@@ -32,7 +32,7 @@ npm test
 npm start
 ```
 
-O servidor escuta em `127.0.0.1` por padrão, para não ficar exposto acidentalmente em uma rede local.
+O servidor escuta em `127.0.0.1` por padrão, para não ficar exposto acidentalmente em uma rede local. Em um host de nuvem, configure `HOST=0.0.0.0` conforme a exigência do provedor.
 
 ## Limitações intencionais desta etapa
 
