@@ -1,6 +1,6 @@
 # NEXORA — Project Continuity and Engineering State
 
-Last updated: 2026-11-14 (full-cover display and artwork branding separation)
+Last updated: 2026-11-14 (featured cover frame follows artwork aspect ratio)
 
 This document is the durable handoff point for work across ChatGPT conversations. Update it whenever a meaningful implementation, decision, test result, or blocker changes. Do not rely on chat summaries as the only record.
 
@@ -100,6 +100,7 @@ The user supplied a screenshot identifying four installed GBA games and approved
 - Metroid: Zero Mission: North American front cover.
 - Artwork lookup and disk caching are implemented in `app/src/main/java/com/nexora/app/GameArtwork.kt`. The FireRed URL change also changes its cache key, so the app will fetch the corrected cover rather than reuse the previous cached image.
 - User requirement: always display the complete original cover image, preserving its aspect ratio. Use `ContentScale.Fit`, never `Crop` or stretch; any unused space belongs to the card background, not to a modified cover.
+- Home featured-cover frame was corrected to match the square aspect ratio of the current FireRed source image, so the rounded outline hugs the artwork rather than retaining the previous taller portrait frame. If the featured source artwork changes to a different aspect ratio later, the frame must be made adaptive to that source.
 - User requirement: do not overlay NEXORA text, logos, or watermarks on game cover artwork. NEXORA branding belongs to the surrounding interface only. The featured Home cover must follow this too.
 - Artwork is downloaded on demand from the configured image hosts, then cached privately. The app requires an internet connection for the first download; failed/offline lookups retain the NEXORA fallback art and do not affect ROM loading or saves.
 - Covers appear in the Home featured-game card, Home carousel, and Library cards.
