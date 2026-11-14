@@ -35,7 +35,7 @@ internal object GameArtworkCatalog {
     private val coverUrls = listOf(
         Triple(
             listOf("pokemon - firered", "pokemon firered", "pokemon fire red"),
-            "https://i5.walmartimages.com/seo/Restored-Pre-Owned-Pokemon-FireRed-Nintendo-Gameboy-Advance-GBA-Refurbished-Good-Refurbished_81e03620-61d4-4932-887f-506557f47d0d_1.0983c65920c95181f7327e61812c5528.jpeg",
+            "https://archives.bulbagarden.net/media/upload/4/43/FireRed_EN_boxart.png",
             "Pokémon FireRed Version"
         ),
         Triple(
