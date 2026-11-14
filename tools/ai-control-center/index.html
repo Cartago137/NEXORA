@@ -61,7 +61,19 @@
       </section>
 
       <section class="lower-grid">
-        <article class="panel" id="tarefas"><div class="section-heading compact"><div><span class="eyebrow">ORQUESTRAÇÃO</span><h2>Fila de tarefas</h2></div><span class="tag">Em preparação</span></div><div class="empty-state"><span class="empty-icon">＋</span><strong>A central ainda está sendo conectada</strong><p>As solicitações e os resultados aparecerão aqui nas próximas etapas.</p></div></article>
+        <article class="panel chat-panel" id="tarefas">
+          <div class="section-heading compact"><div><span class="eyebrow">ASSISTENTE</span><h2>Conversa com a IA</h2></div><span class="tag" id="chat-model-tag">Gratuito · OpenRouter</span></div>
+          <p class="chat-intro">Esta primeira versão usa exclusivamente o roteador gratuito. As mensagens são enviadas ao provedor somente depois do seu envio.</p>
+          <div class="chat-transcript" id="chat-transcript" role="log" aria-live="polite" aria-label="Conversa">
+            <div class="chat-empty" id="chat-empty"><span class="empty-icon">✦</span><strong>Pronto para conversar</strong><p>Faça uma pergunta para testar a integração quando a chave gratuita estiver configurada no servidor.</p></div>
+          </div>
+          <form class="chat-composer" id="chat-form">
+            <label class="visually-hidden" for="chat-input">Sua mensagem</label>
+            <textarea id="chat-input" name="message" rows="2" maxlength="12000" placeholder="Escreva sua mensagem..." required></textarea>
+            <button type="submit" id="chat-send">Enviar</button>
+          </form>
+          <p class="chat-feedback" id="chat-feedback" role="status" aria-live="polite">Não há consumo de API até uma mensagem ser enviada. O modelo gratuito pode ter limites de disponibilidade.</p>
+        </article>
         <article class="panel" id="historico"><div class="section-heading compact"><div><span class="eyebrow">ATIVIDADE</span><h2>Últimos eventos</h2></div></div><ul class="activity"><li><span class="activity-dot"></span><div><strong>Login protegido preparado</strong><small>Sessão privada no servidor</small></div><time>v0.2</time></li><li><span class="activity-dot muted-dot"></span><div><strong>Conexões aguardando configuração</strong><small>OpenRouter, Groq e Gemini</small></div><time>—</time></li><li><span class="activity-dot muted-dot"></span><div><strong>Execução automática desativada</strong><small>Alterações exigirão revisão</small></div><time>—</time></li></ul></article>
       </section>
       <footer>NEXORA · Central de Controle <span>Ambiente inicial — ainda não publicado.</span></footer>
