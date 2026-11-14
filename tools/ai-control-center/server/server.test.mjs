@@ -132,3 +132,45 @@ test("login endpoint rejects cross-origin requests", async () => {
     assert.equal(response.status, 403);
   });
 });
+
+test("malformed encoded static paths return a client error without crashing", async () => {
+  await withServer({ env: { NEXORA_ADMIN_PASSWORD: password } }, async (base) => {
+    const response = await fetch(`${base}/%E0%A4%A`);
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: "Invalid path" });
+  });
+});
+
+test("chat endpoint rejects cross-origin requests before provider access", async () => {
+  let providerCalled = false;
+  await withServer({
+    env: { NEXORA_ADMIN_PASSWORD: password, OPENROUTER_API_KEY: apiKey },
+    fetchImpl: async () => { providerCalled = true; throw new Error("must not call provider"); }
+  }, async (base) => {
+    const cookie = await login(base);
+    const response = await fetch(`${base}/api/chat`, {
+      method: "POST",
+      headers: { cookie, origin: "https://attacker.example", "content-type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "Olá" }] })
+    });
+    assert.equal(response.status, 403);
+    assert.equal(providerCalled, false);
+  });
+});
+
+test("chat reports missing provider configuration without making an upstream call", async () => {
+  let providerCalled = false;
+  await withServer({
+    env: { NEXORA_ADMIN_PASSWORD: password },
+    fetchImpl: async () => { providerCalled = true; throw new Error("must not call provider"); }
+  }, async (base) => {
+    const cookie = await login(base);
+    const response = await fetch(`${base}/api/chat`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "Olá" }] })
+    });
+    assert.equal(response.status, 503);
+    assert.equal(providerCalled, false);
+  });
+});
