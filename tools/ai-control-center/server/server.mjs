@@ -214,45 +214,42 @@ export function createControlCenterServer({
         return json(response, 503, { error: "Admin password is not configured securely" });
       }
       const address = request.socket.remoteAddress ?? "unknown";
-      const currentTime = now();
-      const previous = loginAttemptsByAddress.get(address);
-      const active = previous && currentTime - previous.startedAt < LOGIN_WINDOW_MS
-        ? previous
-        : { startedAt: currentTime, count: 0 };
-      if (active.count >= LOGIN_ATTEMPTS) {
-        loginAttemptsByAddress.set(address, active);
-        return json(response, 429, { error: "Too many login attempts. Try again later." });
-      }
       let body;
       try {
         body = await readJson(request);
       } catch {
         return json(response, 400, { error: "Invalid request" });
       }
-      active.count += 1;
-      loginAttemptsByAddress.set(address, active);
+      const attempts = await incrementRateLimit("nexora:login:" + address, loginAttemptsByAddress, LOGIN_WINDOW_MS);
+      if (attempts > LOGIN_ATTEMPTS) return json(response, 429, { error: "Too many login attempts. Try again later." });
       if (!safeEqual(body?.password, password)) {
         return json(response, 401, { error: "Incorrect password" });
       }
-      loginAttemptsByAddress.delete(address);
+      if (redisConfigured) await redisCommand(["DEL", "nexora:login:" + address]);
+      else loginAttemptsByAddress.delete(address);
       const session = randomBytes(32).toString("base64url");
       const key = createHash("sha256").update(session).digest("hex");
-      sessions.set(key, now() + SESSION_TTL_MS);
+      const expiresAt = now() + SESSION_TTL_MS;
+      if (redisConfigured) await redisCommand(["SET", "nexora:session:" + key, String(expiresAt), "EX", String(Math.ceil(SESSION_TTL_MS / 1000))]);
+      else sessions.set(key, expiresAt);
       return json(response, 200, { authenticated: true }, {
         "set-cookie": sessionCookie(session, secureCookies, Math.floor(SESSION_TTL_MS / 1000))
       });
     }
 
     if (request.method === "POST" && url.pathname === "/api/logout") {
-      const key = currentSession(request);
-      if (key) sessions.delete(key);
+      const key = await currentSession(request);
+      if (key) {
+        if (redisConfigured) await redisCommand(["DEL", "nexora:session:" + key]);
+        else sessions.delete(key);
+      }
       return json(response, 200, { authenticated: false }, {
         "set-cookie": sessionCookie("", secureCookies, 0)
       });
     }
 
     if (request.method === "GET" && url.pathname === "/api/session") {
-      return json(response, 200, { authenticated: Boolean(currentSession(request)) });
+      return json(response, 200, { authenticated: Boolean(await currentSession(request)) });
     }
 
     if (url.pathname.startsWith("/api/")) {
@@ -260,7 +257,7 @@ export function createControlCenterServer({
         response.setHeader("allow", "GET, POST");
         return json(response, 405, { error: "Method not allowed" });
       }
-      if (!currentSession(request)) return json(response, 401, { error: "Authentication required" });
+      if (!await currentSession(request)) return json(response, 401, { error: "Authentication required" });
 
       if (request.method === "GET" && url.pathname === "/api/status") {
         return json(response, 200, {
@@ -268,7 +265,8 @@ export function createControlCenterServer({
           configured: Boolean(env.OPENROUTER_API_KEY),
           modelPolicy: "free-only",
           model: FREE_MODEL,
-          paidModelsEnabled: false
+          paidModelsEnabled: false,
+          sessionStorage: redisConfigured ? "persistent" : "in-memory"
         });
       }
 
@@ -277,14 +275,8 @@ export function createControlCenterServer({
           return json(response, 503, { error: "OpenRouter is not configured on the server" });
         }
         const address = request.socket.remoteAddress ?? "unknown";
-        const currentTime = now();
-        const previous = chatRequestsByAddress.get(address);
-        const active = previous && currentTime - previous.startedAt < RATE_LIMIT_WINDOW_MS
-          ? previous
-          : { startedAt: currentTime, count: 0 };
-        active.count += 1;
-        chatRequestsByAddress.set(address, active);
-        if (active.count > RATE_LIMIT_REQUESTS) {
+        const requests = await incrementRateLimit("nexora:chat:" + address, chatRequestsByAddress, RATE_LIMIT_WINDOW_MS);
+        if (requests > RATE_LIMIT_REQUESTS) {
           return json(response, 429, { error: "Rate limit reached; try again in a minute" });
         }
 
