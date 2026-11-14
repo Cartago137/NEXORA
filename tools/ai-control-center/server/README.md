@@ -1,29 +1,34 @@
-# NEXORA AI Control Center — API inicial
+# NEXORA AI Control Center — login e API inicial
 
-Este serviço é um primeiro backend de integração, ainda não publicado e ainda não ligado à interface web.
+O backend agora serve a interface web e a API na mesma origem. A Central ainda não está publicada nem pronta para uso público.
 
-## O que já está preparado
+## O que esta etapa implementa
 
-- API Node.js sem dependências de terceiros.
-- Autenticação por token Bearer próprio do painel, comparado em tempo constante.
+- Servidor Node.js sem dependências externas.
+- Tela de login integrada à interface.
+- Senha administrativa lida somente da variável `NEXORA_ADMIN_PASSWORD`; mínimo de 16 caracteres.
+- Sessão aleatória em cookie `HttpOnly`, `SameSite=Strict`, com validade de 12 horas; o navegador nunca recebe a chave do provedor.
+- Cookie `Secure` ativado quando `NODE_ENV=production`; produção exige HTTPS no host.
+- Verificação de origem para login e logout, limite de tentativas de login e encerramento de sessão.
+- Interface HTML/CSS/JS servida pelo mesmo processo e mesma origem da API.
 - Chave OpenRouter lida exclusivamente de variável de ambiente do servidor.
-- Rota de chat fixa em `openrouter/free`; o navegador não pode escolher um modelo pago.
-- Limite de 1.024 tokens de saída, 20 mensagens por solicitação, 12.000 caracteres por mensagem e 10 solicitações por minuto por endereço.
-- Não registra prompts, respostas, tokens de autenticação ou chaves nos logs.
-- Respostas sem cache e sem detalhes internos do provedor.
+- Rota de chat fixa em `openrouter/free`; o cliente não escolhe modelo e modelos pagos seguem bloqueados.
+- Limites de 1.024 tokens de saída, 20 mensagens por solicitação, 12.000 caracteres por mensagem e 10 solicitações por minuto por endereço.
 - Testes automatizados com chamadas externas simuladas.
 
 ## Variáveis necessárias
 
 Configure no gerenciador de segredos do serviço de hospedagem:
 
-- `NEXORA_CONTROL_TOKEN`: segredo aleatório exclusivo para autenticar o painel (mínimo de 32 caracteres).
-- `OPENROUTER_API_KEY`: chave da API OpenRouter.
-- `PORT`: porta fornecida pelo host, se aplicável.
+- `NEXORA_ADMIN_PASSWORD`: senha administrativa exclusiva, com pelo menos 16 caracteres.
+- `OPENROUTER_API_KEY`: chave da API OpenRouter, quando a integração for ativada.
+- `NODE_ENV=production`: ativa o atributo Secure do cookie em produção.
+- `HOST=0.0.0.0`: necessário em hosts que exigem escuta na interface de rede.
+- `PORT`: porta fornecida pelo host.
 
-O arquivo `.env.example` contém apenas nomes e valores fictícios. Nunca publique valores reais.
+O arquivo `.env.example` contém somente valores fictícios. Nunca publique valores reais.
 
-## Executar e testar localmente
+## Executar e testar
 
 Requer Node.js 20 ou superior:
 
@@ -32,15 +37,15 @@ npm test
 npm start
 ```
 
-O servidor escuta em `127.0.0.1` por padrão, para não ficar exposto acidentalmente em uma rede local. Em um host de nuvem, configure `HOST=0.0.0.0` conforme a exigência do provedor.
+Em desenvolvimento local, o servidor escuta em `127.0.0.1:8787`. Acesse `http://127.0.0.1:8787`.
 
-## Limitações intencionais desta etapa
+## Limitações antes de publicar
 
-- Ainda não existe login visual, gerenciamento de usuários ou integração com o HTML.
-- Ainda não há hospedagem, domínio ou publicação.
-- Somente o roteador gratuito do OpenRouter está permitido; provedores pagos ficam bloqueados.
-- O roteador gratuito pode ter limites de uso e disponibilidade definidos pelo OpenRouter. Não há garantia de resposta em toda chamada.
-- O limite por endereço é local ao processo; uma implantação com múltiplas instâncias precisará de rate limiter compartilhado.
-- Antes de publicar, configurar HTTPS, proteção de origem/reverse proxy, gestão de sessão adequada, limites globais e monitoramento operacional.
+- Sessões ficam em memória e são apagadas quando o processo reinicia. Esta etapa é adequada a uma única instância; produção contínua precisará de armazenamento de sessão compartilhado e expiração.
+- O limite de solicitações também é local ao processo e precisará ser compartilhado em implantação com múltiplas instâncias.
+- A senha é uma credencial administrativa única, não há contas individuais, recuperação de senha nem MFA.
+- Antes de expor à internet, configurar HTTPS, hospedagem, armazenamento de sessão adequado, limites compartilhados, monitoramento e política de backup.
+- O painel ainda não envia tarefas para o repositório nem modifica automaticamente o emulador.
+- Nenhuma chave foi cadastrada e nenhum provedor foi chamado nos testes.
 
-Documentação da API usada: https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request
+O roteador gratuito pode ter limites e disponibilidade definidos pelo provedor; não há garantia de resposta em toda chamada.
