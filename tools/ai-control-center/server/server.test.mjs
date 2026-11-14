@@ -174,3 +174,69 @@ test("chat reports missing provider configuration without making an upstream cal
     assert.equal(providerCalled, false);
   });
 });
+
+function createRedisMock() {
+  const values = new Map();
+  const redisFetchImpl = async (_url, options) => {
+    const command = JSON.parse(options.body);
+    const [operation, ...args] = command;
+    let result = null;
+    if (operation === "SET") {
+      const [key, value] = args;
+      values.set(key, value);
+      result = "OK";
+    } else if (operation === "GET") {
+      result = values.get(args[0]) ?? null;
+    } else if (operation === "DEL") {
+      result = values.delete(args[0]) ? 1 : 0;
+    } else if (operation === "EVAL") {
+      const key = args[2];
+      const next = Number(values.get(key) ?? 0) + 1;
+      values.set(key, String(next));
+      result = next;
+    } else {
+      throw new Error("Unexpected Redis command: " + operation);
+    }
+    return new Response(JSON.stringify({ result }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  return { redisFetchImpl, values };
+}
+
+test("production mode refuses to start without persistent session storage", () => {
+  assert.throws(
+    () => createControlCenterServer({ env: { NODE_ENV: "production", NEXORA_ADMIN_PASSWORD: password } }),
+    /Production requires persistent Upstash Redis/
+  );
+});
+
+test("Upstash sessions survive server restart and can be revoked", async () => {
+  const redis = createRedisMock();
+  const options = {
+    env: {
+      NODE_ENV: "production",
+      NEXORA_ADMIN_PASSWORD: password,
+      UPSTASH_REDIS_REST_URL: "https://example-redis.upstash.io",
+      UPSTASH_REDIS_REST_TOKEN: "test-redis-token"
+    },
+    redisFetchImpl: redis.redisFetchImpl
+  };
+  let cookie;
+  await withServer(options, async (base) => { cookie = await login(base); });
+  await withServer(options, async (base) => {
+    const session = await fetch(base + "/api/session", { headers: { cookie } });
+    assert.deepEqual(await session.json(), { authenticated: true });
+    const logout = await fetch(base + "/api/logout", { method: "POST", headers: { cookie } });
+    assert.equal(logout.status, 200);
+    const after = await fetch(base + "/api/session", { headers: { cookie } });
+    assert.deepEqual(await after.json(), { authenticated: false });
+  });
+});
+
+test("Upstash configuration requires HTTPS and both credentials", () => {
+  assert.throws(() => createControlCenterServer({
+    env: { UPSTASH_REDIS_REST_URL: "http://example-redis.upstash.io", UPSTASH_REDIS_REST_TOKEN: "token" }
+  }), /must use HTTPS/);
+  assert.throws(() => createControlCenterServer({
+    env: { UPSTASH_REDIS_REST_URL: "https://example-redis.upstash.io" }
+  }), /must be configured together/);
+});
