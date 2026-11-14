@@ -94,11 +94,11 @@ The user supplied an original hand-drawn cat mascot on 2026-11-13 and approved i
 
 The user supplied a screenshot identifying four installed GBA games and approved using the matching cover references.
 
-- Pokémon FireRed Version (Rev 1): Charizard front cover.
+- Pokémon FireRed Version (Rev 1): original North American front box art, sourced from Bulbagarden Archives (`FireRed_EN_boxart.png`). The previous Walmart-hosted image was replaced after the user noticed that its Charizard artwork did not match the original cover.
 - Mario & Luigi: Superstar Saga: North American front cover.
 - Mega Man Battle Network 2 (PT-BR ROM): original GBA front cover; ROM localization does not change the cover art.
 - Metroid: Zero Mission: North American front cover.
-- Artwork lookup and disk caching are implemented in `app/src/main/java/com/nexora/app/GameArtwork.kt`.
+- Artwork lookup and disk caching are implemented in `app/src/main/java/com/nexora/app/GameArtwork.kt`. The FireRed URL change also changes its cache key, so the app will fetch the corrected cover rather than reuse the previous cached image.
 - Artwork is downloaded on demand from the configured image hosts, then cached privately. The app requires an internet connection for the first download; failed/offline lookups retain the NEXORA fallback art and do not affect ROM loading or saves.
 - Covers appear in the Home featured-game card, Home carousel, and Library cards.
 - The cover images remain the property of their respective rights holders. They are fetched from third-party hosts rather than bundled as redistributable NEXORA assets. Review image-host stability and artwork rights before public distribution.
