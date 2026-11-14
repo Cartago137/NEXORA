@@ -17,6 +17,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
@@ -48,16 +50,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.abs
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import android.content.res.Configuration
@@ -426,7 +431,14 @@ private fun NexoraApp(
                             .size(width = 4.dp, height = 38.dp)
                             .background(NexoraPurple, RoundedCornerShape(4.dp))
                     )
-                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(R.drawable.nexora_cat_mascot),
+                        contentDescription = stringResource(R.string.app_name),
+                        modifier = Modifier
+                            .padding(start = 9.dp)
+                            .size(42.dp)
+                    )
+                    Column(modifier = Modifier.padding(start = 10.dp)) {
                         Text(
                             text = stringResource(R.string.brand_name),
                             color = NexoraText,
@@ -562,6 +574,7 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
     var frameReady by remember { mutableStateOf(false) }
     var frameError by remember { mutableStateOf(false) }
     var frameVersion by remember { mutableIntStateOf(0) }
+    var emulationSpeed by remember { mutableFloatStateOf(1.0f) }
 
     LaunchedEffect(gameName, isAppInForeground) {
         if (!isAppInForeground) {
@@ -614,6 +627,7 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
             }
         }.getOrNull()
         audioTrack = createdAudioTrack
+        var appliedAudioSpeed = 1.0f
 
         // mGBA produces audio while frames run; this worker drains it without
         // blocking the Compose/UI thread or slowing down video frame pacing.
@@ -657,6 +671,14 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
             val targetFrameNanos = 16_742_706L
 
             while (isActive) {
+                // Keep Android audio consumption in step with emulation speed.
+                // Matching playback rate prevents an ever-growing PCM queue.
+                if (appliedAudioSpeed != emulationSpeed) {
+                    val requestedRate = (outputSampleRate * emulationSpeed).toInt()
+                    createdAudioTrack?.setPlaybackRate(requestedRate)
+                    appliedAudioSpeed = emulationSpeed
+                }
+
                 val frameStartNanos = System.nanoTime()
                 val rendered = withContext(Dispatchers.Default) {
                     runCatching {
@@ -679,7 +701,8 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                 // bitmap to be painted again even though its object identity is stable.
                 frameVersion++
 
-                val remainingNanos = targetFrameNanos - (System.nanoTime() - frameStartNanos)
+                val frameIntervalNanos = (targetFrameNanos / emulationSpeed).toLong()
+                val remainingNanos = frameIntervalNanos - (System.nanoTime() - frameStartNanos)
                 if (remainingNanos > 0L) {
                     delay((remainingNanos / 1_000_000L).coerceAtLeast(1L))
                 } else {
@@ -782,6 +805,27 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                 )
             }
         }
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 8.dp)
+                .background(NexoraPanel.copy(alpha = 0.94f), RoundedCornerShape(14.dp))
+                .padding(horizontal = 6.dp, vertical = 1.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            listOf(1.0f, 1.5f, 2.0f, 3.0f).forEach { speed ->
+                TextButton(onClick = { emulationSpeed = speed }) {
+                    Text(
+                        text = "${speed}x",
+                        color = if (emulationSpeed == speed) NexoraPink else NexoraMuted,
+                        fontSize = 11.sp,
+                        fontWeight = if (emulationSpeed == speed) FontWeight.Bold else FontWeight.Medium
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -824,6 +868,54 @@ private fun GameFrame(
 private fun GbaDPad() {
     Column(
         modifier = Modifier
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var activeDirectionMask = 0
+
+                    fun directionAt(position: androidx.compose.ui.geometry.Offset): Int {
+                        val halfWidth = size.width / 2f
+                        val halfHeight = size.height / 2f
+                        if (halfWidth <= 0f || halfHeight <= 0f) return 0
+
+                        val normalizedX = (position.x - halfWidth) / halfWidth
+                        val normalizedY = (position.y - halfHeight) / halfHeight
+                        val horizontal = if (abs(normalizedX) >= 0.28f) {
+                            if (normalizedX < 0f) (1 shl 5) else (1 shl 4)
+                        } else 0
+                        val vertical = if (abs(normalizedY) >= 0.28f) {
+                            if (normalizedY < 0f) (1 shl 6) else (1 shl 7)
+                        } else 0
+                        return horizontal or vertical
+                    }
+
+                    fun updateDirection(nextMask: Int) {
+                        if (nextMask == activeDirectionMask) return
+                        if (activeDirectionMask != 0) {
+                            NativeBridge.nativeClearKeys(activeDirectionMask)
+                        }
+                        if (nextMask != 0) {
+                            NativeBridge.nativeAddKeys(nextMask)
+                        }
+                        activeDirectionMask = nextMask
+                    }
+
+                    try {
+                        updateDirection(directionAt(down.position))
+                        var pointer = down
+                        while (pointer.pressed) {
+                            val event = awaitPointerEvent()
+                            pointer = event.changes.firstOrNull { it.id == down.id } ?: break
+                            updateDirection(directionAt(pointer.position))
+                            pointer.consume()
+                        }
+                    } finally {
+                        if (activeDirectionMask != 0) {
+                            NativeBridge.nativeClearKeys(activeDirectionMask)
+                        }
+                    }
+                }
+            }
             .background(NexoraPanel, RoundedCornerShape(22.dp))
             .padding(7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -831,19 +923,31 @@ private fun GbaDPad() {
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             Spacer(Modifier.size(46.dp))
-            GbaControl("↑", 1 shl 6, controlSize = 46)
+            DPadDirectionVisual("↑")
             Spacer(Modifier.size(46.dp))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            GbaControl("←", 1 shl 5, controlSize = 46)
+            DPadDirectionVisual("←")
             Box(Modifier.size(46.dp).background(NexoraPanelLight, RoundedCornerShape(12.dp)))
-            GbaControl("→", 1 shl 4, controlSize = 46)
+            DPadDirectionVisual("→")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             Spacer(Modifier.size(46.dp))
-            GbaControl("↓", 1 shl 7, controlSize = 46)
+            DPadDirectionVisual("↓")
             Spacer(Modifier.size(46.dp))
         }
+    }
+}
+
+@Composable
+private fun DPadDirectionVisual(label: String) {
+    Box(
+        modifier = Modifier
+            .size(46.dp)
+            .background(NexoraPanelLight, RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = NexoraText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -1421,11 +1525,13 @@ private fun GameLibraryCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .background(NexoraPanelLight, RoundedCornerShape(10.dp))
-                .clickable(enabled = !selectionMode && !isLoading, onClick = onPlay),
-            contentAlignment = Alignment.Center
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(enabled = !selectionMode && !isLoading, onClick = onPlay)
         ) {
-            Text("GBA", color = NexoraPurple, fontSize = 14.sp, fontWeight = FontWeight.Black)
+            GameCoverArtwork(
+                gameName = game.name,
+                modifier = Modifier.fillMaxSize()
+            )
         }
         Text(
             game.name.substringBeforeLast('.'),

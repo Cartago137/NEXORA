@@ -2,13 +2,14 @@ name: Android build
 
 on:
   pull_request:
-    branches: [main, recovery/stable-launch-shell, feature/restore-touch-controls]
+    branches: [main, recovery/stable-launch-shell, feature/restore-touch-controls, feature/library-folders]
   push:
-    branches: [main, recovery/stable-launch-shell, feature/multi-game-playback, feature/restore-touch-controls, feature/library-folders]
+    branches: [main, recovery/stable-launch-shell, feature/multi-game-playback, feature/restore-touch-controls, feature/library-folders, feature/player-speed-and-touch-gestures]
   workflow_dispatch:
 
 concurrency:
-  group: nexora-android-${{ github.ref }}
+  # Keep push and pull_request builds separate so duplicate events do not cancel each other.
+  group: nexora-android-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
