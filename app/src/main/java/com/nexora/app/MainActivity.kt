@@ -49,7 +49,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.ui.Alignment\nimport androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
@@ -1516,11 +1516,13 @@ private fun GameLibraryCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .background(NexoraPanelLight, RoundedCornerShape(10.dp))
-                .clickable(enabled = !selectionMode && !isLoading, onClick = onPlay),
-            contentAlignment = Alignment.Center
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(enabled = !selectionMode && !isLoading, onClick = onPlay)
         ) {
-            Text("GBA", color = NexoraPurple, fontSize = 14.sp, fontWeight = FontWeight.Black)
+            GameCoverArtwork(
+                gameName = game.name,
+                modifier = Modifier.fillMaxSize()
+            )
         }
         Text(
             game.name.substringBeforeLast('.'),
