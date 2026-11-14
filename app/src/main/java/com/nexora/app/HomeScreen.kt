@@ -414,16 +414,6 @@ private fun FeaturedGameArtwork(
             gameName = gameName,
             modifier = Modifier.fillMaxSize()
         )
-        Text(
-            "NEXORA",
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 9.dp),
-            color = HomeMuted.copy(alpha = 0.8f),
-            fontSize = 7.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 2.sp
-        )
     }
 }
 
