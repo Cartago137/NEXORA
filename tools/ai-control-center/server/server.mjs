@@ -38,17 +38,22 @@ function safeEqual(left, right) {
 function readJson(request) {
   return new Promise((resolveBody, reject) => {
     let size = 0;
+    let tooLarge = false;
     const chunks = [];
     request.on("data", (chunk) => {
       size += chunk.length;
       if (size > MAX_BODY_BYTES) {
-        reject(Object.assign(new Error("Request body too large"), { status: 413 }));
-        request.destroy();
+        tooLarge = true;
+        chunks.length = 0;
         return;
       }
-      chunks.push(chunk);
+      if (!tooLarge) chunks.push(chunk);
     });
     request.on("end", () => {
+      if (tooLarge) {
+        reject(Object.assign(new Error("Request body too large"), { status: 413 }));
+        return;
+      }
       try {
         resolveBody(JSON.parse(Buffer.concat(chunks).toString("utf8")));
       } catch {
@@ -105,7 +110,12 @@ function contentType(path) {
 }
 
 async function serveStatic(pathname, response) {
-  const relative = pathname === "/" ? "index.html" : decodeURIComponent(pathname).replace(/^\/+/, "");
+  let relative;
+  try {
+    relative = pathname === "/" ? "index.html" : decodeURIComponent(pathname).replace(/^\/+/, "");
+  } catch {
+    return json(response, 400, { error: "Invalid path" });
+  }
   if (!/^[a-zA-Z0-9_./-]+$/.test(relative) || relative.includes("..")) {
     return json(response, 404, { error: "Not found" });
   }
@@ -165,7 +175,7 @@ export function createControlCenterServer({
       return json(response, 200, { status: "ok", service: "nexora-ai-control-center" });
     }
 
-    if (request.method === "POST" && ["/api/login", "/api/logout"].includes(url.pathname) && !isSameOrigin(request)) {
+    if (request.method === "POST" && url.pathname.startsWith("/api/") && !isSameOrigin(request)) {
       return json(response, 403, { error: "Cross-origin request rejected" });
     }
 
