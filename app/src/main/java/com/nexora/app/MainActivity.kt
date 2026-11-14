@@ -60,7 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.stringResource\nimport androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import android.content.res.Configuration
@@ -429,7 +429,14 @@ private fun NexoraApp(
                             .size(width = 4.dp, height = 38.dp)
                             .background(NexoraPurple, RoundedCornerShape(4.dp))
                     )
-                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(R.drawable.nexora_cat_mascot),
+                        contentDescription = stringResource(R.string.app_name),
+                        modifier = Modifier
+                            .padding(start = 9.dp)
+                            .size(42.dp)
+                    )
+                    Column(modifier = Modifier.padding(start = 10.dp)) {
                         Text(
                             text = stringResource(R.string.brand_name),
                             color = NexoraText,
