@@ -1,0 +1,32 @@
+name: AI Control Center tests
+
+on:
+  pull_request:
+    paths:
+      - "tools/ai-control-center/**"
+      - ".github/workflows/ai-control-center-tests.yml"
+  push:
+    branches:
+      - "feature/ai-control-center"
+    paths:
+      - "tools/ai-control-center/**"
+      - ".github/workflows/ai-control-center-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/ai-control-center/server
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run backend tests
+        run: npm test
