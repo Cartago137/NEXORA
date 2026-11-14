@@ -144,25 +144,54 @@ async function serveStatic(pathname, response) {
 export function createControlCenterServer({
   env = process.env,
   fetchImpl = globalThis.fetch,
+  redisFetchImpl = globalThis.fetch,
   now = Date.now
 } = {}) {
   const sessions = new Map();
   const chatRequestsByAddress = new Map();
   const loginAttemptsByAddress = new Map();
   const secureCookies = env.NODE_ENV === "production";
+  const redisUrl = env.UPSTASH_REDIS_REST_URL?.replace(/\/+$/, "");
+  const redisToken = env.UPSTASH_REDIS_REST_TOKEN;
+  const redisConfigured = Boolean(redisUrl && redisToken);
+  if (Boolean(redisUrl) !== Boolean(redisToken)) throw new Error("Both Upstash Redis REST URL and token must be configured together");
+  if (redisConfigured && !redisUrl.startsWith("https://")) throw new Error("Upstash Redis REST URL must use HTTPS");
+  if (env.NODE_ENV === "production" && !redisConfigured) throw new Error("Production requires persistent Upstash Redis storage");
+  async function redisCommand(command) {
+    const response = await redisFetchImpl(redisUrl, { method: "POST", headers: { authorization: "Bearer " + redisToken, "content-type": "application/json" }, body: JSON.stringify(command), signal: AbortSignal.timeout(5000) });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.error) throw new Error("Persistent storage request failed");
+    return payload?.result;
+  }
+  async function incrementRateLimit(key, store, windowMs) {
+    if (redisConfigured) {
+      const script = "local count = redis.call('INCR', KEYS[1]); if count == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]); end; return count";
+      return Number(await redisCommand(["EVAL", script, "1", key, String(windowMs)]));
+    }
+    const currentTime = now();
+    const previous = store.get(key);
+    const active = previous && currentTime - previous.startedAt < windowMs ? previous : { startedAt: currentTime, count: 0 };
+    active.count += 1;
+    store.set(key, active);
+    return active.count;
+  }
 
-  function currentSession(request) {
+  async function currentSession(request) {
     const raw = cookieValue(request.headers.cookie, "nexora_session");
     if (!raw) return null;
     const key = createHash("sha256").update(raw).digest("hex");
-    const expiresAt = sessions.get(key);
+    let expiresAt;
+    if (redisConfigured) {
+      const stored = await redisCommand(["GET", "nexora:session:" + key]);
+      expiresAt = stored === null ? null : Number(stored);
+    } else { expiresAt = sessions.get(key); }
     if (!expiresAt || expiresAt <= now()) {
-      sessions.delete(key);
+      if (redisConfigured) await redisCommand(["DEL", "nexora:session:" + key]);
+      else sessions.delete(key);
       return null;
     }
     return key;
   }
-
   return createHttpServer(async (request, response) => {
     let url;
     try {
