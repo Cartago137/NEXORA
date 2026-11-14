@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: nexora-ai-control-center-preview
+    runtime: node
+    plan: free
+    region: oregon
+    branch: feature/ai-control-center
+    rootDir: tools/ai-control-center/server
+    buildCommand: npm test
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: NEXORA_ADMIN_PASSWORD
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
