@@ -1,6 +1,6 @@
 # NEXORA — Project Continuity and Engineering State
 
-Last updated: 2026-11-14 (featured cover frame follows artwork aspect ratio)
+Last updated: 2026-11-14 (gameplay tools menu interaction model recorded)
 
 This document is the durable handoff point for work across ChatGPT conversations. Update it whenever a meaningful implementation, decision, test result, or blocker changes. Do not rely on chat summaries as the only record.
 
@@ -76,6 +76,25 @@ Implementation investigation:
 - Current D-pad is composed of four separate `GbaControl` composables using `detectTapGestures`/press-release behavior.
 - A continuous gesture needs one gesture owner for the whole D-pad surface, with the active direction recalculated from the finger's current coordinates.
 - Update only the direction bits when the finger moves; preserve non-D-pad key bits already held by other controls.
+
+## Gameplay tools menu — approved interaction model
+
+The user reconfirmed on 2026-11-14 that optional gameplay actions must be grouped behind one compact menu button instead of being displayed as separate permanent controls.
+
+- Add one dedicated function/menu button, visually represented by three horizontal lines (hamburger icon). This is one button, not separate speed buttons and not a row of extra gameplay controls.
+- Tapping it opens a compact overlay/panel titled `NEXORA — MENU DE FUNÇÕES` over the running game.
+- The panel contains optional actions such as:
+  - Save State
+  - Load State
+  - Fast Forward / emulation speed selector (1.0x, 1.5x, 2.0x, 3.0x)
+  - Exit game
+  - Future optional gameplay tools can be added in this same panel rather than placed directly over the game.
+- Selecting an action should close the panel where appropriate; tapping outside closes it. Closing the panel resumes gameplay at the exact paused point/state.
+- Keep the essential GBA controls visible and independent: D-pad, A, B, L, R, SELECT, and START. Do not replace or hide these with the tools menu.
+- Keep Android Back available as a separate system navigation action.
+- Visual direction: dark purple premium NEXORA overlay, restrained and compact, inspired by the function-menu interaction the user liked in My Boy!, but using NEXORA's own visual identity.
+- The menu button should be positioned with the existing auxiliary controls (SELECT/START/function area) with ergonomic adaptation for portrait and landscape; it must not obstruct the game viewport or core controls.
+- Status: interaction and product behavior approved; implementation in the current feature branch is still pending. Do not claim it is already present in the APK until implemented, built, and tested.
 
 ## Original cat mascot — implemented in current feature branch
 
