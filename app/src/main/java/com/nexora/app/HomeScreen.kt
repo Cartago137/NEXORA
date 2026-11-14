@@ -169,7 +169,6 @@ internal fun NexoraHomeScreen(
                         FeaturedGameArtwork(
                             gameName = featuredGame.name,
                             width = coverWidth,
-                            height = coverHeight,
                             translationY = floatY
                         )
                         Column(
@@ -382,12 +381,13 @@ internal fun NexoraHomeScreen(
 private fun FeaturedGameArtwork(
     gameName: String,
     width: androidx.compose.ui.unit.Dp,
-    height: androidx.compose.ui.unit.Dp,
     translationY: Float
 ) {
+    // FireRed's supplied front-cover image is square; keep its frame square too,
+    // so the border hugs the artwork instead of surrounding an oversized portrait box.
     Box(
         modifier = Modifier
-            .size(width = width, height = height)
+            .size(width = width)
             .graphicsLayer { this.translationY = translationY }
             .shadow(16.dp, RoundedCornerShape(17.dp))
             .clip(RoundedCornerShape(17.dp))
