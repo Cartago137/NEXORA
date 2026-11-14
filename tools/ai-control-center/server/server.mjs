@@ -193,6 +193,7 @@ export function createControlCenterServer({
     return key;
   }
   return createHttpServer(async (request, response) => {
+    try {
     let url;
     try {
       url = new URL(request.url ?? "/", "http://localhost");
@@ -331,6 +332,10 @@ export function createControlCenterServer({
     if (request.method === "GET") return serveStatic(url.pathname, response);
     response.setHeader("allow", "GET");
     return json(response, 405, { error: "Method not allowed" });
+    } catch {
+      if (!response.headersSent) return json(response, 503, { error: "A server dependency is temporarily unavailable" });
+      response.destroy();
+    }
   });
 }
 
