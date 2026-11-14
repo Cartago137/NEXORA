@@ -1,6 +1,6 @@
 # NEXORA — Project Continuity and Engineering State
 
-Last updated: 2026-11-14 (gameplay tools menu interaction model recorded)
+Last updated: 2026-11-14 (landscape navigation rail direction updated)
 
 This document is the durable handoff point for work across ChatGPT conversations. Update it whenever a meaningful implementation, decision, test result, or blocker changes. Do not rely on chat summaries as the only record.
 
@@ -25,6 +25,18 @@ This document is the durable handoff point for work across ChatGPT conversations
 - CI trigger correction commit: `5e8c69e033d62b65683bf74491bc3c00803297d0`
 - New work must branch from the latest accepted development line and remain in a draft PR until reviewed and physically tested.
 - Do not merge PR #29 or the new work without the user's explicit approval.
+
+## Main navigation — landscape layout (latest user direction)
+
+The user has now explicitly requested changing the previously discussed landscape navigation placement: the earlier left-side rail is superseded by a right-side vertical navigation rail.
+
+- In portrait orientation, keep the primary navigation in its established bottom-bar arrangement.
+- In landscape orientation, move the primary navigation (Principal/Home, Biblioteca, Configurações) to a vertical rail attached to the RIGHT edge of the display.
+- The rail should extend along a substantial portion of the screen height, with its destinations stacked vertically and comfortably tappable. Keep its visual footprint organized and consistent; do not turn it into a large opaque panel that competes with the game artwork.
+- The main content area occupies the remaining wider space to the LEFT of the rail. Give game covers, featured games, and library content visual priority and enough room; adapt grids and spacing to the available width.
+- Preserve the current selected destination, navigation state, and scroll position when rotating between portrait and landscape.
+- Apply the same responsive navigation behavior across Principal/Home, Biblioteca, and Configurações; avoid duplicating navigation controls.
+- This is a product/UI requirement recorded for implementation; do not claim it is already implemented or physically validated unless code, build, and device checks confirm it.
 
 ## Previously implemented in the baseline (not yet confirmed by the user on-device)
 
