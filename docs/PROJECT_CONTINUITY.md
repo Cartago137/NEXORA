@@ -20,7 +20,7 @@ This document is the durable handoff point for work across ChatGPT conversations
 - PR #29 contains the restored touch-control layout and the Library folder work. It has not been merged.
 - New working branch: `feature/player-speed-and-touch-gestures`
 - New draft PR: [#30 — Add runtime emulation speed and continuous D-pad gestures](https://github.com/Cartago137/NEXORA/pull/30)
-- Current PR #30 head: `0c30a5612f3455f56112acdefc19aa6d30740ddd`; PR is open and remains draft.
+- Current PR #30 head at this handoff: `5635ef54a9c6a4c193f0f80f718637566ff0118d`; PR is open and remains draft. Subsequent continuity-document commits may advance the head.
 - Implementation commits: `7432b8619f9d00f61370a622c7bedc07cc9cb8a0`, `7b2be717f3c8556b5af5515a7ed737451607cb0a`, `42d814b90983ed6806693844356f6913460ef35b`
 - CI trigger correction commit: `5e8c69e033d62b65683bf74491bc3c00803297d0`
 - New work must branch from the latest accepted development line and remain in a draft PR until reviewed and physically tested.
@@ -138,8 +138,8 @@ At the end of every substantial work session:
 
 1. Implementation is present on `feature/player-speed-and-touch-gestures`: live 1.0x/1.5x/2.0x/3.0x selector, frame pacing scaling, AudioTrack playback-rate scaling, and one continuous D-pad gesture surface.
 2. CI workflow triggers were expanded so pushes to the feature branch and pull requests targeting `feature/library-folders` run Android builds.
-3. Latest implementation commit before this handoff: `2e6b93c2ced084e6d04bb13944d5bb73126fb968`. GitHub Actions run `43531682898` is building this source; status was in progress at handoff. No APK artifact is confirmed yet.
-4. Review compiler/build results and fix any issues before calling the combined update build-ready. The latest cover matcher normalizes punctuation so `Pokémon - Fire Red Version (Rev 1)` resolves correctly.
+3. Latest implementation and cover-art commits before this continuity update: `4c588f846427eaf07fd15e996c1c433cf92d99ee` (fit full cover), `f47d9305a770b8c6a0395163490044af06b7b3e5` (remove NEXORA overlay from featured cover), `3c0d8b5183cfc40b87a1695b7703bd9499b4f814` (record requirements), and `5635ef54a9c6a4c193f0f80f718637566ff0118d` (third-party notice). Actions run `43534264596` was in progress for this source at handoff; no artifact from this run is confirmed.
+4. Review the current Actions build after the full-cover display change. The latest cover matcher normalizes punctuation so `Pokémon - Fire Red Version (Rev 1)` resolves correctly. Full images use `ContentScale.Fit`; no crop/stretch and no NEXORA overlay on the featured cover.
 5. Add/update unit or instrumentation tests where practical and document what cannot be tested without the physical device.
 6. Build debug and release APKs in GitHub Actions.
 7. Validate cover downloads/cache behavior, mascot icon/splash rendering, and the speed/D-pad changes on the Motorola G54. First-time cover retrieval requires internet; cached artwork should remain available offline.
