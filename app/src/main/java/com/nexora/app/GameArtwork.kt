@@ -58,11 +58,15 @@ internal object GameArtworkCatalog {
     fun match(gameName: String): Pair<String, String>? {
         val normalized = gameName.substringBeforeLast('.')
             .lowercase()
-            .replace('_', ' ')
-            .replace(Regex("\\s+"), " ")
+            .replace(Regex("[^a-z0-9]+"), " ")
             .trim()
         val match = coverUrls.firstOrNull { entry ->
-            entry.first.any { normalized.contains(it) || it.contains(normalized) }
+            entry.first.any { alias ->
+                val normalizedAlias = alias.lowercase()
+                    .replace(Regex("[^a-z0-9]+"), " ")
+                    .trim()
+                normalized.contains(normalizedAlias) || normalizedAlias.contains(normalized)
+            }
         } ?: return null
         return match.second to match.third
     }
