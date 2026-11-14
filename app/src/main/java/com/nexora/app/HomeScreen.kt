@@ -328,35 +328,13 @@ internal fun NexoraHomeScreen(
                                 .padding(10.dp),
                             verticalArrangement = Arrangement.spacedBy(9.dp)
                         ) {
-                            Box(
+                            GameCoverArtwork(
+                                gameName = game.name,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(118.dp)
                                     .clip(RoundedCornerShape(13.dp))
-                                    .background(
-                                        Brush.linearGradient(
-                                            listOf(Color(0xFF3A2450), Color(0xFF21172E), Color(0xFF17111F))
-                                        )
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    game.name.firstOrNull()?.uppercase() ?: "N",
-                                    color = HomePurple,
-                                    fontSize = 48.sp,
-                                    fontWeight = FontWeight.Black
-                                )
-                                Text(
-                                    "GBA",
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .padding(8.dp),
-                                    color = HomeMuted,
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp
-                                )
-                            }
+                            )
                             Text(
                                 game.name.substringBeforeLast('.'),
                                 color = HomeText,
@@ -432,21 +410,10 @@ private fun FeaturedGameArtwork(
                 .size(44.dp)
                 .background(HomePink.copy(alpha = 0.10f), CircleShape)
         )
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                gameName.firstOrNull()?.uppercase() ?: "N",
-                color = HomeText,
-                fontSize = 66.sp,
-                fontWeight = FontWeight.Black
-            )
-            Text(
-                stringResource(R.string.home_gba_label),
-                color = HomePink,
-                fontSize = 8.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp
-            )
-        }
+        GameCoverArtwork(
+            gameName = gameName,
+            modifier = Modifier.fillMaxSize()
+        )
         Text(
             "NEXORA",
             modifier = Modifier
