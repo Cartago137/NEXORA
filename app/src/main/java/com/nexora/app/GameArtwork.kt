@@ -130,7 +130,7 @@ internal fun GameCoverArtwork(
                 bitmap = bitmap.asImageBitmap(),
                 contentDescription = artwork?.second ?: gameName,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
+                contentScale = ContentScale.Fit
             )
         } else {
             Text(
