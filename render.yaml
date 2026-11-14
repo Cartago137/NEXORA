@@ -5,9 +5,8 @@ services:
     plan: free
     region: oregon
     branch: feature/ai-control-center
-    rootDir: tools/ai-control-center/server
-    buildCommand: npm test
-    startCommand: npm start
+    buildCommand: cd tools/ai-control-center/server && npm test
+    startCommand: cd tools/ai-control-center/server && npm start
     healthCheckPath: /api/health
     autoDeployTrigger: off
     envVars:
