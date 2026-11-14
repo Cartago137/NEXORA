@@ -181,7 +181,7 @@ export function createControlCenterServer({
 if (import.meta.url === `file://${process.argv[1]}`) {
   const port = Number.parseInt(process.env.PORT ?? "8787", 10);
   const server = createControlCenterServer();
-  server.listen(port, "127.0.0.1", () => {
+  server.listen(port, process.env.HOST ?? "127.0.0.1", () => {
     process.stdout.write(`NEXORA control center API listening on 127.0.0.1:${port}\n`);
   });
 }
