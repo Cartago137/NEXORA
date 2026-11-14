@@ -136,10 +136,10 @@ At the end of every substantial work session:
 
 1. Implementation is present on `feature/player-speed-and-touch-gestures`: live 1.0x/1.5x/2.0x/3.0x selector, frame pacing scaling, AudioTrack playback-rate scaling, and one continuous D-pad gesture surface.
 2. CI workflow triggers were expanded so pushes to the feature branch and pull requests targeting `feature/library-folders` run Android builds.
-3. PR #30 now also contains the mascot launcher/splash/header and the four approved game covers. Verify GitHub Actions against the latest branch head before calling the combined update build-ready.
-4. Review compiler/build results and fix any issues before calling the implementation build-ready.
+3. Latest implementation commit before this handoff: `2e6b93c2ced084e6d04bb13944d5bb73126fb968`. GitHub Actions run `43531682898` is building this source; status was in progress at handoff. No APK artifact is confirmed yet.
+4. Review compiler/build results and fix any issues before calling the combined update build-ready. The latest cover matcher normalizes punctuation so `Pokémon - Fire Red Version (Rev 1)` resolves correctly.
 5. Add/update unit or instrumentation tests where practical and document what cannot be tested without the physical device.
 6. Build debug and release APKs in GitHub Actions.
-7. Validate cover downloads/cache behavior, mascot icon/splash rendering, and the speed/D-pad changes on the Motorola G54.
+7. Validate cover downloads/cache behavior, mascot icon/splash rendering, and the speed/D-pad changes on the Motorola G54. First-time cover retrieval requires internet; cached artwork should remain available offline.
 8. Update this handoff file with the exact CI run, artifacts, and test status.
 9. Ask the user to test the APK on the Motorola G54; only then mark physical validation complete.
