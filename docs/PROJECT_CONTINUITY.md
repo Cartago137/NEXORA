@@ -1,6 +1,6 @@
 # NEXORA — Project Continuity and Engineering State
 
-Last updated: 2026-11-13 (mascot branding approved for next update)
+Last updated: 2026-11-14 (game artwork and original mascot integrated)
 
 This document is the durable handoff point for work across ChatGPT conversations. Update it whenever a meaningful implementation, decision, test result, or blocker changes. Do not rely on chat summaries as the only record.
 
@@ -77,19 +77,32 @@ Implementation investigation:
 - A continuous gesture needs one gesture owner for the whole D-pad surface, with the active direction recalculated from the finger's current coordinates.
 - Update only the direction bits when the finger moves; preserve non-D-pad key bits already held by other controls.
 
-## Approved mascot / brand asset for the next app update
+## Original cat mascot — implemented in current feature branch
 
-The user supplied an original hand-drawn cat mascot image in the conversation on 2026-11-13 and explicitly approved using it in the next NEXORA update.
+The user supplied an original hand-drawn cat mascot on 2026-11-13 and approved its use in the app.
 
-- Rotate the supplied source image 90 degrees clockwise (to the right) to make the cat upright.
-- Preserve the original drawing's character and linework; do not redesign or replace it with a generic cat.
-- Prepare a clean digital asset with the paper background removed / transparent where feasible, keeping the original orange-red line color unless a carefully reviewed brand-compatible variant is needed.
-- Use the mascot as the app launcher icon, adapting/cropping safely for Android adaptive icon masks and legibility at small sizes.
-- Also use it on the splash screen and in a few restrained UI locations where it adds identity without clutter; include it in the About screen / brand attribution.
-- Keep the established dark, premium NEXORA visual identity (deep purple/graphite with restrained violet and pink-red accents). The mascot should complement, not replace, the geometric N brand mark unless the user later asks for that.
-- Treat this as approved scope for the next update, not as permission to merge any PR.
-- The original uploaded photo is currently available in the conversation attachment; it has not yet been committed as a repository asset. Before implementation, retrieve/materialize the exact attachment, rotate clockwise, clean it carefully, and commit source plus generated Android icon resources.
-- Validate launcher icon rendering on Android adaptive icon masks and splash/UI appearance; do not claim physical-device validation until tested on the user's Motorola G54.
+- Source photo was rotated 90 degrees clockwise and cleaned into a transparent, orange-red vector drawable while preserving the hand-drawn character.
+- Vector asset: `app/src/main/res/drawable/nexora_cat_mascot.xml`.
+- Android adaptive launcher and round icons now use the cat on the deep-purple background: `mipmap-anydpi-v26/ic_launcher.xml` and `ic_launcher_round.xml`.
+- Android 12+ splash screen uses the cat mascot through `values-v31/styles.xml`; the app theme is `NexoraTheme`.
+- A small mascot mark is also shown in the app's top brand header.
+- The geometric NEXORA identity, dark palette, and typography remain intact.
+- About-screen branding remains a future refinement; the icon, splash, and header placements are implemented in this branch.
+- Physical-device validation of launcher masks and splash rendering remains pending on the user's Motorola G54.
+
+## Game box artwork — implemented in current feature branch
+
+The user supplied a screenshot identifying four installed GBA games and approved using the matching cover references.
+
+- Pokémon FireRed Version (Rev 1): Charizard front cover.
+- Mario & Luigi: Superstar Saga: North American front cover.
+- Mega Man Battle Network 2 (PT-BR ROM): original GBA front cover; ROM localization does not change the cover art.
+- Metroid: Zero Mission: North American front cover.
+- Artwork lookup and disk caching are implemented in `app/src/main/java/com/nexora/app/GameArtwork.kt`.
+- Artwork is downloaded on demand from the configured image hosts, then cached privately. The app requires an internet connection for the first download; failed/offline lookups retain the NEXORA fallback art and do not affect ROM loading or saves.
+- Covers appear in the Home featured-game card, Home carousel, and Library cards.
+- The cover images remain the property of their respective rights holders. They are fetched from third-party hosts rather than bundled as redistributable NEXORA assets. Review image-host stability and artwork rights before public distribution.
+- Other game titles continue to use the existing fallback artwork until their own cover sources are configured.
 
 ## Validation checklist
 
@@ -123,10 +136,10 @@ At the end of every substantial work session:
 
 1. Implementation is present on `feature/player-speed-and-touch-gestures`: live 1.0x/1.5x/2.0x/3.0x selector, frame pacing scaling, AudioTrack playback-rate scaling, and one continuous D-pad gesture surface.
 2. CI workflow triggers were expanded so pushes to the feature branch and pull requests targeting `feature/library-folders` run Android builds.
-3. Current PR #30 head is `0c30a5612f3455f56112acdefc19aa6d30740ddd`; verify the latest GitHub Actions build status before calling this implementation build-ready.
+3. PR #30 now also contains the mascot launcher/splash/header and the four approved game covers. Verify GitHub Actions against the latest branch head before calling the combined update build-ready.
 4. Review compiler/build results and fix any issues before calling the implementation build-ready.
 5. Add/update unit or instrumentation tests where practical and document what cannot be tested without the physical device.
 6. Build debug and release APKs in GitHub Actions.
-7. The next planned product update includes the approved cat mascot integration described above.
+7. Validate cover downloads/cache behavior, mascot icon/splash rendering, and the speed/D-pad changes on the Motorola G54.
 8. Update this handoff file with the exact CI run, artifacts, and test status.
 9. Ask the user to test the APK on the Motorola G54; only then mark physical validation complete.
