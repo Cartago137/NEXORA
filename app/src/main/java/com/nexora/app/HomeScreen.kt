@@ -387,7 +387,7 @@ private fun FeaturedGameArtwork(
     // so the border hugs the artwork instead of surrounding an oversized portrait box.
     Box(
         modifier = Modifier
-            .size(width = width)
+            .size(width = width, height = width)
             .graphicsLayer { this.translationY = translationY }
             .shadow(16.dp, RoundedCornerShape(17.dp))
             .clip(RoundedCornerShape(17.dp))
