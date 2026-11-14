@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10131d">
+  <meta name="description" content="Central de controle de inteligência artificial do projeto NEXORA.">
+  <title>NEXORA · Central de Controle</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="#inicio" aria-label="NEXORA início"><span class="brand-mark">N</span><span>NEXORA<small>AI CONTROL CENTER</small></span></a>
+      <div class="nav-label">CENTRAL</div>
+      <nav>
+        <a class="nav-link active" href="#inicio"><span>◫</span> Visão geral</a>
+        <a class="nav-link" href="#modelos"><span>◇</span> Modelos de IA</a>
+        <a class="nav-link" href="#tarefas"><span>▤</span> Tarefas</a>
+        <a class="nav-link" href="#historico"><span>◷</span> Histórico</a>
+      </nav>
+      <div class="sidebar-bottom"><span class="status-dot"></span><span>Ambiente de demonstração</span><small>v0.1 · interface inicial</small></div>
+    </aside>
+
+    <main class="main" id="inicio">
+      <header class="topbar"><div><span class="eyebrow">NEXORA / CENTRAL</span><h1>Central de controle</h1></div><div class="top-actions"><span class="safe-pill"><span class="status-dot"></span> Modo seguro</span><span class="avatar">NX</span></div></header>
+
+      <section class="welcome">
+        <div><span class="eyebrow">PAINEL DO PROJETO</span><h2>Olá! Vamos construir<br>o próximo passo do NEXORA.</h2><p>Coordene modelos, acompanhe análises e mantenha cada alteração sob revisão.</p></div>
+        <div class="orb" aria-hidden="true"><span>N</span></div>
+      </section>
+
+      <section class="stats" aria-label="Resumo">
+        <article class="stat-card"><span class="stat-icon">◇</span><span class="stat-label">Provedores conectados</span><strong id="provider-count">0 <small>/ 3</small></strong><span class="muted">Aguardando configuração</span></article>
+        <article class="stat-card"><span class="stat-icon">▤</span><span class="stat-label">Tarefas em andamento</span><strong>0</strong><span class="muted">Nenhuma execução ativa</span></article>
+        <article class="stat-card"><span class="stat-icon">◷</span><span class="stat-label">Gastos nesta sessão</span><strong>R$ 0,00</strong><span class="free-tag">Sem consumo de API</span></article>
+      </section>
+
+      <section class="section" id="modelos">
+        <div class="section-heading"><div><span class="eyebrow">CONEXÕES</span><h2>Provedores de IA</h2><p>As conexões serão ativadas depois que as chaves forem cadastradas no GitHub.</p></div><span class="counter">3 provedores planejados</span></div>
+        <div class="provider-grid">
+          <article class="provider-card"><div class="provider-top"><span class="provider-logo openrouter">OR</span><span class="pending">Não conectado</span></div><h3>OpenRouter</h3><p>Roteamento para vários modelos por uma única integração.</p><div class="provider-foot"><span>Prioridade inicial</span><span class="priority">01</span></div></article>
+          <article class="provider-card"><div class="provider-top"><span class="provider-logo groq">G</span><span class="pending">Não conectado</span></div><h3>Groq</h3><p>Opção para inferência rápida quando configurada.</p><div class="provider-foot"><span>Etapa futura</span><span class="priority">02</span></div></article>
+          <article class="provider-card"><div class="provider-top"><span class="provider-logo gemini">✦</span><span class="pending">Não conectado</span></div><h3>Gemini</h3><p>Provedor adicional para análise e tarefas específicas.</p><div class="provider-foot"><span>Etapa futura</span><span class="priority">03</span></div></article>
+        </div>
+      </section>
+
+      <section class="lower-grid">
+        <article class="panel" id="tarefas"><div class="section-heading compact"><div><span class="eyebrow">ORQUESTRAÇÃO</span><h2>Fila de tarefas</h2></div><span class="tag">Em preparação</span></div><div class="empty-state"><span class="empty-icon">＋</span><strong>A central ainda não está conectada</strong><p>Quando a integração estiver pronta, as solicitações e os resultados aparecerão aqui.</p></div></article>
+        <article class="panel" id="historico"><div class="section-heading compact"><div><span class="eyebrow">ATIVIDADE</span><h2>Últimos eventos</h2></div></div><ul class="activity"><li><span class="activity-dot"></span><div><strong>Interface inicial criada</strong><small>Central web · versão 0.1</small></div><time>Agora</time></li><li><span class="activity-dot muted-dot"></span><div><strong>Conexões aguardando configuração</strong><small>OpenRouter, Groq e Gemini</small></div><time>—</time></li><li><span class="activity-dot muted-dot"></span><div><strong>Execução automática desativada</strong><small>Alterações exigirão revisão</small></div><time>—</time></li></ul></article>
+      </section>
+      <footer> NEXORA · Central de Controle <span>Interface inicial — ainda sem conexão com provedores.</span></footer>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
