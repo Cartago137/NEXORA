@@ -27,7 +27,7 @@ The Android build is configured to keep mGBA as a separate shared library rather
 
 NEXORA can fetch optional GBA box-art images on demand for the following known titles. These images are hosted by third parties and remain copyrighted by their respective game publishers / rights holders; NEXORA does not claim ownership or bundle them as original assets.
 
-- Pokémon FireRed: image hosted by Walmart product media.
+- Pokémon FireRed: image hosted by Bulbagarden Archives (`FireRed_EN_boxart.png`).
 - Mario & Luigi: Superstar Saga: image hosted by My Brain on Games (WordPress media).
 - Mega Man Battle Network 2: image hosted by GamesFirst.
 - Metroid: Zero Mission: image hosted by MobyGames.
