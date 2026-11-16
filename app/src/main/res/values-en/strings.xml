@@ -44,7 +44,7 @@
     <string name="nav_history">History</string>
     <string name="nav_settings">Settings</string>
     <string name="file_access_permission_failed">NEXORA could not keep access to this file. Please select it again using the Android file picker.</string>
-    <string name="unsupported_rom_format">Unsupported file. Choose a .gba, .agb or .bin file.</string>
+    <string name="unsupported_rom_format">Unsupported file. Choose a .gb, .gbc, .gba, .agb, or .bin file.</string>
     <string name="game_already_added">This file is already in your library.</string>
     <string name="game_added_success">Game added to your library!</string>
     <string name="remove">Remove</string>
@@ -102,4 +102,5 @@
     <string name="load_state_success">Game state loaded successfully.</string>
     <string name="load_state_failure">Could not load the saved game state.</string>
     <string name="save_states_disabled_link">Save States are disabled during a Link session to prevent desynchronization.</string>
+    <string name="link_cable_gba_only">Link Cable is available for GBA games only.</string>
 </resources>
