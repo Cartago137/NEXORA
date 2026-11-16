@@ -3,6 +3,7 @@
 #include <mgba/core/core.h>
 #include <mgba/core/config.h>
 #include <mgba/core/interface.h>
+#include <mgba/core/serialize.h>
 #include <mgba/core/blip_buf.h>
 #include <mgba-util/vfs.h>
 #include <mgba/gba/interface.h>
@@ -944,6 +945,64 @@ Java_com_nexora_app_NativeBridge_nativeLinkTakeOutgoing(JNIEnv* env, jobject) {
     env->SetLongArrayRegion(result, 0, 7, values);
     if (env->ExceptionCheck()) return nullptr;
     return result;
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_nexora_app_NativeBridge_nativeSaveState(
+    JNIEnv* env, jobject /* instance */, jstring path
+) {
+    if (path == nullptr) return JNI_FALSE;
+    const char* nativePath = env->GetStringUTFChars(path, nullptr);
+    if (nativePath == nullptr) return JNI_FALSE;
+
+    std::lock_guard<std::mutex> coreLock(gCoreMutex);
+    {
+        std::lock_guard<std::mutex> linkLock(gLinkMutex);
+        if (gLinkConnected) {
+            env->ReleaseStringUTFChars(path, nativePath);
+            return JNI_FALSE;
+        }
+    }
+    if (!gActiveCore || !gRomLoaded) {
+        env->ReleaseStringUTFChars(path, nativePath);
+        return JNI_FALSE;
+    }
+
+    VFile* stateFile = VFileOpen(nativePath, O_CREAT | O_TRUNC | O_WRONLY);
+    const bool saved = stateFile && mCoreSaveStateNamed(gActiveCore, stateFile, SAVESTATE_ALL);
+    if (stateFile) stateFile->close(stateFile);
+    env->ReleaseStringUTFChars(path, nativePath);
+    return saved ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_nexora_app_NativeBridge_nativeLoadState(
+    JNIEnv* env, jobject /* instance */, jstring path
+) {
+    if (path == nullptr) return JNI_FALSE;
+    const char* nativePath = env->GetStringUTFChars(path, nullptr);
+    if (nativePath == nullptr) return JNI_FALSE;
+
+    std::lock_guard<std::mutex> coreLock(gCoreMutex);
+    {
+        std::lock_guard<std::mutex> linkLock(gLinkMutex);
+        if (gLinkConnected) {
+            env->ReleaseStringUTFChars(path, nativePath);
+            return JNI_FALSE;
+        }
+    }
+    if (!gActiveCore || !gRomLoaded) {
+        env->ReleaseStringUTFChars(path, nativePath);
+        return JNI_FALSE;
+    }
+
+    VFile* stateFile = VFileOpen(nativePath, O_RDONLY);
+    const bool loaded = stateFile && mCoreLoadStateNamed(gActiveCore, stateFile, SAVESTATE_ALL);
+    if (stateFile) stateFile->close(stateFile);
+    env->ReleaseStringUTFChars(path, nativePath);
+    return loaded ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C"
