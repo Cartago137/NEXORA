@@ -96,7 +96,7 @@ private enum class NexoraTab { HOME, LIBRARY, HISTORY, SETTINGS }
 private fun gameStateKey(uri: String): String =
     MessageDigest.getInstance("SHA-256")
         .digest(uri.toByteArray(Charsets.UTF_8))
-        .joinToString("") { "%02x".format(it) }
+        .joinToString("") { "%02x".format(it.toInt() and 0xFF) }
 
 
 class MainActivity : ComponentActivity() {
