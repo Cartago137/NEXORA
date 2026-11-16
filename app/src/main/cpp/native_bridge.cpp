@@ -235,6 +235,16 @@ static void remoteSioEvent(struct mTiming* timing, void* context, uint32_t cycle
 
     const uint16_t localWord =
         remote->driver.p->p->memory.io[REG_SIOMLT_SEND >> 1];
+    bool connected = false;
+    {
+        std::lock_guard<std::mutex> lock(gLinkMutex);
+        connected = gLinkConnected && !gLinkFault;
+    }
+    if (!connected) {
+        // Do not report a successful local transfer after the peer has gone.
+        finishRemoteTransfer(remote, remote->remoteWord, localWord, true);
+        return;
+    }
     finishRemoteTransfer(remote, remote->remoteWord, localWord, false);
 
     RemoteLinkPacket response;
@@ -927,8 +937,19 @@ JNIEXPORT void JNICALL
 Java_com_nexora_app_NativeBridge_nativeLinkSetConnected(JNIEnv*, jobject, jboolean connected) {
     {
         std::lock_guard<std::mutex> lock(gLinkMutex);
-        gLinkConnected = connected == JNI_TRUE && !gLinkFault;
-        if (!gLinkConnected) {
+        if (connected == JNI_TRUE) {
+            // A new transport is installed only after the previous detach
+            // completes. Start it with clean bounded queues and result state.
+            gLinkFault = false;
+            gLinkConnected = true;
+            gLinkIncoming.clear();
+            gLinkOutgoing.clear();
+            gLinkResultReady = false;
+            gLinkResultTransferId = 0;
+            gLinkExpectedTransferId = 0;
+            gLinkResultWord = 0xFFFF;
+        } else {
+            gLinkConnected = false;
             gLinkIncoming.clear();
             gLinkOutgoing.clear();
         }
