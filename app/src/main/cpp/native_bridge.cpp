@@ -12,7 +12,6 @@
 #include <mgba/internal/gba/sio.h>
 #include <mgba/core/timing.h>
 
-#include <condition_variable>
 #include <cstdint>
 #include <deque>
 
@@ -129,7 +128,6 @@ struct RemoteSioDriver {
 };
 
 std::mutex gLinkMutex;
-std::condition_variable gLinkCondition;
 std::deque<RemoteLinkPacket> gLinkOutgoing;
 std::deque<RemoteLinkPacket> gLinkIncoming;
 RemoteSioDriver gRemoteSio;
@@ -148,14 +146,14 @@ static bool queueLinkOutgoing(const RemoteLinkPacket& packet) {
     if (!gLinkConnected || gLinkFault || gLinkOutgoing.size() >= kLinkQueueLimit) {
         gLinkFault = true;
         gLinkConnected = false;
-        gLinkCondition.notify_all();
+
         return false;
     }
     gLinkOutgoing.push_back(packet);
     if (packet.kind == RemotePacketKind::SerialTransfer) {
         gLinkExpectedTransferId = packet.transferId;
     }
-    gLinkCondition.notify_all();
+
     return true;
 }
 
@@ -229,7 +227,7 @@ static void remoteSioEvent(struct mTiming* timing, void* context, uint32_t cycle
         }
 
         finishRemoteTransfer(remote, remote->localWord, received, !hasResult);
-        gLinkCondition.notify_all();
+
         return;
     }
 
@@ -295,7 +293,7 @@ static bool remoteSioUnload(GBASIODriver* driver) {
     }
     remote->loaded = false;
     remote->transferActive = false;
-    gLinkCondition.notify_all();
+
     return true;
 }
 
@@ -375,7 +373,7 @@ static void processRemoteIncomingTransfers() {
         if (packet.transferId != gRemoteSio.lastIncomingTransferId + 1) {
             gLinkFault = true;
             gLinkConnected = false;
-            gLinkCondition.notify_all();
+
             return;
         }
         gLinkIncoming.pop_front();
@@ -922,7 +920,7 @@ Java_com_nexora_app_NativeBridge_nativeLinkDetach(JNIEnv*, jobject) {
         gLinkResultReady = false;
         gLinkExpectedTransferId = 0;
     }
-    gLinkCondition.notify_all();
+
     std::lock_guard<std::mutex> coreLock(gCoreMutex);
     detachRemoteSioDriverLocked();
     gRemoteSio.role = -1;
@@ -954,7 +952,7 @@ Java_com_nexora_app_NativeBridge_nativeLinkSetConnected(JNIEnv*, jobject, jboole
             gLinkOutgoing.clear();
         }
     }
-    gLinkCondition.notify_all();
+
 }
 
 extern "C"
@@ -982,7 +980,7 @@ Java_com_nexora_app_NativeBridge_nativeLinkReceiveSerialTransfer(
         gLinkIncoming.size() >= kLinkQueueLimit) {
         gLinkFault = true;
         gLinkConnected = false;
-        gLinkCondition.notify_all();
+
         return JNI_FALSE;
     }
     RemoteLinkPacket packet;
@@ -994,7 +992,7 @@ Java_com_nexora_app_NativeBridge_nativeLinkReceiveSerialTransfer(
     packet.sioControl = static_cast<uint16_t>(sioControl);
     packet.rcnt = static_cast<uint16_t>(rcnt);
     gLinkIncoming.push_back(packet);
-    gLinkCondition.notify_all();
+
     return JNI_TRUE;
 }
 
@@ -1017,7 +1015,7 @@ Java_com_nexora_app_NativeBridge_nativeLinkReceiveSerialResult(
     gLinkResultTransferId = static_cast<uint64_t>(transferId);
     gLinkResultWord = static_cast<uint16_t>(dataOut);
     gLinkResultReady = true;
-    gLinkCondition.notify_all();
+
     return JNI_TRUE;
 }
 
