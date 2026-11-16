@@ -16,6 +16,8 @@ services:
         value: 0.0.0.0
       - key: NEXORA_ADMIN_PASSWORD
         sync: false
+      - key: NEXORA_MCP_TOKEN
+        sync: false
       - key: UPSTASH_REDIS_REST_URL
         sync: false
       - key: UPSTASH_REDIS_REST_TOKEN
