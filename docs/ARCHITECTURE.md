@@ -2,115 +2,92 @@
 
 ## 1. Goals
 
-NEXORA is an Android-first GBA emulator with a premium interface and a modular foundation for future systems. The architecture must preserve the existing tested prototype's behavior while moving toward a reproducible source project.
+NEXORA is an Android-first handheld emulator targeting GBA, GB and GBC, with a custom premium interface and a modular foundation for future systems. Preserve ROM loading, battery saves, audio, rendering and input behavior while expanding the product.
 
 ## 2. Confirmed technology direction
 
-- Android application and UI: Kotlin + Jetpack Compose.
-- Native emulation layer: C/C++ with Android NDK and CMake.
-- Initial emulator core: mGBA for Game Boy Advance.
+- Android application/UI: Kotlin + Jetpack Compose.
+- Native emulation: C/C++ with Android NDK and CMake.
+- Emulator core: mGBA pinned to `26b7884bc25a5933960f3cdcd98bac1ae14d42e2`.
 - App/native boundary: JNI.
-- Build source of truth: this GitHub repository, with GitHub Actions for repeatable builds.
+- Build source of truth: GitHub repository and GitHub Actions.
 
-The APK metadata identifies source revision `17bcb65bad01e23790605ef4ec32fbdb173e637a`, which is preserved in Git history. The later CI-verified `feature/audio-saves-orientation` branch contains the expanded Kotlin/Compose app, native JNI bridge, pinned mGBA CMake integration, and Gradle project; this source line has been restored to `main`.
-
-## 3. Proposed layers
+## 3. Layers
 
 ```text
 Presentation (Kotlin / Compose)
   ├── Home and featured game
-  ├── Library, folders, search and history
-  ├── Emulator screen and virtual controls
-  └── Settings, themes and localization
+  ├── Unified Library (All / GBA / GB / GBC), folders and search
+  ├── Emulator screen and touch controls
+  └── Gameplay function menu, settings and localization
 
 Application (Kotlin)
-  ├── Game library use cases
+  ├── Game library and metadata
   ├── Save-data and session coordination
-  ├── Input mapping
-  └── Multiplayer session coordination
+  ├── Input mapping and speed control
+  └── Link session / Wi-Fi transport coordination
 
-Emulation abstraction
-  ├── EmulatorCore interface
-  ├── Core registry / system selection
-  └── Core capability reporting
+Emulation abstraction (JNI / C++)
+  ├── Active platform detection
+  ├── Dynamic video dimensions and audio
+  ├── Save State / Load State
+  └── Native input and lifecycle
 
 System modules (C/C++)
-  └── GBA adapter and mGBA integration
+  ├── mGBA GBA core
+  └── mGBA shared GB/GBC core
 
 Android platform services
-  ├── File access and permissions
+  ├── File access and app-private state storage
   ├── Audio, vibration and sensors
-  ├── Storage and backup
   └── Local networking
 ```
 
-The JNI bridge should remain narrow. Kotlin UI code must not depend directly on mGBA types or internal functions.
+The JNI bridge remains narrow. Kotlin UI code must not depend directly on mGBA types or internal functions.
 
-## 4. Emulator core contract
+## 4. Platform selection and video contract
 
-The application should communicate with an emulator through a stable contract. At minimum, it must eventually cover:
+- Detect the actual platform from the cartridge header with `mCoreIsCompatible`; do not trust the filename extension as the source of truth.
+- `mPLATFORM_GBA` selects GBA; `mPLATFORM_GB` selects the shared original GB/GBC core.
+- The native framebuffer uses a maximum-size backing stride, then packs only the active frame dimensions into the Kotlin-owned buffer.
+- GBA output is normally 240x160 (3:2); GB/GBC output is normally 160x144 (10:9). The player preserves the active aspect ratio.
+- The unified Library console filter currently classifies by file extension; actual core selection on load uses the ROM header. A future metadata pass should persist the detected platform so unusual extensions are categorized accurately.
 
-- initialize and shut down a core;
-- load and unload a user-selected game;
-- advance emulation and provide video frames;
-- receive controller input;
-- produce and consume audio;
-- save and restore game data when supported;
-- report supported capabilities and limitations;
-- expose lifecycle and error information.
+## 5. Emulator capabilities
 
-Exact signatures must be verified against the recovered/reconstructed native implementation rather than guessed from JNI symbol names alone.
-
-## 5. Capability-based features
-
-Not every system supports the same hardware features. Each core should report capabilities instead of assuming that all consoles support the same functions.
-
-Potential capabilities include:
-
+The app should expose capabilities rather than assume every system supports the same hardware:
 - save states;
 - link cable / multiplayer;
-- motion or tilt sensors;
+- motion/tilt sensors;
 - rumble;
-- microphone or other peripherals, if relevant to a future system.
+- future peripherals.
 
-The interface should enable a feature only when the active core and device support it.
+The GBA Link Cable action is disabled for GB/GBC. Save States are disabled while a Link session is attached because restoring one side alone would desynchronize the pair.
 
-## 6. Multiplayer direction
+## 6. Save data
 
-Multiplayer is a major product goal. The design should distinguish:
+- Native in-game battery saves remain separate from Save States.
+- Save States use mGBA's named-state API with `SAVESTATE_ALL`.
+- State files are stored in app-private storage and keyed by a SHA-256 identifier derived from the imported ROM URI.
+- Writes go to a temporary file and replace the previous state only after mGBA completes serialization.
+- State save/load must be tested by saving, advancing, restoring, restarting the app and testing missing/corrupt files.
 
-1. local link emulation between two instances;
-2. device-to-device communication over a local Wi-Fi network;
-3. any future internet-based relay service.
+## 7. Multiplayer direction and current limits
 
-These are technically different modes. Their feasibility, latency, synchronization, supported games, and security requirements must be tested independently. Do not promise universal compatibility before testing.
+The first milestone is two GBA devices on one local Wi-Fi network:
+1. Host/join room and handshake with session ID, game code and ROM CRC32.
+2. Bounded NXLP v1 serial messages over TCP.
+3. JNI queues connect transport to mGBA's GBA MULTI SIO driver.
+4. Native callbacks must never perform socket I/O or block the Android UI thread.
 
-## 7. Data ownership
-
-The library should track user-selected game files and their metadata without assuming that NEXORA owns or distributes those files.
-
-Removing a game from the library must be distinct from deleting its original file. Any destructive file deletion should require explicit confirmation.
-
-Deleting a custom folder should not delete the games assigned to it. Pinned and favorite status should remain independent of folder membership.
+The current direct remote SIO implementation uses non-blocking polling at the host timing callback. It is not yet proven to provide deterministic distributed lockstep. Cable Club behavior and an actual Pokémon trade must be tested on two physical devices. Do not claim universal Link Cable compatibility.
 
 ## 8. Quality requirements
 
 - Keep core emulation work off the UI thread.
-- Avoid blocking the interface during library scans, file operations, or save-data operations.
-- Handle user files as untrusted input and handle malformed files safely.
-- Preserve selection and session state across orientation changes.
-- Treat persistent in-game save behavior as a regression requirement: the user has confirmed that saves survive a full app restart in the reference APK.
-- Add automated tests around library behavior, input mapping, save management, and core integration.
-- Record third-party licenses and notices before shipping dependencies.
-
-## 9. Source recovery and compatibility
-
-The tested APK is a behavioral reference, and its embedded Git revision has been recovered from the repository's preserved branches. The current restoration brings the later CI-verified source line into `main`.
-
-- Keep the exact APK-generating revision available for comparison.
-- Preserve the later rendering, audio, save, and input improvements already present in the source branches.
-- Do not replace the existing mGBA implementation with a stub and call it equivalent.
-- Verify JNI signatures, frame-buffer format, audio format, threading, and lifecycle behavior on the target device.
-- Treat the Pokémon FireRed white/small rendering issue as open until reproduced and verified after the source restoration.
-
-See [APK audit and source recovery](APK_AUDIT_AND_SOURCE_RECOVERY.md) and the [Android integration plan](ANDROID_INTEGRATION_PLAN.md).
+- Bound network queues and validate packet lengths, versions and transfer IDs.
+- Handle disconnect, timeout, unload and malformed ROMs safely.
+- Preserve input combinations and clear held keys on cancel, pause and exit.
+- Test GBA, GB and GBC independently.
+- Record CI results and distinguish build success from physical-device validation.
+- Retain third-party licenses and notices.

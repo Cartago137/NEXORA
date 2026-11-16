@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.view.View
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -17,6 +18,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
@@ -27,34 +30,57 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import com.nexora.app.link.LinkProtocol
+import com.nexora.app.link.WifiLinkTransport
+import java.security.SecureRandom
+import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicLong
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.abs
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -71,6 +97,12 @@ private val NexoraText = Color(0xFFF4EFFA)
 private val NexoraMuted = Color(0xFFB7AFC2)
 
 private enum class NexoraTab { HOME, LIBRARY, HISTORY, SETTINGS }
+
+private fun gameStateKey(uri: String): String =
+    MessageDigest.getInstance("SHA-256")
+        .digest(uri.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+
 
 class MainActivity : ComponentActivity() {
 
@@ -202,6 +234,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var games by remember { mutableStateOf(GameLibraryStore.load(this@MainActivity)) }
+            var folders by remember { mutableStateOf(GameFolderStore.load(this@MainActivity)) }
             var libraryMessage by remember { mutableStateOf<String?>(null) }
             var isLoadingGame by remember { mutableStateOf(false) }
 
@@ -259,7 +292,7 @@ class MainActivity : ComponentActivity() {
                                 .lowercase(Locale.ROOT)
 
                             when {
-                                extension !in setOf("gba", "agb", "bin") -> {
+                                extension !in setOf("gba", "agb", "bin", "gb", "gbc") -> {
                                     invalidCount++
                                     releaseDocumentAccess(uri)
                                 }
@@ -298,7 +331,22 @@ class MainActivity : ComponentActivity() {
                     nativeStatus = -1,
                     isAppInForeground = isAppInForeground,
                     games = games,
+                    folders = folders,
                     libraryMessage = libraryMessage,
+                    onSaveFolders = { updatedFolders ->
+                        folders = updatedFolders
+                        GameFolderStore.save(this@MainActivity, folders)
+                    },
+                    onUpdateGame = { updatedGame ->
+                        games = games.map { if (it.uri == updatedGame.uri) updatedGame else it }
+                        GameLibraryStore.save(this@MainActivity, games)
+                    },
+                    onDeleteFolder = { folder ->
+                        folders = folders.filterNot { it.id == folder.id }
+                        games = games.map { if (it.folderId == folder.id) it.copy(folderId = null) else it }
+                        GameFolderStore.save(this@MainActivity, folders)
+                        GameLibraryStore.save(this@MainActivity, games)
+                    },
                     isLoadingGame = isLoadingGame,
                     onImportGame = { romPicker.launch(arrayOf("*/*")) },
                     onPlayGame = { game, onLoaded ->
@@ -351,7 +399,11 @@ private fun NexoraApp(
     nativeStatus: Int,
     isAppInForeground: Boolean,
     games: List<GameEntry>,
+    folders: List<GameFolder>,
     libraryMessage: String?,
+    onSaveFolders: (List<GameFolder>) -> Unit,
+    onUpdateGame: (GameEntry) -> Unit,
+    onDeleteFolder: (GameFolder) -> Unit,
     isLoadingGame: Boolean,
     onImportGame: () -> Unit,
     onPlayGame: (GameEntry, (Int) -> Unit) -> Unit,
@@ -361,11 +413,239 @@ private fun NexoraApp(
 ) {
     var selectedTab by remember { mutableStateOf(NexoraTab.HOME) }
     var activeGameName by remember { mutableStateOf<String?>(null) }
+    var activeGameSaveKey by remember { mutableStateOf<String?>(null) }
     var gamePendingRemoval by remember { mutableStateOf<GameEntry?>(null) }
     var removalFailed by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    var showLinkDialog by remember { mutableStateOf(false) }
+    var linkTransport by remember { mutableStateOf<WifiLinkTransport?>(null) }
+    var linkMessage by remember { mutableStateOf<String?>(null) }
+    var linkBusy by remember { mutableStateOf(false) }
+    var roomCode by remember { mutableStateOf<String?>(null) }
+    var hostIp by remember { mutableStateOf(WifiLinkTransport.localIpv4Address()) }
+    var joinIp by remember { mutableStateOf("") }
+    var joinCode by remember { mutableStateOf("") }
+    val linkScope = rememberCoroutineScope()
+    var linkConnectJob by remember { mutableStateOf<Job?>(null) }
+    val roomCodeRandom = remember { SecureRandom() }
+    val lastPongNonce = remember { AtomicLong(0L) }
+
+    fun disconnectLink(finalMessage: String? = null) {
+        if (linkBusy && linkTransport == null && linkConnectJob == null) return
+        val pendingConnect = linkConnectJob
+        pendingConnect?.cancel()
+        linkConnectJob = null
+        val active = linkTransport
+        NativeBridge.nativeLinkSetConnected(false)
+        linkTransport = null
+        roomCode = null
+        joinCode = ""
+        linkBusy = true
+        linkScope.launch(Dispatchers.IO) {
+            pendingConnect?.join()
+            if (active != null) runCatching { active.close() }
+            runCatching { NativeBridge.nativeLinkDetach() }
+            linkScope.launch {
+                linkBusy = false
+                linkMessage = finalMessage ?: context.getString(R.string.link_disconnected)
+            }
+        }
+    }
+
+    fun installLinkTransport(transport: WifiLinkTransport) {
+        NativeBridge.nativeLinkSetConnected(true)
+        if (!NativeBridge.nativeLinkAttach(transport.session.localPlayerId)) {
+            NativeBridge.nativeLinkSetConnected(false)
+            transport.close()
+            linkBusy = false
+            linkMessage = context.getString(R.string.link_native_attach_failed)
+            return
+        }
+
+        lastPongNonce.set(0L)
+        linkTransport = transport
+        linkBusy = false
+        linkMessage = context.getString(R.string.link_connected_instruction)
+        transport.startReceiving(
+            onMessage = { message ->
+                when (message) {
+                    is LinkProtocol.SerialTransfer -> {
+                        val accepted = message.mode == LinkProtocol.SerialMode.MULTIPLAYER &&
+                            message.bitWidth == 16 &&
+                            NativeBridge.nativeLinkReceiveSerialTransfer(
+                                message.transferId,
+                                message.cycle,
+                                message.baudCode,
+                                message.dataOut and 0xFFFF,
+                                message.sioControl,
+                                message.rcnt
+                            )
+                        if (!accepted) {
+                            NativeBridge.nativeLinkSetConnected(false)
+                            linkScope.launch {
+                                linkMessage = context.getString(R.string.link_transfer_rejected)
+                            }
+                        }
+                    }
+                    is LinkProtocol.SerialResult -> {
+                        val localWord = message.receivedWords.getOrNull(1)
+                            ?: message.receivedWords.firstOrNull()
+                            ?: 0xFFFF
+                        val accepted = NativeBridge.nativeLinkReceiveSerialResult(
+                            message.transferId,
+                            message.cycle,
+                            localWord,
+                            message.sioControl,
+                            0
+                        )
+                        if (!accepted) {
+                            NativeBridge.nativeLinkSetConnected(false)
+                            linkScope.launch {
+                                linkMessage = context.getString(R.string.link_transfer_rejected)
+                            }
+                        }
+                    }
+                    is LinkProtocol.Ping -> runCatching {
+                        transport.send(LinkProtocol.Pong(message.nonce))
+                    }
+                    is LinkProtocol.Pong -> lastPongNonce.set(message.nonce)
+                    is LinkProtocol.Goodbye -> NativeBridge.nativeLinkSetConnected(false)
+                    is LinkProtocol.ProtocolError -> {
+                        NativeBridge.nativeLinkSetConnected(false)
+                        linkScope.launch {
+                            linkMessage = context.getString(R.string.link_remote_ended_reason, message.message)
+                        }
+                    }
+                    else -> Unit
+                }
+            },
+            onDisconnected = { error ->
+                NativeBridge.nativeLinkSetConnected(false)
+                linkScope.launch {
+                    if (linkTransport === transport) {
+                        linkMessage = error?.message?.let {
+                            context.getString(R.string.link_connection_lost, it)
+                        } ?: context.getString(R.string.link_remote_ended)
+                    }
+                }
+            }
+        )
+    }
+
+    LaunchedEffect(linkTransport) {
+        val active = linkTransport ?: return@LaunchedEffect
+        var nextPingNonce = 1L
+        var awaitingPongNonce: Long? = null
+        var pingSentAtNanos = 0L
+        var nextPingAtNanos = System.nanoTime() + 3_000_000_000L
+
+        while (isActive && linkTransport === active) {
+            if (NativeBridge.nativeLinkStatus() != 1) {
+                disconnectLink(context.getString(R.string.link_session_interrupted))
+                break
+            }
+
+            val nowNanos = System.nanoTime()
+            val waitingForPong = awaitingPongNonce
+            if (waitingForPong != null) {
+                if (lastPongNonce.get() == waitingForPong) {
+                    awaitingPongNonce = null
+                    nextPingAtNanos = nowNanos + 3_000_000_000L
+                } else if (nowNanos - pingSentAtNanos > 10_000_000_000L) {
+                    disconnectLink(context.getString(R.string.link_heartbeat_timeout))
+                    break
+                }
+            }
+
+            val packet = NativeBridge.nativeLinkTakeOutgoing()
+            if (packet == null) {
+                if (awaitingPongNonce == null && nowNanos >= nextPingAtNanos) {
+                    val nonce = nextPingNonce++
+                    try {
+                        withContext(Dispatchers.IO) {
+                            active.send(LinkProtocol.Ping(nonce))
+                        }
+                        awaitingPongNonce = nonce
+                        pingSentAtNanos = nowNanos
+                    } catch (error: Throwable) {
+                        disconnectLink(
+                            context.getString(
+                                R.string.link_send_failed,
+                                error.message ?: context.getString(R.string.link_network_error)
+                            )
+                        )
+                        break
+                    }
+                }
+                delay(2)
+                continue
+            }
+            if (packet.size != 7) {
+                disconnectLink(context.getString(R.string.link_invalid_event))
+                break
+            }
+            val message: LinkProtocol.Message? = when (packet[0].toInt()) {
+                1 -> LinkProtocol.SerialTransfer(
+                    transferId = packet[1],
+                    cycle = packet[2],
+                    mode = LinkProtocol.SerialMode.MULTIPLAYER,
+                    baudCode = packet[3].toInt(),
+                    bitWidth = 16,
+                    dataOut = packet[4].toInt() and 0xFFFF,
+                    sioControl = packet[5].toInt() and 0xFFFF,
+                    rcnt = packet[6].toInt() and 0xFFFF
+                )
+                2 -> LinkProtocol.SerialResult(
+                    transferId = packet[1],
+                    cycle = packet[2],
+                    receivedWords = listOf(0xFFFF, packet[4].toInt() and 0xFFFF),
+                    sioControl = packet[5].toInt() and 0xFFFF
+                )
+                else -> null
+            }
+            if (message == null) {
+                disconnectLink(context.getString(R.string.link_unknown_event))
+                break
+            }
+            try {
+                withContext(Dispatchers.IO) { active.send(message) }
+            } catch (error: Throwable) {
+                disconnectLink(
+                    context.getString(
+                        R.string.link_send_failed,
+                        error.message ?: context.getString(R.string.link_network_error)
+                    )
+                )
+                break
+            }
+        }
+    }
+
+    var lastPlayedUri by remember {
+        mutableStateOf(
+            context.getSharedPreferences("nexora_home", android.content.Context.MODE_PRIVATE)
+                .getString("last_played_uri", null)
+        )
+    }
+    val startGame: (GameEntry) -> Unit = { game ->
+        onPlayGame(game) { status ->
+            if (status == 4) {
+                activeGameName = game.name
+                activeGameSaveKey = gameStateKey(game.uri)
+                lastPlayedUri = game.uri
+                context.getSharedPreferences("nexora_home", android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .putString("last_played_uri", game.uri)
+                    .apply()
+            }
+        }
+    }
+
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     Surface(modifier = Modifier.fillMaxSize(), color = NexoraBackground) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
             if (activeGameName == null) {
                 Row(
                     modifier = Modifier
@@ -378,7 +658,14 @@ private fun NexoraApp(
                             .size(width = 4.dp, height = 38.dp)
                             .background(NexoraPurple, RoundedCornerShape(4.dp))
                     )
-                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(R.drawable.nexora_cat_mascot),
+                        contentDescription = stringResource(R.string.app_name),
+                        modifier = Modifier
+                            .padding(start = 9.dp)
+                            .size(42.dp)
+                    )
+                    Column(modifier = Modifier.padding(start = 10.dp)) {
                         Text(
                             text = stringResource(R.string.brand_name),
                             color = NexoraText,
@@ -402,30 +689,200 @@ private fun NexoraApp(
                 if (activeGameName != null) {
                     PlayerScreen(
                         gameName = activeGameName!!,
+                        saveStateKey = activeGameSaveKey ?: gameStateKey(activeGameName!!),
                         isAppInForeground = isAppInForeground,
+                        isLinkConnected = linkTransport != null || linkBusy,
+                        onOpenLink = {
+                            hostIp = WifiLinkTransport.localIpv4Address()
+                            showLinkDialog = true
+                        },
                         onExit = {
+                            disconnectLink()
                             onExitGame()
                             activeGameName = null
+                            activeGameSaveKey = null
                         }
                     )
+                    if (showLinkDialog) {
+                        val gameCode = NativeBridge.nativeGetGameCode()
+                        val romCrc32 = NativeBridge.nativeGetRomCrc32()
+                        AlertDialog(
+                            onDismissRequest = { if (!linkBusy) showLinkDialog = false },
+                            title = { Text(stringResource(R.string.link_dialog_title), color = NexoraText) },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    if (linkTransport != null) {
+                                        Text(stringResource(R.string.link_room_connected), color = NexoraPurple, fontWeight = FontWeight.Bold)
+                                        Text(stringResource(R.string.link_player_connected, linkTransport!!.session.localPlayerId + 1), color = NexoraText)
+                                        Text(stringResource(R.string.link_cable_club_instruction), color = NexoraMuted, fontSize = 12.sp)
+                                        Button(onClick = { disconnectLink() }) { Text(stringResource(R.string.link_disconnect)) }
+                                    } else {
+                                        Text(stringResource(R.string.link_wifi_same_rom), color = NexoraMuted, fontSize = 12.sp)
+                                        Button(
+                                            onClick = {
+                                                val code = (1000 + roomCodeRandom.nextInt(9000)).toString()
+                                                roomCode = code
+                                                hostIp = WifiLinkTransport.localIpv4Address()
+                                                linkBusy = true
+                                                linkMessage = context.getString(R.string.link_room_waiting)
+                                                linkConnectJob = linkScope.launch {
+                                                    val connectionJob = currentCoroutineContext()[Job]
+                                                    try {
+                                                        val session = withContext(Dispatchers.IO) {
+                                                            WifiLinkTransport.host(
+                                                                gameCode = gameCode,
+                                                                romCrc32 = romCrc32,
+                                                                sessionId = WifiLinkTransport.roomSessionId(code),
+                                                                onListening = { address ->
+                                                                    linkScope.launch {
+                                                                        hostIp = address
+                                                                        linkMessage = context.getString(R.string.link_room_waiting_short)
+                                                                    }
+                                                                },
+                                                                shouldCancel = { connectionJob?.isActive != true }
+                                                            )
+                                                        }
+                                                        linkConnectJob = null
+                                                        installLinkTransport(session)
+                                                    } catch (cancelled: CancellationException) {
+                                                        throw cancelled
+                                                    } catch (error: Throwable) {
+                                                        linkConnectJob = null
+                                                        linkBusy = false
+                                                        roomCode = null
+                                                        linkMessage = context.getString(R.string.link_create_room_failed, error.message ?: context.getString(R.string.link_timeout))
+                                                    }
+                                                }
+                                            },
+                                            enabled = !linkBusy && gameCode.length == 4 && romCrc32 != 0L
+                                        ) { Text(stringResource(R.string.link_create_room)) }
+                                        if (roomCode != null) {
+                                            Text(stringResource(R.string.link_room_code, roomCode ?: ""), color = NexoraPink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                            Text(
+                                                stringResource(R.string.link_host_ip),
+                                                color = NexoraMuted,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                "$hostIp:${WifiLinkTransport.DEFAULT_PORT}",
+                                                color = NexoraText,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(NexoraPanelLight, RoundedCornerShape(12.dp))
+                                                    .padding(horizontal = 12.dp, vertical = 11.dp)
+                                            )
+                                            Text(stringResource(R.string.link_share_ip_code), color = NexoraMuted, fontSize = 11.sp)
+                                        }
+                                        TextField(
+                                            value = joinIp,
+                                            onValueChange = { joinIp = it },
+                                            label = { Text(stringResource(R.string.link_host_ip_label)) },
+                                            singleLine = true,
+                                            colors = TextFieldDefaults.colors(
+                                                focusedTextColor = NexoraText,
+                                                unfocusedTextColor = NexoraText,
+                                                focusedContainerColor = NexoraPanelLight,
+                                                unfocusedContainerColor = NexoraPanelLight,
+                                                focusedLabelColor = NexoraPurple,
+                                                unfocusedLabelColor = NexoraMuted,
+                                                cursorColor = NexoraPurple,
+                                                focusedIndicatorColor = NexoraPurple,
+                                                unfocusedIndicatorColor = NexoraMuted
+                                            )
+                                        )
+                                        TextField(
+                                            value = joinCode,
+                                            onValueChange = { joinCode = it.filter(Char::isDigit).take(4) },
+                                            label = { Text(stringResource(R.string.link_room_code_label)) },
+                                            singleLine = true,
+                                            colors = TextFieldDefaults.colors(
+                                                focusedTextColor = NexoraText,
+                                                unfocusedTextColor = NexoraText,
+                                                focusedContainerColor = NexoraPanelLight,
+                                                unfocusedContainerColor = NexoraPanelLight,
+                                                focusedLabelColor = NexoraPurple,
+                                                unfocusedLabelColor = NexoraMuted,
+                                                cursorColor = NexoraPurple,
+                                                focusedIndicatorColor = NexoraPurple,
+                                                unfocusedIndicatorColor = NexoraMuted
+                                            )
+                                        )
+                                        Button(
+                                            onClick = {
+                                                linkBusy = true
+                                                linkMessage = context.getString(R.string.link_joining)
+                                                val code = joinCode
+                                                val address = joinIp.trim()
+                                                linkConnectJob = linkScope.launch {
+                                                    val connectionJob = currentCoroutineContext()[Job]
+                                                    try {
+                                                        val session = withContext(Dispatchers.IO) {
+                                                            WifiLinkTransport.join(
+                                                                hostAddress = address,
+                                                                expectedSessionId = WifiLinkTransport.roomSessionId(code),
+                                                                gameCode = gameCode,
+                                                                romCrc32 = romCrc32,
+                                                                shouldCancel = { connectionJob?.isActive != true }
+                                                            )
+                                                        }
+                                                        linkConnectJob = null
+                                                        installLinkTransport(session)
+                                                    } catch (cancelled: CancellationException) {
+                                                        throw cancelled
+                                                    } catch (error: Throwable) {
+                                                        linkConnectJob = null
+                                                        linkBusy = false
+                                                        linkMessage = context.getString(R.string.link_join_room_failed, error.message ?: context.getString(R.string.link_network_error))
+                                                    }
+                                                }
+                                            },
+                                            enabled = !linkBusy && joinIp.isNotBlank() &&
+                                                joinCode.length == 4 && gameCode.length == 4 &&
+                                                romCrc32 != 0L
+                                        ) { Text(stringResource(R.string.link_join_room)) }
+                                        if (linkBusy) Text(stringResource(R.string.link_waiting_connection), color = NexoraPurple, fontSize = 12.sp)
+                                    }
+                                    linkMessage?.let {
+                                        Text(it, color = if (linkTransport != null) NexoraPurple else NexoraMuted, fontSize = 12.sp)
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showLinkDialog = false }, enabled = !linkBusy) {
+                                    Text(stringResource(R.string.close), color = NexoraText)
+                                }
+                            },
+                            containerColor = NexoraPanel,
+                            titleContentColor = NexoraText,
+                            textContentColor = NexoraText
+                        )
+                    }
                 } else when (selectedTab) {
-                    NexoraTab.HOME -> HomeScreen(
+                    NexoraTab.HOME -> NexoraHomeScreen(
+                        games = games,
+                        featuredGame = games.firstOrNull { it.uri == lastPlayedUri } ?: games.firstOrNull(),
+                        isLastPlayed = lastPlayedUri != null && games.any { it.uri == lastPlayedUri },
                         onImportGame = {
                             selectedTab = NexoraTab.LIBRARY
                             onImportGame()
                         },
-                        onOpenLibrary = { selectedTab = NexoraTab.LIBRARY }
+                        onOpenLibrary = { selectedTab = NexoraTab.LIBRARY },
+                        onPlayGame = startGame
                     )
                     NexoraTab.LIBRARY -> LibraryScreen(
                         games = games,
+                        folders = folders,
+                        onSaveFolders = onSaveFolders,
+                        onUpdateGame = onUpdateGame,
+                        onDeleteFolder = onDeleteFolder,
+                        onRemoveSelectedGames = { selected -> selected.forEach { onRemoveGame(it, false) } },
                         message = libraryMessage,
                         isLoadingGame = isLoadingGame,
                         onImportGame = onImportGame,
-                        onPlayGame = { game ->
-                            onPlayGame(game) { status ->
-                                if (status == 4) activeGameName = game.name
-                            }
-                        },
+                        onPlayGame = { game -> startGame(game) },
                         onClearMessage = onClearLibraryMessage,
                         onRemoveGame = { game ->
                             removalFailed = false
@@ -437,8 +894,13 @@ private fun NexoraApp(
                 }
             }
 
-            if (activeGameName == null) {
+            if (activeGameName == null && !isLandscape) {
                 BottomNavigation(selectedTab = selectedTab, onSelect = { selectedTab = it })
+            }
+            }
+
+            if (activeGameName == null && isLandscape) {
+                SideNavigation(selectedTab = selectedTab, onSelect = { selectedTab = it })
             }
         }
     }
@@ -500,18 +962,41 @@ private fun NexoraApp(
 }
 
 @Composable
-private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: () -> Unit) {
-    val pixelBuffer = remember { IntArray(240 * 160) }
-    val frameBitmap = remember {
-        Bitmap.createBitmap(240, 160, Bitmap.Config.ARGB_8888)
+private fun PlayerScreen(
+    gameName: String,
+    saveStateKey: String,
+    isAppInForeground: Boolean,
+    isLinkConnected: Boolean,
+    onOpenLink: () -> Unit,
+    onExit: () -> Unit
+) {
+    val videoWidth = remember(saveStateKey) {
+        NativeBridge.nativeGetVideoWidth().takeIf { it > 0 } ?: 240
     }
-    val frameImage = remember { frameBitmap.asImageBitmap() }
+    val videoHeight = remember(saveStateKey) {
+        NativeBridge.nativeGetVideoHeight().takeIf { it > 0 } ?: 160
+    }
+    val isGbFamily = remember(saveStateKey) { NativeBridge.nativeGetPlatform() == 1 }
+    val videoAspectRatio = videoWidth.toFloat() / videoHeight.toFloat()
+    val pixelBuffer = remember(saveStateKey) { IntArray(videoWidth * videoHeight) }
+    val frameBitmap = remember(saveStateKey) {
+        Bitmap.createBitmap(videoWidth, videoHeight, Bitmap.Config.ARGB_8888)
+    }
+    val frameImage = remember(saveStateKey, frameBitmap) { frameBitmap.asImageBitmap() }
     var frameReady by remember { mutableStateOf(false) }
     var frameError by remember { mutableStateOf(false) }
     var frameVersion by remember { mutableIntStateOf(0) }
+    var emulationSpeed by remember { mutableFloatStateOf(1.0f) }
+    var showFunctionsMenu by remember { mutableStateOf(false) }
+    var functionsBusy by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val functionsScope = rememberCoroutineScope()
+    val stateFile = remember(saveStateKey) {
+        File(File(context.filesDir, "save_states"), "$saveStateKey.state")
+    }
 
-    LaunchedEffect(gameName, isAppInForeground) {
-        if (!isAppInForeground) {
+    LaunchedEffect(gameName, saveStateKey, isAppInForeground, showFunctionsMenu) {
+        if (!isAppInForeground || showFunctionsMenu) {
             NativeBridge.nativeSetKeys(0)
             return@LaunchedEffect
         }
@@ -561,6 +1046,7 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
             }
         }.getOrNull()
         audioTrack = createdAudioTrack
+        var appliedAudioSpeed = 1.0f
 
         // mGBA produces audio while frames run; this worker drains it without
         // blocking the Compose/UI thread or slowing down video frame pacing.
@@ -604,13 +1090,21 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
             val targetFrameNanos = 16_742_706L
 
             while (isActive) {
+                // Keep Android audio consumption in step with emulation speed.
+                // Matching playback rate prevents an ever-growing PCM queue.
+                if (appliedAudioSpeed != emulationSpeed) {
+                    val requestedRate = (outputSampleRate * emulationSpeed).toInt()
+                    createdAudioTrack?.setPlaybackRate(requestedRate)
+                    appliedAudioSpeed = emulationSpeed
+                }
+
                 val frameStartNanos = System.nanoTime()
                 val rendered = withContext(Dispatchers.Default) {
                     runCatching {
                         val success = NativeBridge.nativeRunFrame(pixelBuffer)
                         if (success) {
                             // Keep pixel conversion/copying off the UI thread.
-                            frameBitmap.setPixels(pixelBuffer, 0, 240, 0, 0, 240, 160)
+                            frameBitmap.setPixels(pixelBuffer, 0, videoWidth, 0, 0, videoWidth, videoHeight)
                         }
                         success
                     }.getOrDefault(false)
@@ -626,7 +1120,8 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                 // bitmap to be painted again even though its object identity is stable.
                 frameVersion++
 
-                val remainingNanos = targetFrameNanos - (System.nanoTime() - frameStartNanos)
+                val frameIntervalNanos = (targetFrameNanos / emulationSpeed).toLong()
+                val remainingNanos = frameIntervalNanos - (System.nanoTime() - frameStartNanos)
                 if (remainingNanos > 0L) {
                     delay((remainingNanos / 1_000_000L).coerceAtLeast(1L))
                 } else {
@@ -648,8 +1143,12 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
     }
 
     androidx.activity.compose.BackHandler {
-        NativeBridge.nativeSetKeys(0)
-        onExit()
+        if (showFunctionsMenu) {
+            if (!functionsBusy) showFunctionsMenu = false
+        } else {
+            NativeBridge.nativeSetKeys(0)
+            onExit()
+        }
     }
 
     BoxWithConstraints(
@@ -658,96 +1157,217 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
         val isLandscape = maxWidth > maxHeight
 
         if (isLandscape) {
-            // Keep the game image centered, with controls on both sides.
+            // Landscape: D-pad on the left, A/B on the right,
+            // shoulder buttons at the upper outer corners, and
+            // SELECT/START centered beneath the game image.
             Row(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(
-                    modifier = Modifier.weight(0.19f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        GbaControl("↑", 1 shl 6)
-                        Row {
-                            GbaControl("←", 1 shl 5)
-                            GbaControl("↓", 1 shl 7)
-                            GbaControl("→", 1 shl 4)
+                Box(modifier = Modifier.width(160.dp).fillMaxSize()) {
+                    if (!isGbFamily) {
+                        Box(Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 2.dp)) {
+                            GbaControl("L", 1 shl 9, compact = true)
                         }
                     }
-                    Row {
+                    Box(Modifier.align(Alignment.CenterStart)) {
+                        GbaDPad()
+                    }
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         GbaControl("SELECT", 1 shl 2, compact = true)
+                        Spacer(Modifier.width(18.dp))
                         GbaControl("START", 1 shl 3, compact = true)
                     }
                 }
 
-                Box(
-                    modifier = Modifier.weight(0.62f).fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    GameFrame(frameError, frameReady, frameVersion, frameImage)
-                }
-
-                Column(
-                    modifier = Modifier.weight(0.19f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GbaControl("B", 1 shl 1)
-                        GbaControl("A", 1 shl 0)
+                Box(modifier = Modifier.width(160.dp).fillMaxSize()) {
+                    if (!isGbFamily) {
+                        Box(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 2.dp)) {
+                            GbaControl("R", 1 shl 8, compact = true)
+                        }
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GbaControl("L", 1 shl 9, compact = true)
-                        GbaControl("R", 1 shl 8, compact = true)
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        GbaControl("B", 1 shl 1, controlSize = 56)
+                        GbaControl("A", 1 shl 0, controlSize = 56)
                     }
                 }
             }
         } else {
-            // Portrait: game first, controls below; no title or exit toolbar.
+            // Portrait: keep the game above a dedicated control deck.
             Column(
-                modifier = Modifier.fillMaxSize().padding(10.dp),
-                verticalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    GameFrame(frameError, frameReady, frameVersion, frameImage)
+                    GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio)
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        GbaControl("↑", 1 shl 6)
-                        Row {
-                            GbaControl("←", 1 shl 5)
-                            GbaControl("↓", 1 shl 7)
-                            GbaControl("→", 1 shl 4)
+                GbaPortraitControlDeck(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    showShoulderButtons = !isGbFamily
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 8.dp)
+                .background(NexoraPanel.copy(alpha = 0.94f), RoundedCornerShape(14.dp))
+                .padding(horizontal = 5.dp, vertical = 1.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = { showFunctionsMenu = true }) {
+                Text("☰", color = NexoraPink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        if (showFunctionsMenu) {
+            AlertDialog(
+                onDismissRequest = { if (!functionsBusy) showFunctionsMenu = false },
+                title = {
+                    Text(stringResource(R.string.functions_menu_title), color = NexoraText, fontSize = 17.sp)
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        TextButton(
+                            onClick = {
+                                functionsBusy = true
+                                functionsScope.launch {
+                                    val saved = withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            stateFile.parentFile?.mkdirs()
+                                            NativeBridge.nativeSaveState(stateFile.absolutePath)
+                                        }.getOrDefault(false)
+                                    }
+                                    functionsBusy = false
+                                    showFunctionsMenu = false
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(
+                                            if (saved) R.string.save_state_success else R.string.save_state_failure
+                                        ),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            enabled = !functionsBusy && !isLinkConnected
+                        ) { Text(stringResource(R.string.save_state), color = NexoraText) }
+
+                        TextButton(
+                            onClick = {
+                                functionsBusy = true
+                                functionsScope.launch {
+                                    val loaded = withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            NativeBridge.nativeLoadState(stateFile.absolutePath)
+                                        }.getOrDefault(false)
+                                    }
+                                    if (loaded) withContext(Dispatchers.IO) {
+                                        runCatching { NativeBridge.nativeClearAudio() }
+                                    }
+                                    functionsBusy = false
+                                    showFunctionsMenu = false
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(
+                                            if (loaded) R.string.load_state_success else R.string.load_state_failure
+                                        ),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            enabled = !functionsBusy && !isLinkConnected && stateFile.exists()
+                        ) { Text(stringResource(R.string.load_state), color = NexoraText) }
+
+                        Text(stringResource(R.string.emulation_speed), color = NexoraMuted, fontSize = 12.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            listOf(1.0f, 1.5f, 2.0f, 3.0f).forEach { speed ->
+                                TextButton(
+                                    onClick = {
+                                        emulationSpeed = speed
+                                        showFunctionsMenu = false
+                                    },
+                                    enabled = !functionsBusy
+                                ) {
+                                    Text(
+                                        "${speed}x",
+                                        color = if (emulationSpeed == speed) NexoraPink else NexoraMuted,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (emulationSpeed == speed) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+
+                        TextButton(
+                            onClick = {
+                                showFunctionsMenu = false
+                                onOpenLink()
+                            },
+                            enabled = !functionsBusy && !isGbFamily
+                        ) { Text(stringResource(R.string.link_cable_trade), color = NexoraText) }
+                        if (isGbFamily) {
+                            Text(
+                                stringResource(R.string.link_cable_gba_only),
+                                color = NexoraMuted,
+                                fontSize = 10.sp
+                            )
+                        }
+
+                        TextButton(
+                            onClick = {
+                                NativeBridge.nativeSetKeys(0)
+                                showFunctionsMenu = false
+                                onExit()
+                            },
+                            enabled = !functionsBusy
+                        ) { Text(stringResource(R.string.exit_game), color = NexoraPink) }
+
+                        if (isLinkConnected) {
+                            Text(
+                                context.getString(R.string.save_states_disabled_link),
+                                color = NexoraMuted,
+                                fontSize = 10.sp
+                            )
                         }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GbaControl("B", 1 shl 1)
-                        GbaControl("A", 1 shl 0)
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    GbaControl("SELECT", 1 shl 2, compact = true)
-                    GbaControl("START", 1 shl 3, compact = true)
-                    GbaControl("L", 1 shl 9, compact = true)
-                    GbaControl("R", 1 shl 8, compact = true)
-                }
-            }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = { showFunctionsMenu = false },
+                        enabled = !functionsBusy
+                    ) { Text("Fechar", color = NexoraText) }
+                },
+                containerColor = NexoraPanel,
+                titleContentColor = NexoraText,
+                textContentColor = NexoraText
+            )
         }
     }
 }
@@ -757,7 +1377,8 @@ private fun GameFrame(
     frameError: Boolean,
     frameReady: Boolean,
     frameVersion: Int,
-    frameImage: androidx.compose.ui.graphics.ImageBitmap
+    frameImage: androidx.compose.ui.graphics.ImageBitmap,
+    aspectRatio: Float
 ) {
     when {
         frameError -> Text(
@@ -769,10 +1390,10 @@ private fun GameFrame(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            // Use the whole available area while preserving the GBA's native 3:2 ratio.
-            val fittedWidth = minOf(maxWidth, maxHeight * 1.5f)
+            // Preserve the active console's native aspect ratio (GBA 3:2, GB/GBC 10:9).
+            val fittedWidth = minOf(maxWidth, maxHeight * aspectRatio)
             Canvas(
-                modifier = Modifier.width(fittedWidth).aspectRatio(1.5f)
+                modifier = Modifier.width(fittedWidth).aspectRatio(aspectRatio)
             ) {
                 frameVersion.let { /* Snapshot read invalidates this draw scope. */ }
                 drawImage(
@@ -788,12 +1409,145 @@ private fun GameFrame(
 
 
 @Composable
-private fun GbaControl(label: String, keyMask: Int, compact: Boolean = false) {
+private fun GbaDPad() {
+    Column(
+        modifier = Modifier
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var activeDirectionMask = 0
+
+                    fun directionAt(position: androidx.compose.ui.geometry.Offset): Int {
+                        val halfWidth = size.width / 2f
+                        val halfHeight = size.height / 2f
+                        if (halfWidth <= 0f || halfHeight <= 0f) return 0
+
+                        val normalizedX = (position.x - halfWidth) / halfWidth
+                        val normalizedY = (position.y - halfHeight) / halfHeight
+                        val horizontal = if (abs(normalizedX) >= 0.28f) {
+                            if (normalizedX < 0f) (1 shl 5) else (1 shl 4)
+                        } else 0
+                        val vertical = if (abs(normalizedY) >= 0.28f) {
+                            if (normalizedY < 0f) (1 shl 6) else (1 shl 7)
+                        } else 0
+                        return horizontal or vertical
+                    }
+
+                    fun updateDirection(nextMask: Int) {
+                        if (nextMask == activeDirectionMask) return
+                        if (activeDirectionMask != 0) {
+                            NativeBridge.nativeClearKeys(activeDirectionMask)
+                        }
+                        if (nextMask != 0) {
+                            NativeBridge.nativeAddKeys(nextMask)
+                        }
+                        activeDirectionMask = nextMask
+                    }
+
+                    try {
+                        updateDirection(directionAt(down.position))
+                        var pointer = down
+                        while (pointer.pressed) {
+                            val event = awaitPointerEvent()
+                            pointer = event.changes.firstOrNull { it.id == down.id } ?: break
+                            updateDirection(directionAt(pointer.position))
+                            pointer.consume()
+                        }
+                    } finally {
+                        if (activeDirectionMask != 0) {
+                            NativeBridge.nativeClearKeys(activeDirectionMask)
+                        }
+                    }
+                }
+            }
+            .background(NexoraPanel, RoundedCornerShape(22.dp))
+            .padding(7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Spacer(Modifier.size(46.dp))
+            DPadDirectionVisual("↑")
+            Spacer(Modifier.size(46.dp))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            DPadDirectionVisual("←")
+            Box(Modifier.size(46.dp).background(NexoraPanelLight, RoundedCornerShape(12.dp)))
+            DPadDirectionVisual("→")
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Spacer(Modifier.size(46.dp))
+            DPadDirectionVisual("↓")
+            Spacer(Modifier.size(46.dp))
+        }
+    }
+}
+
+@Composable
+private fun DPadDirectionVisual(label: String) {
     Box(
         modifier = Modifier
-            .padding(3.dp)
-            .size(width = if (compact) 58.dp else 52.dp, height = if (compact) 38.dp else 52.dp)
-            .background(NexoraPanelLight, RoundedCornerShape(14.dp))
+            .size(46.dp)
+            .background(NexoraPanelLight, RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = NexoraText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun GbaPortraitControlDeck(
+    modifier: Modifier = Modifier,
+    showShoulderButtons: Boolean = true
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (showShoulderButtons) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                GbaControl("L", 1 shl 9, compact = true)
+                GbaControl("R", 1 shl 8, compact = true)
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            GbaDPad()
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                GbaControl("B", 1 shl 1, controlSize = 58)
+                GbaControl("A", 1 shl 0, controlSize = 58)
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            GbaControl("SELECT", 1 shl 2, compact = true)
+            GbaControl("START", 1 shl 3, compact = true)
+        }
+    }
+}
+
+@Composable
+private fun GbaControl(
+    label: String,
+    keyMask: Int,
+    compact: Boolean = false,
+    controlSize: Int = 52
+) {
+    Box(
+        modifier = Modifier
+            .size(
+                width = if (compact) 54.dp else controlSize.dp,
+                height = if (compact) 36.dp else controlSize.dp
+            )
+            .background(NexoraPanelLight, RoundedCornerShape(if (compact) 11.dp else 16.dp))
             .pointerInput(keyMask) {
                 detectTapGestures(onPress = {
                     NativeBridge.nativeAddKeys(keyMask)
@@ -806,7 +1560,12 @@ private fun GbaControl(label: String, keyMask: Int, compact: Boolean = false) {
             },
         contentAlignment = Alignment.Center
     ) {
-        Text(label, color = NexoraText, fontSize = if (compact) 9.sp else 16.sp, fontWeight = FontWeight.Bold)
+        Text(
+            label,
+            color = NexoraText,
+            fontSize = if (compact) 9.sp else 16.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -889,19 +1648,62 @@ private fun QuickAction(modifier: Modifier, symbol: String, title: String, onCli
     }
 }
 
+private const val LIBRARY_UNFILED_FILTER = "__nexora_unfiled__"
+
 @Composable
 private fun LibraryScreen(
     games: List<GameEntry>,
+    folders: List<GameFolder>,
     message: String?,
     isLoadingGame: Boolean,
     onImportGame: () -> Unit,
     onPlayGame: (GameEntry) -> Unit,
     onClearMessage: () -> Unit,
-    onRemoveGame: (GameEntry) -> Unit
+    onRemoveGame: (GameEntry) -> Unit,
+    onSaveFolders: (List<GameFolder>) -> Unit,
+    onUpdateGame: (GameEntry) -> Unit,
+    onDeleteFolder: (GameFolder) -> Unit,
+    onRemoveSelectedGames: (List<GameEntry>) -> Unit
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFolderId by remember { mutableStateOf<String?>(null) }
+    var selectedConsoleFilter by remember { mutableStateOf("ALL") }
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedGameUris by remember { mutableStateOf(setOf<String>()) }
+    var showCreateFolder by remember { mutableStateOf(false) }
+    var newFolderName by remember { mutableStateOf("") }
+    var showMoveDialog by remember { mutableStateOf(false) }
+    var showRemoveSelectedDialog by remember { mutableStateOf(false) }
+    var folderPendingDelete by remember { mutableStateOf<GameFolder?>(null) }
+
+    val configuration = LocalConfiguration.current
+    val sortedFolders = folders.sortedByDescending { it.isPinned }
+    val visibleGames = games
+        .filter { game ->
+            val matchesFolder = when (selectedFolderId) {
+                null -> true
+                LIBRARY_UNFILED_FILTER -> game.folderId == null
+                else -> game.folderId == selectedFolderId
+            }
+            val extension = game.name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+            val matchesConsole = when (selectedConsoleFilter) {
+                "GBA" -> extension in setOf("gba", "agb", "bin")
+                "GB" -> extension == "gb"
+                "GBC" -> extension == "gbc"
+                else -> true
+            }
+            matchesFolder && matchesConsole &&
+                game.name.contains(searchQuery.trim(), ignoreCase = true)
+        }
+        .sortedWith(
+            compareByDescending<GameEntry> { it.isPinned }
+                .thenByDescending { it.isFavorite }
+                .thenBy { it.name.lowercase(Locale.ROOT) }
+        )
+
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -910,10 +1712,182 @@ private fun LibraryScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.library_label), color = NexoraText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
                 Text(stringResource(R.string.library_game_count, games.size), color = NexoraMuted, fontSize = 12.sp)
-                Text(stringResource(R.string.library_not_playable_yet), color = NexoraMuted, fontSize = 10.sp)
+            }
+            TextButton(onClick = { showCreateFolder = true }) {
+                Text(stringResource(R.string.create_folder), color = NexoraPurple)
             }
             Button(onClick = onImportGame) {
                 Text(stringResource(R.string.add_games))
+            }
+        }
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text(stringResource(R.string.search_games)) }
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(R.string.console_filter),
+                color = NexoraMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            LazyRow(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items(listOf("ALL", "GBA", "GB", "GBC")) { console ->
+                    TextButton(onClick = { selectedConsoleFilter = console }) {
+                        val label = when (console) {
+                            "ALL" -> stringResource(R.string.console_all)
+                            "GBA" -> stringResource(R.string.console_gba)
+                            "GB" -> stringResource(R.string.console_gb)
+                            else -> stringResource(R.string.console_gbc)
+                        }
+                        Text(
+                            label,
+                            color = if (selectedConsoleFilter == console) NexoraPink else NexoraMuted
+                        )
+                    }
+                }
+            }
+        }
+
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            item {
+                TextButton(onClick = { selectedFolderId = null }) {
+                    Text(
+                        stringResource(R.string.all_games),
+                        color = if (selectedFolderId == null) NexoraPink else NexoraMuted
+                    )
+                }
+            }
+            item {
+                TextButton(onClick = { selectedFolderId = LIBRARY_UNFILED_FILTER }) {
+                    Text(
+                        stringResource(R.string.unfiled_games),
+                        color = if (selectedFolderId == LIBRARY_UNFILED_FILTER) NexoraPink else NexoraMuted
+                    )
+                }
+            }
+            items(sortedFolders, key = { it.id }) { folder ->
+                Column(
+                    modifier = Modifier
+                        .background(
+                            if (selectedFolderId == folder.id) NexoraPanelLight else NexoraPanel,
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(horizontal = 5.dp, vertical = 2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    TextButton(onClick = { selectedFolderId = folder.id }) {
+                        Text(
+                            text = (if (folder.isPinned) "📌 " else "▰ ") + folder.name,
+                            color = if (selectedFolderId == folder.id) NexoraPink else NexoraText,
+                            maxLines = 1
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = {
+                            onSaveFolders(
+                                folders.map {
+                                    if (it.id == folder.id) it.copy(isPinned = !it.isPinned) else it
+                                }
+                            )
+                        }) {
+                            Text(
+                                if (folder.isPinned) stringResource(R.string.unpin) else stringResource(R.string.pin),
+                                color = NexoraPurple,
+                                fontSize = 10.sp
+                            )
+                        }
+                        TextButton(onClick = { folderPendingDelete = folder }) {
+                            Text(stringResource(R.string.delete_folder), color = NexoraPink, fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        if (selectionMode) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    stringResource(R.string.selected_games_count, selectedGameUris.size),
+                    color = NexoraText,
+                    fontSize = 12.sp
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    item {
+                        TextButton(
+                            onClick = { showMoveDialog = true },
+                            enabled = selectedGameUris.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.move_to_folder), color = NexoraPurple)
+                        }
+                    }
+                    item {
+                        TextButton(
+                            onClick = {
+                                val selected = games.filter { it.uri in selectedGameUris }
+                                val markFavorite = !selected.all { it.isFavorite }
+                                selected.forEach { onUpdateGame(it.copy(isFavorite = markFavorite)) }
+                            },
+                            enabled = selectedGameUris.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.favorite_selected), color = NexoraPink)
+                        }
+                    }
+                    item {
+                        TextButton(
+                            onClick = {
+                                val selected = games.filter { it.uri in selectedGameUris }
+                                val markPinned = !selected.all { it.isPinned }
+                                selected.forEach { onUpdateGame(it.copy(isPinned = markPinned)) }
+                            },
+                            enabled = selectedGameUris.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.pin_selected), color = NexoraPurple)
+                        }
+                    }
+                    item {
+                        TextButton(
+                            onClick = { showRemoveSelectedDialog = true },
+                            enabled = selectedGameUris.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.remove_selected), color = NexoraPink)
+                        }
+                    }
+                    item {
+                        TextButton(onClick = {
+                            selectionMode = false
+                            selectedGameUris = emptySet()
+                        }) {
+                            Text(stringResource(R.string.cancel), color = NexoraMuted)
+                        }
+                    }
+                }
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { selectionMode = true }) {
+                    Text(stringResource(R.string.select_games), color = NexoraPurple)
+                }
             }
         }
 
@@ -933,56 +1907,257 @@ private fun LibraryScreen(
                 description = stringResource(R.string.library_empty_description),
                 symbol = "▦"
             )
-        } else {
-            LazyColumn(
+        } else if (visibleGames.isEmpty()) {
+            Box(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                contentAlignment = Alignment.Center
             ) {
-                items(games, key = { it.uri }) { game ->
-                    GameLibraryRow(
-                        game = game,
-                        isLoading = isLoadingGame,
-                        onPlay = { onPlayGame(game) },
-                        onRemove = { onRemoveGame(game) }
-                    )
+                Text(stringResource(R.string.no_games_in_view), color = NexoraMuted)
+            }
+        } else {
+            BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                val columns = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 5 else 3
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columns),
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    gridItems(visibleGames, key = { it.uri }) { game ->
+                        GameLibraryCard(
+                            game = game,
+                            isLoading = isLoadingGame,
+                            selectionMode = selectionMode,
+                            isSelected = game.uri in selectedGameUris,
+                            onToggleSelect = {
+                                selectedGameUris = if (game.uri in selectedGameUris) {
+                                    selectedGameUris - game.uri
+                                } else {
+                                    selectedGameUris + game.uri
+                                }
+                            },
+                            onPlay = { onPlayGame(game) },
+                            onRemove = { onRemoveGame(game) },
+                            onToggleFavorite = {
+                                onUpdateGame(game.copy(isFavorite = !game.isFavorite))
+                            },
+                            onTogglePinned = {
+                                onUpdateGame(game.copy(isPinned = !game.isPinned))
+                            }
+                        )
+                    }
                 }
             }
         }
     }
+
+    if (showCreateFolder) {
+        AlertDialog(
+            onDismissRequest = { showCreateFolder = false; newFolderName = "" },
+            containerColor = NexoraPanel,
+            title = { Text(stringResource(R.string.create_folder), color = NexoraText) },
+            text = {
+                OutlinedTextField(
+                    value = newFolderName,
+                    onValueChange = { newFolderName = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.folder_name)) }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val cleanName = newFolderName.trim()
+                    if (cleanName.isNotEmpty() && folders.none { it.name.equals(cleanName, true) }) {
+                        val createdFolder = GameFolder(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = cleanName
+                        )
+                        onSaveFolders(folders + createdFolder)
+                        selectedFolderId = createdFolder.id
+                        showCreateFolder = false
+                        newFolderName = ""
+                    }
+                }, enabled = newFolderName.isNotBlank() && folders.none { it.name.equals(newFolderName.trim(), true) }) {
+                    Text(stringResource(R.string.create), color = NexoraPurple)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateFolder = false; newFolderName = "" }) {
+                    Text(stringResource(R.string.cancel), color = NexoraMuted)
+                }
+            }
+        )
+    }
+
+    if (showRemoveSelectedDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoveSelectedDialog = false },
+            containerColor = NexoraPanel,
+            title = { Text(stringResource(R.string.remove_selected), color = NexoraText) },
+            text = { Text(stringResource(R.string.remove_selected_question, selectedGameUris.size), color = NexoraMuted) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRemoveSelectedGames(games.filter { it.uri in selectedGameUris })
+                    selectedGameUris = emptySet()
+                    selectionMode = false
+                    showRemoveSelectedDialog = false
+                }) {
+                    Text(stringResource(R.string.remove_only), color = NexoraPink)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveSelectedDialog = false }) {
+                    Text(stringResource(R.string.cancel), color = NexoraMuted)
+                }
+            }
+        )
+    }
+
+    if (showMoveDialog) {
+        AlertDialog(
+            onDismissRequest = { showMoveDialog = false },
+            containerColor = NexoraPanel,
+            title = { Text(stringResource(R.string.move_to_folder), color = NexoraText) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = {
+                        games.filter { it.uri in selectedGameUris }.forEach {
+                            onUpdateGame(it.copy(folderId = null))
+                        }
+                        selectedGameUris = emptySet()
+                        selectionMode = false
+                        showMoveDialog = false
+                    }) {
+                        Text(stringResource(R.string.unfiled_games), color = NexoraText)
+                    }
+                    folders.forEach { folder ->
+                        TextButton(onClick = {
+                            games.filter { it.uri in selectedGameUris }.forEach {
+                                onUpdateGame(it.copy(folderId = folder.id))
+                            }
+                            selectedGameUris = emptySet()
+                            selectionMode = false
+                            showMoveDialog = false
+                        }) {
+                            Text(folder.name, color = NexoraText)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMoveDialog = false }) {
+                    Text(stringResource(R.string.cancel), color = NexoraMuted)
+                }
+            }
+        )
+    }
+
+    folderPendingDelete?.let { folder ->
+        AlertDialog(
+            onDismissRequest = { folderPendingDelete = null },
+            containerColor = NexoraPanel,
+            title = { Text(stringResource(R.string.delete_folder), color = NexoraText) },
+            text = { Text(stringResource(R.string.delete_folder_question, folder.name), color = NexoraMuted) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteFolder(folder)
+                    if (selectedFolderId == folder.id) selectedFolderId = null
+                    folderPendingDelete = null
+                }) {
+                    Text(stringResource(R.string.delete_folder), color = NexoraPink)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { folderPendingDelete = null }) {
+                    Text(stringResource(R.string.cancel), color = NexoraMuted)
+                }
+            }
+        )
+    }
 }
 
 @Composable
-private fun GameLibraryRow(
+private fun GameLibraryCard(
     game: GameEntry,
     isLoading: Boolean,
+    selectionMode: Boolean,
+    isSelected: Boolean,
+    onToggleSelect: () -> Unit,
     onPlay: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onTogglePinned: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(NexoraPanel, RoundedCornerShape(16.dp))
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .background(NexoraPanel, RoundedCornerShape(14.dp))
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            if (selectionMode) {
+                Checkbox(checked = isSelected, onCheckedChange = { onToggleSelect() })
+            } else {
+                TextButton(onClick = onToggleFavorite) {
+                    Text(if (game.isFavorite) "★" else "☆", color = NexoraPink, fontSize = 17.sp)
+                }
+                TextButton(onClick = onTogglePinned) {
+                    Text(if (game.isPinned) "📌" else "⌖", color = NexoraPurple, fontSize = 15.sp)
+                }
+            }
+        }
         Box(
             modifier = Modifier
-                .size(48.dp)
-                .background(NexoraPanelLight, RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(enabled = !selectionMode && !isLoading, onClick = onPlay)
         ) {
-            Text("GBA", color = NexoraPurple, fontSize = 11.sp, fontWeight = FontWeight.Black)
+            GameCoverArtwork(
+                gameName = game.name,
+                modifier = Modifier.fillMaxSize()
+            )
         }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(game.name, color = NexoraText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Text(formatFileSize(game.sizeBytes), color = NexoraMuted, fontSize = 11.sp)
+        val consoleLabel = when (game.name.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
+            "gb" -> "GB"
+            "gbc" -> "GBC"
+            else -> "GBA"
         }
-        TextButton(onClick = onPlay, enabled = !isLoading) {
-            Text(stringResource(R.string.load_game), color = NexoraPurple)
-        }
-        TextButton(onClick = onRemove, enabled = !isLoading) {
-            Text(stringResource(R.string.remove), color = NexoraPink)
+        Text(
+            consoleLabel,
+            color = NexoraPink,
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.7.sp
+        )
+        Text(
+            game.name.substringBeforeLast('.'),
+            color = NexoraText,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2
+        )
+        Text(formatFileSize(game.sizeBytes), color = NexoraMuted, fontSize = 9.sp, maxLines = 1)
+        if (selectionMode) {
+            TextButton(onClick = onToggleSelect, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    if (isSelected) stringResource(R.string.selected) else stringResource(R.string.select),
+                    color = if (isSelected) NexoraPink else NexoraPurple,
+                    fontSize = 10.sp
+                )
+            }
+        } else {
+            TextButton(onClick = onPlay, enabled = !isLoading, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.load_game), color = NexoraPurple, fontSize = 10.sp)
+            }
+            TextButton(onClick = onRemove, enabled = !isLoading, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.remove), color = NexoraPink, fontSize = 10.sp)
+            }
         }
     }
 }
@@ -1062,6 +2237,24 @@ private fun BottomNavigation(selectedTab: NexoraTab, onSelect: (NexoraTab) -> Un
             .background(NexoraPanel)
             .padding(horizontal = 8.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        NavigationItem("⌂", stringResource(R.string.nav_home), NexoraTab.HOME, selectedTab, onSelect)
+        NavigationItem("▦", stringResource(R.string.nav_library), NexoraTab.LIBRARY, selectedTab, onSelect)
+        NavigationItem("◷", stringResource(R.string.nav_history), NexoraTab.HISTORY, selectedTab, onSelect)
+        NavigationItem("⚙", stringResource(R.string.nav_settings), NexoraTab.SETTINGS, selectedTab, onSelect)
+    }
+}
+
+@Composable
+private fun SideNavigation(selectedTab: NexoraTab, onSelect: (NexoraTab) -> Unit) {
+    Column(
+        modifier = Modifier
+            .width(76.dp)
+            .fillMaxHeight()
+            .background(NexoraPanel.copy(alpha = 0.82f))
+            .padding(vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         NavigationItem("⌂", stringResource(R.string.nav_home), NexoraTab.HOME, selectedTab, onSelect)
         NavigationItem("▦", stringResource(R.string.nav_library), NexoraTab.LIBRARY, selectedTab, onSelect)

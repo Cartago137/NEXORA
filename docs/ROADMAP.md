@@ -1,93 +1,74 @@
 # NEXORA Roadmap
 
-This roadmap distinguishes confirmed behavior, repository work, and future goals. A phase is complete only after its acceptance checks pass.
+A phase is complete only after implementation, review, automated tests and the required physical-device acceptance checks. Code present in a draft PR is not automatically a released feature.
 
-## Phase 0 — Product and prototype baseline
+## Phase 0 — Product and source baseline
 
-- [x] Establish the NEXORA repository and project documentation.
-- [x] Define modular architecture principles.
-- [x] Select Android as the first platform and GBA as the first system.
-- [x] Select mGBA as the GBA core and C/C++ for native integration.
-- [x] Produce a test APK containing Kotlin/Compose-related app classes and native mGBA-related code.
-- [x] Confirm on the user's device that native in-game GBA saves persist after a full app restart.
-- [x] Locate the exact source revision embedded in the APK (`17bcb65bad01e23790605ef4ec32fbdb173e637a`) in the preserved GitHub branches.
-- [x] Restore the Kotlin/Compose app, JNI/C++ bridge, CMake integration, Gradle files, and license assets in a recovery branch.
-- [x] Identify the pinned mGBA source commit and Android/Gradle/NDK build versions.
-- [x] Confirm a successful Android debug build on the later `feature/audio-saves-orientation` branch.
-- [x] Merge the source restoration into `main`.
-- [ ] Confirm the mainline build workflow completes and uploads the APK.
-- [ ] Install the new APK and validate it on the target ARM64 phone.
+- [x] Restore the Kotlin/Compose app, JNI/C++ bridge, Gradle/CMake project and pinned mGBA integration.
+- [x] Preserve the tested native GBA battery-save behavior as a regression requirement.
+- [x] Establish GitHub Actions Android build workflow.
+- [x] Define a modular architecture and no-merge-without-approval rule.
 
-**Exit check:** a maintainable source project that can produce a reproducible APK and preserves the validated save behavior.
+## Phase 1 — Unified first-release systems
 
-## Phase 1 — Source recovery and reproducible Android build
+- [x] Enable mGBA GBA core.
+- [x] Enable shared GB/GBC core in CMake.
+- [x] Detect GBA vs GB-family ROM from cartridge header.
+- [x] Expose active video dimensions/platform through JNI.
+- [x] Use dynamic frame buffers and preserve 3:2 GBA / 10:9 GB-family aspect ratios.
+- [x] Accept .gb and .gbc ROM files.
+- [x] Add All/GBA/GB/GBC Library filter and compact system labels.
+- [ ] Verify GB, GBC and GBA gameplay, audio, input and battery saves on the Motorola G54.
 
-- [x] Recover the original source revision and preserve the reference APK's source history.
-- [x] Restore Kotlin/Compose, Gradle, C/C++, JNI, and CMake source from the later CI-verified development branch.
-- [x] Restore the mGBA integration pinned to upstream commit `26b7884bc25a5933960f3cdcd98bac1ae14d42e2` (project version label 0.10.5).
-- [x] Restore the GitHub Actions debug/release build workflow and keep release signing separate from ordinary CI.
-- [ ] Pass the build workflow on the source-restoration pull request and merge it into `main`.
+**Exit check:** known-good GBA, GB and GBC ROMs run correctly on physical Android hardware and preserve their native saves.
 
-**Exit check:** GitHub Actions can build the source project without private signing secrets, and the generated APK installs on the target ARM64 device.
+## Phase 2 — Library and identity
 
-## Phase 2 — Emulator stability and compatibility
+- [x] Library folders, search, favorites, pinned games/folders, multi-select and safe folder deletion.
+- [x] Unified console filter.
+- [x] Original hand-drawn cat mascot in launcher, splash and header.
+- [x] Known cover art for selected GBA games, with aspect-ratio preservation and private cache.
+- [ ] Validate the Library interactions on device.
+- [ ] Persist detected platform from ROM headers rather than relying on extensions for the console filter.
+- [ ] Expand artwork catalog after reviewing source stability and rights.
 
-- [ ] Verify ROM loading and unloading.
-- [x] Restore the reusable frame buffer, frame pacing, and native color-channel conversion correction from the preserved rendering-fix branch.
-- [ ] Verify frame execution, frame dimensions, pixel format, and rendering on the target phone.
-- [ ] Confirm whether the rendering correction resolves the previously reported Pokémon FireRed white/small-screen issue.
-- [ ] Validate input mapping and virtual controls.
-- [x] Restore the Android AudioTrack pipeline and native audio-buffer handling.
-- [x] Restore per-game battery-save file loading and persistence integration.
-- [x] Preserve native in-game save persistence as a regression requirement.
-- [ ] Revalidate audio and save persistence on the new APK.
-- [ ] Test pause/resume, app backgrounding, and process recreation.
+## Phase 3 — Player controls and gameplay tools
 
-**Exit check:** multiple user-provided GBA test ROMs run reliably on real Android devices without UI freezes or corrupted saves.
+- [x] Runtime speed choices 1.0x, 1.5x, 2.0x and 3.0x.
+- [x] Frame pacing and AudioTrack playback-rate scaling.
+- [x] Continuous D-pad drag transitions and diagonals without lifting.
+- [x] One compact hamburger function menu; speed selector moved out of the permanent HUD.
+- [x] Native Save State / Load State through mGBA named-state API.
+- [ ] Verify Save State round-trip, atomic replacement, missing/corrupt files and app restart.
+- [ ] Verify speed switching and audio stability on device.
+- [ ] Verify simultaneous D-pad and A/B/L/R/START/SELECT input on device.
+- [ ] Implement the approved landscape navigation rail on the RIGHT edge while preserving the portrait bottom bar.
 
-## Phase 3 — Game library
+## Phase 4 — Pokémon Link Cable / local multiplayer
 
-- [x] Import multiple user-provided GBA files through Android's document picker (initial multi-import implementation).
-- [ ] Expand the library with custom folders, favorites, pinned items, search, and batch management.
-- [ ] Build searchable library and metadata handling.
-- [ ] Implement play history.
-- [ ] Ask before deleting an original file when removing a library entry.
-- [ ] Ensure deleting a folder does not delete its games.
+- [x] NXLP v1 bounded protocol and incremental decoder.
+- [x] TCP host/join on local Wi-Fi with room code and IP.
+- [x] Game code + ROM CRC32 compatibility handshake.
+- [x] JNI incoming/outgoing queues and mGBA GBA MULTI SIO driver.
+- [x] Replace blocking SIO callback wait with bounded non-blocking polling.
+- [x] Integrate Link room entry into the in-game function menu.
+- [ ] Review native SIO sequence, BUSY/READY, player IDs, IRQ and timeout behavior.
+- [ ] Add native/integration tests for queue overflow, disconnect during transfer and active unload.
+- [ ] Test two physical devices on the same LAN with the exact same Pokémon FireRed ROM/revision.
+- [ ] Complete a real Cable Club Pokémon trade and verify both battery saves.
+- [ ] Move to distributed mGBA lockstep if the direct remote-SIO timing proves insufficient.
 
-**Exit check:** library behavior is tested, including file-safety and batch-action cases.
+**Exit check:** actual two-device trade completed without desynchronization or corrupted saves. Protocol/build tests alone do not satisfy this gate.
 
-## Phase 4 — Premium play experience
+## Phase 5 — Stability and release candidate
 
-- [ ] Refine the dark NEXORA design system and navigation.
-- [ ] Complete English and Spanish localization.
-- [ ] Build landscape GBA-inspired and portrait GBA SP-inspired layouts.
-- [ ] Add configurable colors and user-provided body skins.
-- [ ] Add the featured game's subtle floating 3D box presentation.
-- [ ] Add responsive controls, haptics, and accessibility options.
-- [ ] Verify orientation changes without losing selection or emulation state.
-
-**Exit check:** both orientations work reliably and customization persists.
-
-## Phase 5 — Advanced hardware and connectivity
-
-- [ ] Investigate motion/tilt sensor support for compatible games.
-- [ ] Investigate rumble-to-device-vibration mapping.
-- [ ] Prototype local link functionality.
-- [ ] Prototype device-to-device Wi-Fi multiplayer.
-- [ ] Test synchronization, latency, disconnect recovery, and compatibility.
-- [ ] Document unsupported games and device limitations.
-
-**Exit check:** each advertised capability has a tested compatibility list and clear limitations.
-
-## Phase 6 — Expansion readiness
-
-- [ ] Validate the emulator abstraction with a second system prototype.
-- [ ] Keep system-specific assets, input profiles, and capabilities modular.
-- [ ] Add regression tests to prevent changes for one system from breaking another.
-- [ ] Review performance, security, privacy, and third-party licenses.
-
-**Exit check:** a second system can be added without rewriting the application foundation.
+- [x] Android CI: 17 JVM tests, debug APK and signed release APK passed on NEXORA 0.4.0 source commit `f9659941cb297757e26e35b2349533f0957a8606` (run #519).
+- [ ] Physical regression: GBA, GB, GBC, audio, frame rendering, native saves and Save States.
+- [ ] Physical regression: controls, speed, orientation, Library and mascot.
+- [ ] Two-device Link Cable acceptance test.
+- [ ] Review permissions, privacy, security, third-party notices and artwork licensing.
+- [ ] Update continuity documentation and release notes with exact commit, artifacts and validation results.
 
 ## Release discipline
 
-Do not mark a feature complete because a screen or placeholder exists. Require a working implementation, tests on supported devices, documented limitations, and a review of relevant licenses.
+Keep PR #33 as a draft until all applicable automated and physical acceptance tests are complete. Never merge into `main` without the user's explicit approval.
