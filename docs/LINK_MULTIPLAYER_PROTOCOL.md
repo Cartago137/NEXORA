@@ -13,7 +13,7 @@
 5. O segundo aparelho informa o endereço e o código para entrar.
 6. Depois de conectado, abrir o Centro Pokémon e falar com a enfermeira no segundo andar para entrar no Cable Club.
 
-A porta TCP padrão é 38271. O host aguarda até 120 segundos por um participante. O socket usa TCP_NODELAY, keepalive e buffers limitados. A leitura de rede ocorre em thread dedicada. O handshake valida sessão, player role, game code e CRC32 antes de aceitar a conexão.
+A porta TCP padrão é 38271. O host aguarda até 120 segundos por um participante, verificando cancelamento a cada 500 ms. Leituras de handshake têm timeout e verificam cancelamento. O socket usa TCP_NODELAY, keepalive e buffers limitados. A leitura de rede ocorre em thread dedicada. Depois da conexão, Ping/Pong verifica a saúde da sessão; ausência de resposta por 10 segundos encerra a sessão de forma controlada. O handshake valida sessão, player role, game code e CRC32 antes de aceitar a conexão.
 
 ## Arquitetura de transferência
 
