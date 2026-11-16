@@ -13,12 +13,10 @@ const RATE_LIMIT_REQUESTS = 10;
 const LOGIN_WINDOW_MS = 15 * 60_000;
 const LOGIN_ATTEMPTS = 5;
 const SESSION_TTL_MS = 12 * 60 * 60_000;
-const PROVIDERS = {
-  openrouter: { label: "OpenRouter", envKey: "OPENROUTER_API_KEY", model: "openrouter/free", endpoint: "https://openrouter.ai/api/v1/chat/completions", kind: "openai" },
-  groq: { label: "Groq", envKey: "GROQ_API_KEY", model: "openai/gpt-oss-20b", endpoint: "https://api.groq.com/openai/v1/chat/completions", kind: "openai" },
-  gemini: { label: "Gemini", envKey: "GEMINI_API_KEY", model: "gemini-3.8-flash", endpoint: "https://generativelanguage.googleapis.com/v1beta/models/", kind: "gemini" }
+const ACTIVE_PROVIDERS = {
+  openrouter: { label: "OpenRouter", envKey: "OPENROUTER_API_KEY", model: "openrouter/free", endpoint: "https://openrouter.ai/api/v1/chat/completions" },
+  groq: { label: "Groq", envKey: "GROQ_API_KEY", model: "openai/gpt-oss-20b", endpoint: "https://api.groq.com/openai/v1/chat/completions" }
 };
-const ACTIVE_PROVIDERS = { openrouter: PROVIDERS.openrouter, groq: PROVIDERS.groq };
 const DEFAULT_PROVIDER = "openrouter";
 const STATIC_ROOT = resolve(fileURLToPath(new URL("../", import.meta.url)));
 
@@ -398,38 +396,12 @@ export function createControlCenterServer({
         const apiKey = env[provider.envKey];
         if (!apiKey) return json(response, 503, { error: provider.label + " is not configured on the server" });
         try {
-          let upstream;
-          if (provider.kind === "gemini") {
-            const contents = body.messages.map((message) => ({ role: message.role === "assistant" ? "model" : "user", parts: [{ text: message.content }] }));
-            const requestUrl = provider.endpoint + provider.model + ":generateContent";
-            const requestBody = JSON.stringify({ contents, generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS } });
-            // Gemini can return 503 or take unusually long under temporary capacity pressure.
-            // Create a fresh timeout signal per attempt and retry bounded transient failures.
-            for (let attempt = 0; attempt < 3; attempt += 1) {
-              try {
-                upstream = await fetchImpl(requestUrl, {
-                  method: "POST",
-                  headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-                  body: requestBody,
-                  signal: AbortSignal.timeout(60_000)
-                });
-                if (upstream.status !== 503 || attempt === 2) break;
-                logger.warn?.("[nexora-ai] Gemini temporarily unavailable; retrying", { attempt: attempt + 1, status: 503 });
-              } catch (error) {
-                const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError" || error?.code === "ETIMEDOUT";
-                if (!timedOut || attempt === 2) throw error;
-                logger.warn?.("[nexora-ai] Gemini request timed out; retrying", { attempt: attempt + 1 });
-              }
-              await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_000 * (2 ** attempt)));
-            }
-          } else {
-            upstream = await fetchImpl(provider.endpoint, {
-              method: "POST",
-              headers: { authorization: "Bearer " + apiKey, "content-type": "application/json", ...(providerId === "openrouter" ? { "x-title": "NEXORA AI Control Center" } : {}) },
-              body: JSON.stringify({ model: provider.model, messages: body.messages, max_tokens: MAX_OUTPUT_TOKENS, stream: false }),
-              signal: AbortSignal.timeout(30_000)
-            });
-          }
+          const upstream = await fetchImpl(provider.endpoint, {
+            method: "POST",
+            headers: { authorization: "Bearer " + apiKey, "content-type": "application/json", ...(providerId === "openrouter" ? { "x-title": "NEXORA AI Control Center" } : {}) },
+            body: JSON.stringify({ model: provider.model, messages: body.messages, max_tokens: MAX_OUTPUT_TOKENS, stream: false }),
+            signal: AbortSignal.timeout(30_000)
+          });
           const result = await upstream.json().catch(() => null);
           if (!upstream.ok) {
             logger.error?.("[nexora-ai] provider returned an HTTP error", {
@@ -439,9 +411,7 @@ export function createControlCenterServer({
             });
             return json(response, upstream.status >= 500 ? 502 : upstream.status, { error: "The AI provider could not complete the request" });
           }
-          const answer = provider.kind === "gemini"
-            ? result?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("")
-            : result?.choices?.[0]?.message?.content;
+          const answer = result?.choices?.[0]?.message?.content;
           if (typeof answer !== "string" || !answer.trim()) return json(response, 502, { error: "Unexpected provider response" });
           return json(response, 200, { provider: providerId, model: result.model ?? provider.model, answer, usage: result.usage ?? result.usageMetadata ?? null });
         } catch (error) {
