@@ -149,7 +149,8 @@ export function createControlCenterServer({
   env = process.env,
   fetchImpl = globalThis.fetch,
   redisFetchImpl = globalThis.fetch,
-  now = Date.now
+  now = Date.now,
+  logger = console
 } = {}) {
   const sessions = new Map();
   const chatRequestsByAddress = new Map();
@@ -310,13 +311,30 @@ export function createControlCenterServer({
             });
           }
           const result = await upstream.json().catch(() => null);
-          if (!upstream.ok) return json(response, upstream.status >= 500 ? 502 : upstream.status, { error: "The AI provider could not complete the request" });
+          if (!upstream.ok) {
+            logger.error?.("[nexora-ai] provider returned an HTTP error", {
+              provider: providerId,
+              model: provider.model,
+              status: upstream.status
+            });
+            return json(response, upstream.status >= 500 ? 502 : upstream.status, { error: "The AI provider could not complete the request" });
+          }
           const answer = provider.kind === "gemini"
             ? result?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("")
             : result?.choices?.[0]?.message?.content;
           if (typeof answer !== "string" || !answer.trim()) return json(response, 502, { error: "Unexpected provider response" });
           return json(response, 200, { provider: providerId, model: result.model ?? provider.model, answer, usage: result.usage ?? result.usageMetadata ?? null });
-        } catch { return json(response, 502, { error: "Unable to reach the AI provider" }); }
+        } catch (error) {
+          // Log only safe transport metadata. Never log request headers, API keys, or prompt contents.
+          logger.error?.("[nexora-ai] provider request failed", {
+            provider: providerId,
+            model: provider.model,
+            errorName: typeof error?.name === "string" ? error.name : "Error",
+            errorCode: typeof error?.code === "string" ? error.code : null,
+            causeCode: typeof error?.cause?.code === "string" ? error.cause.code : null
+          });
+          return json(response, 502, { error: "Unable to reach the AI provider" });
+        }
       }
       return json(response, 404, { error: "Not found" });
     }
