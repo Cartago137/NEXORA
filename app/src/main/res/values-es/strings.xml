@@ -49,4 +49,9 @@
     <string name="save_states_disabled_link">Los estados guardados están desactivados durante una sesión Link para evitar desincronización.</string>
     <string name="unsupported_rom_format">Archivo no compatible. Elige un archivo .gb, .gbc, .gba, .agb o .bin.</string>
     <string name="link_cable_gba_only">El Cable Link solo está disponible para juegos de GBA.</string>
+    <string name="console_filter">Consola</string>
+    <string name="console_all">Todos</string>
+    <string name="console_gba">GBA</string>
+    <string name="console_gb">GB</string>
+    <string name="console_gbc">GBC</string>
 </resources>
