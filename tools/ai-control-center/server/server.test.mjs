@@ -242,7 +242,7 @@ test("Upstash configuration requires HTTPS and both credentials", () => {
 });
 
 
-test("status reports all provider key configuration without exposing secrets", async () => {
+test("status reports only active provider key configuration without exposing secrets", async () => {
   await withServer({
     env: {
       NEXORA_ADMIN_PASSWORD: password,
@@ -255,11 +255,10 @@ test("status reports all provider key configuration without exposing secrets", a
     const response = await fetch(base + "/api/status", { headers: { cookie } });
     assert.equal(response.status, 200);
     const body = await response.json();
-    assert.equal(body.connectedCount, 3);
-    assert.equal(body.providerCount, 3);
+    assert.equal(body.connectedCount, 2);
+    assert.equal(body.providerCount, 2);
     assert.equal(body.providers.openrouter.configured, true);
     assert.equal(body.providers.groq.configured, true);
-    assert.equal(body.providers.gemini.configured, true);
     const serialized = JSON.stringify(body);
     assert.equal(serialized.includes(apiKey), false);
     assert.equal(serialized.includes("test-groq-secret"), false);
