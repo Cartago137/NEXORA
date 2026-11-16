@@ -271,7 +271,7 @@ export function createControlCenterServer({
         response.setHeader("www-authenticate", "Bearer");
         return json(response, 401, { error: "MCP authentication required" });
       }
-      if (!isSameOrigin(request)) return json(response, 403, { error: "Cross-origin request rejected" });
+      // MCP uses an explicit Bearer credential, not the browser session cookie; no CSRF origin check is needed here.
       let rpc;
       try { rpc = await readJson(request); }
       catch { return json(response, 400, { error: "Invalid JSON-RPC request" }); }
