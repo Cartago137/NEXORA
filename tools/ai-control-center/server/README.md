@@ -14,6 +14,7 @@ O backend serve a interface e a API na mesma origem. A Central oferece roteament
 - OpenRouter usa `openrouter/free`; Groq usa `openai/gpt-oss-20b`; Gemini usa `gemini-3.8-flash`.
 - Groq usa formato de chat compatível com OpenAI. Gemini usa `generateContent` e conversão de papéis user/assistant para user/model.
 - Limites: 1.024 tokens de saída, 20 mensagens, 12.000 caracteres por mensagem e 10 solicitações por minuto por endereço.
+- Falhas dos provedores registram metadados técnicos seguros (provedor, modelo, status HTTP ou código de transporte), sem registrar chaves, cabeçalhos ou conteúdo das mensagens.
 - Testes automatizados simulam os provedores e o Redis; não fazem chamadas externas nem geram cobranças.
 
 ## Variáveis de ambiente
