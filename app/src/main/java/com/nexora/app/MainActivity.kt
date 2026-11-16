@@ -1399,7 +1399,7 @@ private fun FunctionMenuAction(
     val context = LocalContext.current
     Row(
         modifier = Modifier
-            .fillMaxWidth()
+            .then(if (compact) Modifier.width(52.dp) else Modifier.fillMaxWidth())
             .clip(RoundedCornerShape(10.dp))
             .pointerInput(enabled, description) {
                 detectTapGestures(
