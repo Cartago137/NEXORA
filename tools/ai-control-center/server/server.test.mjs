@@ -458,3 +458,66 @@ test("Gemini retries timed-out attempts with a fresh timeout signal", async () =
   assert.notEqual(signals[0], signals[1]);
   assert.notEqual(signals[1], signals[2]);
 });
+
+
+test("MCP bridge requires its own bearer token and exposes only the chat tool", async () => {
+  const mcpToken = "test-mcp-token-with-at-least-thirty-two-characters";
+  let forwarded;
+  await withServer({
+    env: { NEXORA_ADMIN_PASSWORD: password, NEXORA_MCP_TOKEN: mcpToken, GROQ_API_KEY: "test-groq-secret" },
+    fetchImpl: async (url, options) => {
+      forwarded = { url, headers: options.headers, body: JSON.parse(options.body) };
+      return new Response(JSON.stringify({ choices: [{ message: { content: "Resposta do Groq via MCP" } }], usage: { total_tokens: 7 } }), { status: 200 });
+    }
+  }, async (base) => {
+    const unauthorized = await fetch(base + "/mcp", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" })
+    });
+    assert.equal(unauthorized.status, 401);
+
+    const headers = { authorization: "Bearer " + mcpToken, "content-type": "application/json" };
+    const initialized = await fetch(base + "/mcp", {
+      method: "POST", headers,
+      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "initialize", params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "test", version: "1" } } })
+    });
+    assert.equal(initialized.status, 200);
+    assert.equal((await initialized.json()).result.serverInfo.name, "nexora-ai-control-center");
+
+    const listed = await fetch(base + "/mcp", {
+      method: "POST", headers,
+      body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/list" })
+    });
+    const tools = await listed.json();
+    assert.deepEqual(tools.result.tools.map((tool) => tool.name), ["nexora_chat"]);
+
+    const called = await fetch(base + "/mcp", {
+      method: "POST", headers,
+      body: JSON.stringify({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "nexora_chat", arguments: { provider: "groq", prompt: "Analise este pedido." } } })
+    });
+    const result = await called.json();
+    assert.equal(result.result.isError, undefined);
+    const output = JSON.parse(result.result.content[0].text);
+    assert.equal(output.answer, "Resposta do Groq via MCP");
+    assert.equal(forwarded.url, "https://api.groq.com/openai/v1/chat/completions");
+    assert.equal(forwarded.body.model, "openai/gpt-oss-20b");
+  });
+});
+
+test("MCP bridge rejects unsupported providers and oversized prompts", async () => {
+  const mcpToken = "test-mcp-token-with-at-least-thirty-two-characters";
+  let providerCalled = false;
+  await withServer({
+    env: { NEXORA_ADMIN_PASSWORD: password, NEXORA_MCP_TOKEN: mcpToken, GROQ_API_KEY: "test-groq-secret" },
+    fetchImpl: async () => { providerCalled = true; throw new Error("must not call provider"); }
+  }, async (base) => {
+    const response = await fetch(base + "/mcp", {
+      method: "POST",
+      headers: { authorization: "Bearer " + mcpToken, "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "nexora_chat", arguments: { provider: "gemini", prompt: "Oi" } } })
+    });
+    const body = await response.json();
+    assert.equal(body.result.isError, true);
+    assert.equal(providerCalled, false);
+  });
+});
