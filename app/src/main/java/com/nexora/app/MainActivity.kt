@@ -51,6 +51,7 @@ import androidx.compose.material3.TextFieldDefaults
 import com.nexora.app.link.LinkProtocol
 import com.nexora.app.link.WifiLinkTransport
 import java.security.SecureRandom
+import java.security.MessageDigest
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -90,6 +91,12 @@ private val NexoraText = Color(0xFFF4EFFA)
 private val NexoraMuted = Color(0xFFB7AFC2)
 
 private enum class NexoraTab { HOME, LIBRARY, HISTORY, SETTINGS }
+
+private fun gameStateKey(uri: String): String =
+    MessageDigest.getInstance("SHA-256")
+        .digest(uri.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
+
 
 class MainActivity : ComponentActivity() {
 
@@ -578,7 +585,7 @@ private fun NexoraApp(
         onPlayGame(game) { status ->
             if (status == 4) {
                 activeGameName = game.name
-                activeGameSaveKey = Integer.toHexString(game.uri.hashCode())
+                activeGameSaveKey = gameStateKey(game.uri)
                 lastPlayedUri = game.uri
                 context.getSharedPreferences("nexora_home", android.content.Context.MODE_PRIVATE)
                     .edit()
@@ -633,7 +640,7 @@ private fun NexoraApp(
                 if (activeGameName != null) {
                     PlayerScreen(
                         gameName = activeGameName!!,
-                        saveStateKey = activeGameSaveKey ?: Integer.toHexString(activeGameName!!.hashCode()),
+                        saveStateKey = activeGameSaveKey ?: gameStateKey(activeGameName!!),
                         isAppInForeground = isAppInForeground,
                         isLinkConnected = linkTransport != null,
                         onOpenLink = {
