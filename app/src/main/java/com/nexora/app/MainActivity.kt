@@ -708,7 +708,7 @@ private fun NexoraApp(
                                                 color = NexoraMuted,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.SemiBold
-)
+                                            )
                                             Text(
                                                 "$hostIp:${WifiLinkTransport.DEFAULT_PORT}",
                                                 color = NexoraText,
