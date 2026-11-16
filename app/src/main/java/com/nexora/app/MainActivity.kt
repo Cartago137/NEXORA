@@ -1601,6 +1601,7 @@ private fun LibraryScreen(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFolderId by remember { mutableStateOf<String?>(null) }
+    var selectedConsoleFilter by remember { mutableStateOf("ALL") }
     var selectionMode by remember { mutableStateOf(false) }
     var selectedGameUris by remember { mutableStateOf(setOf<String>()) }
     var showCreateFolder by remember { mutableStateOf(false) }
@@ -1618,7 +1619,15 @@ private fun LibraryScreen(
                 LIBRARY_UNFILED_FILTER -> game.folderId == null
                 else -> game.folderId == selectedFolderId
             }
-            matchesFolder && game.name.contains(searchQuery.trim(), ignoreCase = true)
+            val extension = game.name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+            val matchesConsole = when (selectedConsoleFilter) {
+                "GBA" -> extension in setOf("gba", "agb", "bin")
+                "GB" -> extension == "gb"
+                "GBC" -> extension == "gbc"
+                else -> true
+            }
+            matchesFolder && matchesConsole &&
+                game.name.contains(searchQuery.trim(), ignoreCase = true)
         }
         .sortedWith(
             compareByDescending<GameEntry> { it.isPinned }
@@ -1653,6 +1662,38 @@ private fun LibraryScreen(
             singleLine = true,
             label = { Text(stringResource(R.string.search_games)) }
         )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(R.string.console_filter),
+                color = NexoraMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            LazyRow(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items(listOf("ALL", "GBA", "GB", "GBC")) { console ->
+                    TextButton(onClick = { selectedConsoleFilter = console }) {
+                        val label = when (console) {
+                            "ALL" -> stringResource(R.string.console_all)
+                            "GBA" -> stringResource(R.string.console_gba)
+                            "GB" -> stringResource(R.string.console_gb)
+                            else -> stringResource(R.string.console_gbc)
+                        }
+                        Text(
+                            label,
+                            color = if (selectedConsoleFilter == console) NexoraPink else NexoraMuted
+                        )
+                    }
+                }
+            }
+        }
 
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
