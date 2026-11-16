@@ -86,4 +86,5 @@
     <string name="link_waiting_connection">Esperando conexión...</string>
     <string name="link_network_error">error de red</string>
     <string name="link_timeout">tiempo agotado</string>
+    <string name="link_heartbeat_timeout">El otro dispositivo dejó de responder.</string>
 </resources>
