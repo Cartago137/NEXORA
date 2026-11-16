@@ -54,12 +54,14 @@ async function showDashboard() {
     document.getElementById("provider-count").innerHTML = `${count} <small>/ ${status.providerCount || 3}</small>`;
     const defaultReady = Boolean(providers.openrouter?.configured ?? status.configured);
     document.getElementById("provider-status").textContent = count ? `${count} provedor(es) com chave configurada` : "Aguardando configuração";
+    const optionLabels = { openrouter: "OpenRouter · roteador gratuito", groq: "Groq · GPT-OSS 20B", gemini: "Gemini · 3.8 Flash" };
     for (const option of providerSelect.options) {
       const ready = Boolean(providers[option.value]?.configured ?? (option.value === "openrouter" && status.configured));
       option.disabled = !ready;
-      if (!ready) option.textContent = labels[option.value] + " · não configurado";
+      option.textContent = ready ? optionLabels[option.value] : labels[option.value] + " · não configurado";
     }
     providerSelect.value = defaultReady ? "openrouter" : (Object.keys(providers).find((id) => providers[id]?.configured) || "openrouter");
+    providerSelect.dispatchEvent(new Event("change"));
     chatFeedback.textContent = count
       ? "Provedores com chave configurada: " + Object.keys(providers).filter((id) => providers[id]?.configured).map((id) => labels[id]).join(", ") + ". Escolha um provedor disponível antes de enviar."
       : "Nenhuma chave de provedor está configurada no servidor. Nenhuma chamada será feita.";
@@ -156,6 +158,11 @@ document.querySelectorAll(".nav-link").forEach((link) => {
     document.querySelectorAll(".nav-link").forEach((item) => item.classList.remove("active"));
     link.classList.add("active");
   });
+});
+
+providerSelect.addEventListener("change", () => {
+  const names = { openrouter: "OpenRouter", groq: "Groq", gemini: "Gemini" };
+  document.getElementById("chat-model-tag").textContent = "Provedor · " + names[providerSelect.value];
 });
 
 api("/api/session")
