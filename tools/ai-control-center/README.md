@@ -30,6 +30,10 @@ As chaves dos três provedores são opcionais e devem ser configuradas somente n
 
 Nenhum serviço foi criado, nenhuma conta conectada e nenhum segredo configurado. Os planos e limites podem mudar; confirme-os no painel dos provedores antes de cadastrar recursos.
 
+## Integração com clientes MCP
+
+A Central expõe `POST /mcp) para clientes compatíveis com Model Context Protocol via HTTP. A ferramenta `nexora_chat` permite enviar prompts somente ao OpenRouter ou Groq. A rota exige um segredo independente `NEXORA_MCP_TOKEN` (Bearer, mínimo de 32 caracteres), não concede acesso administrativo e compartilha o limite de chamadas do chat. Configure o segredo diretamente no Render e conecte o cliente à URL HTTPS do serviço com autenticação Bearer. Não compartilhe o token na conversa nem o registre no repositório.
+
 ## Requisitos
 
 - Node.js 20 ou superior.
