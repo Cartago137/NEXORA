@@ -46,28 +46,27 @@
       </section>
 
       <section class="stats" aria-label="Resumo">
-        <article class="stat-card"><span class="stat-icon">◇</span><span class="stat-label">Chaves configuradas</span><strong id="provider-count">0 <small>/ 3</small></strong><span class="muted" id="provider-status">Aguardando configuração</span></article>
+        <article class="stat-card"><span class="stat-icon">◇</span><span class="stat-label">Chaves configuradas</span><strong id="provider-count">0 <small>/ 2</small></strong><span class="muted" id="provider-status">Aguardando configuração</span></article>
         <article class="stat-card"><span class="stat-icon">▤</span><span class="stat-label">Tarefas em andamento</span><strong>0</strong><span class="muted">Nenhuma execução ativa</span></article>
         <article class="stat-card"><span class="stat-icon">◷</span><span class="stat-label">Gastos nesta sessão</span><strong>R$ 0,00</strong><span class="free-tag">Sem consumo de API</span></article>
       </section>
 
       <section class="section" id="modelos">
-        <div class="section-heading"><div><span class="eyebrow">CONEXÕES</span><h2>Provedores de IA</h2><p>As chaves serão cadastradas somente no ambiente seguro do servidor.</p></div><span class="counter">3 provedores planejados</span></div>
+        <div class="section-heading"><div><span class="eyebrow">CONEXÕES</span><h2>Provedores de IA</h2><p>As chaves serão cadastradas somente no ambiente seguro do servidor.</p></div><span class="counter">2 provedores ativos</span></div>
         <div class="provider-grid">
           <article class="provider-card"><div class="provider-top"><span class="provider-logo openrouter">OR</span><span class="pending" id="openrouter-status">Verificando...</span></div><h3>OpenRouter</h3><p>Roteamento para vários modelos por uma única integração.</p><div class="provider-foot"><span id="openrouter-detail">Rota gratuita · chave pendente</span><span class="priority">01</span></div></article>
           <article class="provider-card"><div class="provider-top"><span class="provider-logo groq">G</span><span class="pending" id="groq-status">Verificando...</span></div><h3>Groq</h3><p>Opção para inferência rápida quando configurada.</p><div class="provider-foot"><span id="groq-detail">Chave pendente</span><span class="priority">02</span></div></article>
-          <article class="provider-card"><div class="provider-top"><span class="provider-logo gemini">✦</span><span class="pending" id="gemini-status">Verificando...</span></div><h3>Gemini</h3><p>Provedor adicional para análise e tarefas específicas.</p><div class="provider-foot"><span id="gemini-detail">Chave pendente</span><span class="priority">03</span></div></article>
         </div>
       </section>
 
       <section class="lower-grid">
         <article class="panel chat-panel" id="tarefas">
           <div class="section-heading compact"><div><span class="eyebrow">ASSISTENTE</span><h2>Conversa com a IA</h2></div><span class="tag" id="chat-model-tag">Selecione um provedor</span></div>
-          <p class="chat-intro">Escolha um dos provedores com chave configurada. As mensagens só são enviadas após você pressionar Enviar; custos e cotas dependem do plano de cada provedor.</p>
+          <p class="chat-intro">Escolha um dos dois provedores ativos com chave configurada. As mensagens só são enviadas após você pressionar Enviar; custos e cotas dependem do plano de cada provedor.</p>
           <div class="chat-transcript" id="chat-transcript" role="log" aria-live="polite" aria-label="Conversa">
             <div class="chat-empty" id="chat-empty"><span class="empty-icon">✦</span><strong>Pronto para conversar</strong><p>Faça uma pergunta para testar a integração quando a chave gratuita estiver configurada no servidor.</p></div>
           </div>
-          <div class="provider-choice"><label for="chat-provider">Provedor para esta conversa</label><select id="chat-provider" name="provider"><option value="openrouter">OpenRouter · roteador gratuito</option><option value="groq">Groq · GPT-OSS 20B</option><option value="gemini">Gemini · 3.8 Flash</option></select></div>
+          <div class="provider-choice"><label for="chat-provider">Provedor para esta conversa</label><select id="chat-provider" name="provider"><option value="openrouter">OpenRouter · roteador gratuito</option><option value="groq">Groq · GPT-OSS 20B</option></select></div>
           <form class="chat-composer" id="chat-form">
             <label class="visually-hidden" for="chat-input">Sua mensagem</label>
             <textarea id="chat-input" name="message" rows="2" maxlength="12000" placeholder="Escreva sua mensagem..." required></textarea>
@@ -75,7 +74,7 @@
           </form>
           <p class="chat-feedback" id="chat-feedback" role="status" aria-live="polite">Não há consumo de API até uma mensagem ser enviada. O modelo gratuito pode ter limites de disponibilidade.</p>
         </article>
-        <article class="panel" id="historico"><div class="section-heading compact"><div><span class="eyebrow">ATIVIDADE</span><h2>Últimos eventos</h2></div></div><ul class="activity"><li><span class="activity-dot"></span><div><strong>Login protegido preparado</strong><small>Sessão privada no servidor</small></div><time>v0.2</time></li><li><span class="activity-dot muted-dot"></span><div><strong>Conexões aguardando configuração</strong><small>OpenRouter, Groq e Gemini</small></div><time>—</time></li><li><span class="activity-dot muted-dot"></span><div><strong>Execução automática desativada</strong><small>Alterações exigirão revisão</small></div><time>—</time></li></ul></article>
+        <article class="panel" id="historico"><div class="section-heading compact"><div><span class="eyebrow">ATIVIDADE</span><h2>Últimos eventos</h2></div></div><ul class="activity"><li><span class="activity-dot"></span><div><strong>Login protegido preparado</strong><small>Sessão privada no servidor</small></div><time>v0.2</time></li><li><span class="activity-dot muted-dot"></span><div><strong>Conexões aguardando configuração</strong><small>OpenRouter e Groq</small></div><time>—</time></li><li><span class="activity-dot muted-dot"></span><div><strong>Execução automática desativada</strong><small>Alterações exigirão revisão</small></div><time>—</time></li></ul></article>
       </section>
       <footer>NEXORA · Central de Controle <span>Ambiente de pré-visualização · acesso administrativo</span></footer>
     </main>
