@@ -78,6 +78,9 @@ import android.content.res.Configuration
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -423,10 +426,13 @@ private fun NexoraApp(
     var joinIp by remember { mutableStateOf("") }
     var joinCode by remember { mutableStateOf("") }
     val linkScope = rememberCoroutineScope()
+    var linkConnectJob by remember { mutableStateOf<Job?>(null) }
     val roomCodeRandom = remember { SecureRandom() }
     val lastPongNonce = remember { AtomicLong(0L) }
 
     fun disconnectLink() {
+        linkConnectJob?.cancel()
+        linkConnectJob = null
         val active = linkTransport
         NativeBridge.nativeLinkSetConnected(false)
         linkTransport = null
@@ -736,7 +742,8 @@ private fun NexoraApp(
                                                 hostIp = WifiLinkTransport.localIpv4Address()
                                                 linkBusy = true
                                                 linkMessage = context.getString(R.string.link_room_waiting)
-                                                linkScope.launch {
+                                                linkConnectJob = linkScope.launch {
+                                                    val connectionJob = currentCoroutineContext()[Job]
                                                     try {
                                                         val session = withContext(Dispatchers.IO) {
                                                             WifiLinkTransport.host(
@@ -748,11 +755,16 @@ private fun NexoraApp(
                                                                         hostIp = address
                                                                         linkMessage = context.getString(R.string.link_room_waiting_short)
                                                                     }
-                                                                }
+                                                                },
+                                                                shouldCancel = { connectionJob?.isActive != true }
                                                             )
                                                         }
+                                                        linkConnectJob = null
                                                         installLinkTransport(session)
+                                                    } catch (cancelled: CancellationException) {
+                                                        throw cancelled
                                                     } catch (error: Throwable) {
+                                                        linkConnectJob = null
                                                         linkBusy = false
                                                         linkMessage = context.getString(R.string.link_create_room_failed, error.message ?: context.getString(R.string.link_timeout))
                                                     }
@@ -820,18 +832,24 @@ private fun NexoraApp(
                                                 linkMessage = context.getString(R.string.link_joining)
                                                 val code = joinCode
                                                 val address = joinIp.trim()
-                                                linkScope.launch {
+                                                linkConnectJob = linkScope.launch {
+                                                    val connectionJob = currentCoroutineContext()[Job]
                                                     try {
                                                         val session = withContext(Dispatchers.IO) {
                                                             WifiLinkTransport.join(
                                                                 hostAddress = address,
                                                                 expectedSessionId = WifiLinkTransport.roomSessionId(code),
                                                                 gameCode = gameCode,
-                                                                romCrc32 = romCrc32
+                                                                romCrc32 = romCrc32,
+                                                                shouldCancel = { connectionJob?.isActive != true }
                                                             )
                                                         }
+                                                        linkConnectJob = null
                                                         installLinkTransport(session)
+                                                    } catch (cancelled: CancellationException) {
+                                                        throw cancelled
                                                     } catch (error: Throwable) {
+                                                        linkConnectJob = null
                                                         linkBusy = false
                                                         linkMessage = context.getString(R.string.link_join_room_failed, error.message ?: context.getString(R.string.link_network_error))
                                                     }
