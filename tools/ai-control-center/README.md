@@ -8,7 +8,7 @@ Painel web privado e independente do aplicativo Android, acessível por navegado
 - Sessão protegida por cookie HttpOnly e SameSite=Strict.
 - API e interface servidas na mesma origem.
 - Chat conectado à rota protegida `POST /api/chat`.
-- Roteamento selecionável no servidor para OpenRouter (`openrouter/free`), Groq (`openai/gpt-oss-20b`) e Gemini (`gemini-3.8-flash`).
+- Roteamento selecionável no servidor para OpenRouter (`openrouter/free`) e Groq (`openai/gpt-oss-20b`).
 - Modelos e endpoints são definidos no backend; o navegador não pode substituir essas escolhas.
 - Indicadores mostram quais chaves estão configuradas, sem expor credenciais.
 - Limites de tamanho/histórico e frequência de chamadas.
@@ -16,7 +16,7 @@ Painel web privado e independente do aplicativo Android, acessível por navegado
 - Modo local de desenvolvimento usa memória; o servidor recusa iniciar em `NODE_ENV=production` sem Redis persistente.
 - Workflow automatizado testa autenticação, chat e armazenamento persistente simulado.
 - Render Blueprint de pré-visualização preparado, com deploy automático desativado.
-- Groq e Gemini já possuem integração técnica no backend; para habilitá-los, suas chaves devem ser cadastradas como segredos no host.
+- Gemini foi desativado após falhas persistentes; sua implementação permanece preservada, mas não aparece como provedor ativo nem aceita chamadas.
 
 ## Serviços e custos previstos
 
@@ -24,15 +24,14 @@ Painel web privado e independente do aplicativo Android, acessível por navegado
 - **Upstash Redis Free:** armazena sessões e limites fora do processo do servidor. O plano gratuito publicado inclui 256 MB, 500 mil comandos mensais e 10 GB de banda. É necessário acompanhar os limites da conta.
 - **OpenRouter:** o chat usa `openrouter/free`.
 - **Groq:** usa `openai/gpt-oss-20b` via API compatível com OpenAI.
-- **Gemini:** usa `gemini-3.8-flash` via `generateContent`.
 
-As chaves dos três provedores são opcionais e devem ser configuradas somente no ambiente do servidor. Groq e Gemini podem gerar custos conforme plano, cotas e faturamento da conta; confirme as condições nos respectivos painéis antes de ativar as chaves. A Central não chama nenhum provedor automaticamente.
+As chaves dos dois provedores ativos são opcionais e devem ser configuradas somente no ambiente do servidor. Groq pode gerar custos conforme plano, cotas e faturamento da conta; confirme as condições no painel antes de ativar a chave. A Central não chama nenhum provedor automaticamente.
 
 Nenhum serviço foi criado, nenhuma conta conectada e nenhum segredo configurado. Os planos e limites podem mudar; confirme-os no painel dos provedores antes de cadastrar recursos.
 
 ## Integração com clientes MCP
 
-A Central expõe `POST /mcp) para clientes compatíveis com Model Context Protocol via HTTP. A ferramenta `nexora_chat` permite enviar prompts somente ao OpenRouter ou Groq. A rota exige um segredo independente `NEXORA_MCP_TOKEN` (Bearer, mínimo de 32 caracteres), não concede acesso administrativo e compartilha o limite de chamadas do chat. Configure o segredo diretamente no Render e conecte o cliente à URL HTTPS do serviço com autenticação Bearer. Não compartilhe o token na conversa nem o registre no repositório.
+A Central expõe `POST /mcp` para clientes compatíveis com Model Context Protocol via HTTP. A ferramenta `nexora_chat` permite enviar prompts somente ao OpenRouter ou Groq. A rota exige um segredo independente `NEXORA_MCP_TOKEN` (Bearer, mínimo de 32 caracteres), não concede acesso administrativo e compartilha o limite de chamadas do chat. Configure o segredo diretamente no Render e conecte o cliente à URL HTTPS do serviço com autenticação Bearer. Não compartilhe o token na conversa nem o registre no repositório.
 
 ## Requisitos
 
@@ -58,7 +57,7 @@ O servidor local usa `127.0.0.1:8787`. O modo local sem Redis usa memória e nã
 
 ## Preparação de hospedagem Render
 
-O arquivo `render.yaml` descreve um serviço web gratuito ligado à branch `feature/ai-control-center`. O deploy automático está desligado. As três chaves de provedores estão declaradas como segredos opcionais (`sync: false`); esse modo solicita valores no primeiro provisionamento do Blueprint, mas não injeta segredos em ambientes de preview e não atualiza serviços existentes em sincronizações posteriores. A configuração:
+O arquivo `render.yaml` descreve um serviço web gratuito ligado à branch `feature/ai-control-center`. O deploy automático está desligado. As chaves dos provedores ativos e o token MCP estão declarados como segredos opcionais (`sync: false`); esse modo solicita valores no primeiro provisionamento do Blueprint, mas não injeta segredos em ambientes de preview e não atualiza serviços existentes em sincronizações posteriores. A configuração:
 
 - executa `npm test` durante o build;
 - usa `npm start` para iniciar o servidor;
@@ -66,7 +65,7 @@ O arquivo `render.yaml` descreve um serviço web gratuito ligado à branch `feat
 - exige que a senha administrativa e as credenciais Upstash sejam preenchidas como segredos no painel;
 - não inclui uma chave OpenRouter. Ela poderá ser adicionada depois, se e quando a integração for autorizada.
 
-Para uma implantação já existente, adicione manualmente `OPENROUTER_API_KEY`, `GROQ_API_KEY` e/ou `GEMINI_API_KEY` em Environment no painel do Render; salvar as variáveis requer novo deploy para entrarem em vigor. O serviço Render gratuito é acessível pela internet; a tela de login protege o painel, mas não equivale a uma rede privada. O endereço não deve ser divulgado. O HTTPS é fornecido pelo Render. Não sincronize nem crie o Blueprint até que o armazenamento Redis e os segredos tenham sido preparados.
+Para uma implantação já existente, adicione manualmente `OPENROUTER_API_KEY`, `GROQ_API_KEY` e `NEXORA_MCP_TOKEN` em Environment no painel do Render; salvar as variáveis requer novo deploy para entrarem em vigor. O serviço Render gratuito é acessível pela internet; a tela de login protege o painel, mas não equivale a uma rede privada. O endereço não deve ser divulgado. O HTTPS é fornecido pelo Render. Não sincronize nem crie o Blueprint até que o armazenamento Redis e os segredos tenham sido preparados.
 
 ## Segurança e limites conhecidos
 
