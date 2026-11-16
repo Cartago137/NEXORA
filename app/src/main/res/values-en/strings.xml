@@ -140,4 +140,5 @@
     <string name="link_waiting_connection">Waiting for connection...</string>
     <string name="link_network_error">network error</string>
     <string name="link_timeout">timed out</string>
+    <string name="link_heartbeat_timeout">The other device stopped responding.</string>
 </resources>
