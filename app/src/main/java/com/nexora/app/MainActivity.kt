@@ -430,7 +430,8 @@ private fun NexoraApp(
     val roomCodeRandom = remember { SecureRandom() }
     val lastPongNonce = remember { AtomicLong(0L) }
 
-    fun disconnectLink() {
+    fun disconnectLink(finalMessage: String? = null) {
+        if (linkBusy && linkTransport == null && linkConnectJob == null) return
         val pendingConnect = linkConnectJob
         pendingConnect?.cancel()
         linkConnectJob = null
@@ -444,7 +445,7 @@ private fun NexoraApp(
             runCatching { NativeBridge.nativeLinkDetach() }
             linkScope.launch {
                 linkBusy = false
-                linkMessage = context.getString(R.string.link_disconnected)
+                linkMessage = finalMessage ?: context.getString(R.string.link_disconnected)
             }
         }
     }
@@ -520,18 +521,9 @@ private fun NexoraApp(
                 NativeBridge.nativeLinkSetConnected(false)
                 linkScope.launch {
                     if (linkTransport === transport) {
-                        linkBusy = true
-                        val message = error?.message?.let {
+                        linkMessage = error?.message?.let {
                             context.getString(R.string.link_connection_lost, it)
                         } ?: context.getString(R.string.link_remote_ended)
-                        linkScope.launch(Dispatchers.IO) {
-                            runCatching { NativeBridge.nativeLinkDetach() }
-                            linkScope.launch {
-                                if (linkTransport === transport) linkTransport = null
-                                linkBusy = false
-                                linkMessage = message
-                            }
-                        }
                     }
                 }
             }
@@ -547,15 +539,7 @@ private fun NexoraApp(
 
         while (isActive && linkTransport === active) {
             if (NativeBridge.nativeLinkStatus() != 1) {
-                NativeBridge.nativeLinkSetConnected(false)
-                linkBusy = true
-                withContext(Dispatchers.IO) {
-                    runCatching { active.close() }
-                    runCatching { NativeBridge.nativeLinkDetach() }
-                }
-                if (linkTransport === active) linkTransport = null
-                linkBusy = false
-                linkMessage = context.getString(R.string.link_session_interrupted)
+                disconnectLink(context.getString(R.string.link_session_interrupted))
                 break
             }
 
@@ -566,8 +550,7 @@ private fun NexoraApp(
                     awaitingPongNonce = null
                     nextPingAtNanos = nowNanos + 3_000_000_000L
                 } else if (nowNanos - pingSentAtNanos > 10_000_000_000L) {
-                    linkMessage = context.getString(R.string.link_heartbeat_timeout)
-                    disconnectLink()
+                    disconnectLink(context.getString(R.string.link_heartbeat_timeout))
                     break
                 }
             }
@@ -595,8 +578,7 @@ private fun NexoraApp(
                 continue
             }
             if (packet.size != 7) {
-                linkMessage = context.getString(R.string.link_invalid_event)
-                disconnectLink()
+                disconnectLink(context.getString(R.string.link_invalid_event))
                 break
             }
             val message: LinkProtocol.Message? = when (packet[0].toInt()) {
@@ -619,22 +601,18 @@ private fun NexoraApp(
                 else -> null
             }
             if (message == null) {
-                linkMessage = context.getString(R.string.link_unknown_event)
-                disconnectLink()
+                disconnectLink(context.getString(R.string.link_unknown_event))
                 break
             }
             try {
                 withContext(Dispatchers.IO) { active.send(message) }
             } catch (error: Throwable) {
-                NativeBridge.nativeLinkSetConnected(false)
-                linkBusy = true
-                withContext(Dispatchers.IO) {
-                    runCatching { active.close() }
-                    runCatching { NativeBridge.nativeLinkDetach() }
-                }
-                if (linkTransport === active) linkTransport = null
-                linkBusy = false
-                linkMessage = context.getString(R.string.link_send_failed, error.message ?: context.getString(R.string.link_network_error))
+                disconnectLink(
+                    context.getString(
+                        R.string.link_send_failed,
+                        error.message ?: context.getString(R.string.link_network_error)
+                    )
+                )
                 break
             }
         }
