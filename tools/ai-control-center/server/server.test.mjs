@@ -240,3 +240,114 @@ test("Upstash configuration requires HTTPS and both credentials", () => {
     env: { UPSTASH_REDIS_REST_URL: "https://example-redis.upstash.io" }
   }), /must be configured together/);
 });
+
+
+test("status reports all provider key configuration without exposing secrets", async () => {
+  await withServer({
+    env: {
+      NEXORA_ADMIN_PASSWORD: password,
+      OPENROUTER_API_KEY: apiKey,
+      GROQ_API_KEY: "test-groq-secret",
+      GEMINI_API_KEY: "test-gemini-secret"
+    }
+  }, async (base) => {
+    const cookie = await login(base);
+    const response = await fetch(base + "/api/status", { headers: { cookie } });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.connectedCount, 3);
+    assert.equal(body.providerCount, 3);
+    assert.equal(body.providers.openrouter.configured, true);
+    assert.equal(body.providers.groq.configured, true);
+    assert.equal(body.providers.gemini.configured, true);
+    const serialized = JSON.stringify(body);
+    assert.equal(serialized.includes(apiKey), false);
+    assert.equal(serialized.includes("test-groq-secret"), false);
+    assert.equal(serialized.includes("test-gemini-secret"), false);
+  });
+});
+
+test("Groq uses its configured key and fixed server-side model", async () => {
+  let forwarded;
+  await withServer({
+    env: { NEXORA_ADMIN_PASSWORD: password, GROQ_API_KEY: "test-groq-secret" },
+    fetchImpl: async (url, options) => {
+      forwarded = { url, headers: options.headers, body: JSON.parse(options.body) };
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: "Groq respondeu" } }],
+        usage: { total_tokens: 8 }
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+  }, async (base) => {
+    const cookie = await login(base);
+    const response = await fetch(base + "/api/chat", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({
+        provider: "groq",
+        model: "attacker-selected-model",
+        messages: [{ role: "user", content: "Olá" }]
+      })
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.provider, "groq");
+    assert.equal(body.answer, "Groq respondeu");
+    assert.equal(forwarded.url, "https://api.groq.com/openai/v1/chat/completions");
+    assert.equal(forwarded.headers.authorization, "Bearer test-groq-secret");
+    assert.equal(forwarded.body.model, "openai/gpt-oss-20b");
+    assert.equal(forwarded.body.max_tokens, 1024);
+  });
+});
+
+test("Gemini maps chat roles to its native contents format", async () => {
+  let forwarded;
+  await withServer({
+    env: { NEXORA_ADMIN_PASSWORD: password, GEMINI_API_KEY: "test-gemini-secret" },
+    fetchImpl: async (url, options) => {
+      forwarded = { url, headers: options.headers, body: JSON.parse(options.body) };
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: "Gemini " }, { text: "respondeu" }] } }],
+        usageMetadata: { totalTokenCount: 9 }
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+  }, async (base) => {
+    const cookie = await login(base);
+    const response = await fetch(base + "/api/chat", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({
+        provider: "gemini",
+        messages: [
+          { role: "user", content: "Oi" },
+          { role: "assistant", content: "Olá" },
+          { role: "user", content: "Tudo bem?" }
+        ]
+      })
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.provider, "gemini");
+    assert.equal(body.answer, "Gemini respondeu");
+    assert.match(forwarded.url, /models\/gemini-3\.8-flash:generateContent\?key=test-gemini-secret$/);
+    assert.deepEqual(forwarded.body.contents.map((item) => item.role), ["user", "model", "user"]);
+    assert.equal(forwarded.body.generationConfig.maxOutputTokens, 1024);
+  });
+});
+
+test("unknown providers are rejected without upstream calls", async () => {
+  let providerCalled = false;
+  await withServer({
+    env: { NEXORA_ADMIN_PASSWORD: password, OPENROUTER_API_KEY: apiKey },
+    fetchImpl: async () => { providerCalled = true; throw new Error("must not call provider"); }
+  }, async (base) => {
+    const cookie = await login(base);
+    const response = await fetch(base + "/api/chat", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ provider: "unknown", messages: [{ role: "user", content: "Olá" }] })
+    });
+    assert.equal(response.status, 400);
+    assert.equal(providerCalled, false);
+  });
+});
