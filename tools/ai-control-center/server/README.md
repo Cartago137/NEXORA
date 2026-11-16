@@ -11,7 +11,7 @@ O backend serve a interface e a API na mesma origem. A Central oferece roteament
 - Verificação de origem para requisições de escrita, limite de tentativas de login e encerramento de sessão.
 - `GET /api/status` informa quais chaves estão configuradas sem retornar qualquer segredo.
 - `POST /api/chat` aceita `provider` opcional (`openrouter` ou `groq`); o servidor escolhe o endpoint e modelo fixos. O cliente nunca pode escolher endpoint, modelo ou chave.
-- OpenRouter usa `openrouter/free`; Groq usa `openai/gpt-oss-20b`; a integração Gemini está desativada e preservada apenas no código.
+- OpenRouter usa `openrouter/free`; Groq usa `openai/gpt-oss-20b`. Gemini foi removido do código ativo após falhas persistentes.
 - Groq usa formato de chat compatível com OpenAI. 
 - Limites: 1.024 tokens de saída, 20 mensagens, 12.000 caracteres por mensagem e 10 solicitações por minuto por endereço.
 - Falhas dos provedores registram metadados técnicos seguros (provedor, modelo, status HTTP ou código de transporte), sem registrar chaves, cabeçalhos ou conteúdo das mensagens.
@@ -19,9 +19,9 @@ O backend serve a interface e a API na mesma origem. A Central oferece roteament
 
 ## Integração externa via MCP
 
-O endpoint `POST /mcp` implementa o transporte HTTP do Model Context Protocol sem estado de sessão. Ele exige `Authorization: Bearer <NEXORA_MCP_TOKEN>`, com token aleatório de pelo menos 32 caracteres, configurado somente no ambiente do servidor.
+O endpoint `POST /mcp` implementa o transporte HTTP Streamable do Model Context Protocol (versão `2025-03-26`) sem estado de sessão e responde em JSON. Ele exige `Authorization: Bearer <NEXORA_MCP_TOKEN>`, com token aleatório de pelo menos 32 caracteres, configurado somente no ambiente do servidor.
 
-A ferramenta publicada é `nexora_chat`: recebe um prompt e encaminha para OpenRouter ou Groq, usando modelos e endpoints fixos no backend. Ela não oferece acesso ao shell, arquivos, segredos, deploys ou administração do servidor. O limite de chamadas é compartilhado com o chat do painel. Requisições MCP não autenticadas são rejeitadas.
+A ferramenta publicada é `nexora_chat`: recebe um prompt e encaminha para OpenRouter ou Groq, usando modelos e endpoints fixos no backend. Ela não oferece acesso ao shell, arquivos, segredos, deploys ou administração do servidor. O limite de chamadas é compartilhado com o chat do painel. Requisições MCP não autenticadas são rejeitadas. A ferramenta retorna apenas texto da resposta e metadados do provedor; não aceita modelo, endpoint ou cabeçalho definidos pelo cliente.
 
 Para conectar um cliente MCP remoto, use a URL HTTPS do serviço terminada em `/mcp` e configure autenticação Bearer com o valor de `NEXORA_MCP_TOKEN`. O token deve ser criado e inserido diretamente no gerenciador de segredos do Render; nunca o envie pelo chat ou coloque no Git. A disponibilidade de clientes MCP remotos depende do produto/plano e das opções de conexão disponíveis na conta.
 
