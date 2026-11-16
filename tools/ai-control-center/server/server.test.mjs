@@ -404,3 +404,26 @@ test("provider HTTP errors are logged without exposing provider response bodies"
   assert.deepEqual(entries[0], ["[nexora-ai] provider returned an HTTP error", { provider: "gemini", model: "gemini-3.8-flash", status: 400 }]);
   assert.equal(JSON.stringify(entries).includes("private upstream detail"), false);
 });
+
+
+test("Gemini retries temporary 503 responses and succeeds when capacity returns", async () => {
+  let calls = 0;
+  await withServer({
+    env: { NEXORA_ADMIN_PASSWORD: password, GEMINI_API_KEY: "private-gemini-secret" },
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls < 3) return new Response(JSON.stringify({ error: { message: "temporarily overloaded" } }), { status: 503 });
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Gemini recovered" }] } }] }), { status: 200 });
+    }
+  }, async (base) => {
+    const cookie = await login(base);
+    const response = await fetch(base + "/api/chat", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ provider: "gemini", messages: [{ role: "user", content: "hello" }] })
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).answer, "Gemini recovered");
+  });
+  assert.equal(calls, 3);
+});
