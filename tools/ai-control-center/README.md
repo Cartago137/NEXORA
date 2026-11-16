@@ -31,7 +31,7 @@ Nenhum serviço foi criado, nenhuma conta conectada e nenhum segredo configurado
 
 ## Integração com clientes MCP
 
-A Central expõe `POST /mcp` para clientes compatíveis com Model Context Protocol via HTTP. A ferramenta `nexora_chat` permite enviar prompts somente ao OpenRouter ou Groq. A rota exige um segredo independente `NEXORA_MCP_TOKEN` (Bearer, mínimo de 32 caracteres), não concede acesso administrativo e compartilha o limite de chamadas do chat. Configure o segredo diretamente no Render e conecte o cliente à URL HTTPS do serviço com autenticação Bearer. Não compartilhe o token na conversa nem o registre no repositório.
+A Central expõe `POST /mcp` para clientes compatíveis com Model Context Protocol via HTTP. A ferramenta `nexora_chat` permite enviar prompts somente ao OpenRouter ou Groq. A rota exige um segredo independente `NEXORA_MCP_TOKEN` (Bearer, mínimo de 32 caracteres), não concede acesso administrativo e compartilha o limite de chamadas do chat. Configure o segredo diretamente no Render e conecte o cliente à URL HTTPS do serviço com autenticação Bearer. Não compartilhe o token na conversa nem o registre no repositório. Para clientes desktop compatíveis, a conexão pode ser adicionada em ChatGPT desktop > Settings > MCP servers, usando transporte Streamable HTTP, a URL `https://nexora-ai-control-center-preview.onrender.com/mcp` e autenticação Bearer. A configuração MCP do desktop é separada do aplicativo móvel; o app Android não oferece a tela de cadastro de servidores MCP.
 
 ## Requisitos
 
