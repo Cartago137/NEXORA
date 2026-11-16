@@ -258,6 +258,109 @@ export function createControlCenterServer({
       return json(response, 200, { authenticated: Boolean(await currentSession(request)) });
     }
 
+    if (url.pathname === "/mcp") {
+      if (request.method !== "POST") {
+        response.setHeader("allow", "POST");
+        return json(response, 405, { error: "Method not allowed" });
+      }
+      const expectedToken = env.NEXORA_MCP_TOKEN;
+      const authorization = request.headers.authorization ?? "";
+      const suppliedToken = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+      if (typeof expectedToken !== "string" || expectedToken.length < 32 || !safeEqual(suppliedToken, expectedToken)) {
+        response.setHeader("www-authenticate", "Bearer");
+        return json(response, 401, { error: "MCP authentication required" });
+      }
+      if (!isSameOrigin(request)) return json(response, 403, { error: "Cross-origin request rejected" });
+      let rpc;
+      try { rpc = await readJson(request); }
+      catch { return json(response, 400, { error: "Invalid JSON-RPC request" }); }
+      if (rpc?.jsonrpc !== "2.0" || typeof rpc.method !== "string") {
+        return json(response, 400, { jsonrpc: "2.0", id: rpc?.id ?? null, error: { code: -32600, message: "Invalid Request" } });
+      }
+      if (rpc.method === "notifications/initialized" || rpc.method.startsWith("notifications/")) {
+        response.writeHead(202, { "cache-control": "no-store" });
+        return response.end();
+      }
+      const rpcId = rpc.id ?? null;
+      if (rpc.method === "initialize") {
+        return json(response, 200, {
+          jsonrpc: "2.0", id: rpcId,
+          result: {
+            protocolVersion: "2025-03-26",
+            capabilities: { tools: {} },
+            serverInfo: { name: "nexora-ai-control-center", version: "1.0.0" }
+          }
+        });
+      }
+      if (rpc.method === "ping") return json(response, 200, { jsonrpc: "2.0", id: rpcId, result: {} });
+      if (rpc.method === "tools/list") {
+        return json(response, 200, {
+          jsonrpc: "2.0", id: rpcId,
+          result: { tools: [{
+            name: "nexora_chat",
+            description: "Send a prompt to an authorized NEXORA AI provider and return its response. This tool only chats; it cannot change deployments, secrets, or repository files.",
+            inputSchema: {
+              type: "object", additionalProperties: false,
+              properties: {
+                provider: { type: "string", enum: ["openrouter", "groq"], description: "AI provider to receive the prompt." },
+                prompt: { type: "string", minLength: 1, maxLength: 12000, description: "Instruction or question to send to the selected AI." }
+              },
+              required: ["prompt"]
+            }
+          }] }
+        });
+      }
+      if (rpc.method === "tools/call") {
+        const toolName = rpc.params?.name;
+        const args = rpc.params?.arguments ?? {};
+        if (toolName !== "nexora_chat") {
+          return json(response, 200, { jsonrpc: "2.0", id: rpcId, result: { isError: true, content: [{ type: "text", text: "Unknown NEXORA tool." }] } });
+        }
+        const providerId = args.provider ?? DEFAULT_PROVIDER;
+        const prompt = args.prompt;
+        if (!["openrouter", "groq"].includes(providerId) || typeof prompt !== "string" || !prompt.trim() || prompt.length > MAX_MESSAGE_CHARS) {
+          return json(response, 200, { jsonrpc: "2.0", id: rpcId, result: { isError: true, content: [{ type: "text", text: "Invalid provider or prompt. Use OpenRouter/Groq and a prompt up to 12,000 characters." }] } });
+        }
+        const provider = PROVIDERS[providerId];
+        const apiKey = env[provider.envKey];
+        if (!apiKey) {
+          return json(response, 200, { jsonrpc: "2.0", id: rpcId, result: { isError: true, content: [{ type: "text", text: provider.label + " is not configured." }] } });
+        }
+        const address = request.socket.remoteAddress ?? "unknown";
+        const requests = await incrementRateLimit("nexora:chat:" + address, chatRequestsByAddress, RATE_LIMIT_WINDOW_MS);
+        if (requests > RATE_LIMIT_REQUESTS) {
+          return json(response, 200, { jsonrpc: "2.0", id: rpcId, result: { isError: true, content: [{ type: "text", text: "NEXORA rate limit reached; try again in a minute." }] } });
+        }
+        try {
+          const upstream = await fetchImpl(provider.endpoint, {
+            method: "POST",
+            headers: { authorization: "Bearer " + apiKey, "content-type": "application/json", ...(providerId === "openrouter" ? { "x-title": "NEXORA AI Control Center" } : {}) },
+            body: JSON.stringify({ model: provider.model, messages: [{ role: "user", content: prompt }], max_tokens: MAX_OUTPUT_TOKENS, stream: false }),
+            signal: AbortSignal.timeout(30_000)
+          });
+          const payload = await upstream.json().catch(() => null);
+          if (!upstream.ok) {
+            logger.error?.("[nexora-mcp] provider returned an HTTP error", { provider: providerId, model: provider.model, status: upstream.status });
+            return json(response, 200, { jsonrpc: "2.0", id: rpcId, result: { isError: true, content: [{ type: "text", text: provider.label + " could not complete the request (HTTP " + upstream.status + ")." }] } });
+          }
+          const answer = payload?.choices?.[0]?.message?.content;
+          if (typeof answer !== "string" || !answer.trim()) {
+            return json(response, 200, { jsonrpc: "2.0", id: rpcId, result: { isError: true, content: [{ type: "text", text: "Unexpected response from " + provider.label + "." }] } });
+          }
+          return json(response, 200, { jsonrpc: "2.0", id: rpcId, result: { content: [{ type: "text", text: JSON.stringify({ provider: providerId, model: provider.model, answer, usage: payload.usage ?? null }) }] } });
+        } catch (error) {
+          logger.error?.("[nexora-mcp] provider request failed", {
+            provider: providerId, model: provider.model,
+            errorName: typeof error?.name === "string" ? error.name : "Error",
+            errorCode: typeof error?.code === "string" ? error.code : null,
+            causeCode: typeof error?.cause?.code === "string" ? error.cause.code : null
+          });
+          return json(response, 200, { jsonrpc: "2.0", id: rpcId, result: { isError: true, content: [{ type: "text", text: "Unable to reach " + provider.label + "." }] } });
+        }
+      }
+      return json(response, 200, { jsonrpc: "2.0", id: rpcId, error: { code: -32601, message: "Method not found" } });
+    }
+
     if (url.pathname.startsWith("/api/")) {
       if (!["GET", "POST"].includes(request.method ?? "")) {
         response.setHeader("allow", "GET, POST");
