@@ -8,19 +8,25 @@ Painel web privado e independente do aplicativo Android, acessível por navegado
 - Sessão protegida por cookie HttpOnly e SameSite=Strict.
 - API e interface servidas na mesma origem.
 - Chat conectado à rota protegida `POST /api/chat`.
-- Roteamento fixo para `openrouter/free`; modelos pagos não são selecionáveis nem habilitados.
+- Roteamento selecionável no servidor para OpenRouter (`openrouter/free`), Groq (`openai/gpt-oss-20b`) e Gemini (`gemini-3.8-flash`).
+- Modelos e endpoints são definidos no backend; o navegador não pode substituir essas escolhas.
+- Indicadores mostram quais chaves estão configuradas, sem expor credenciais.
 - Limites de tamanho/histórico e frequência de chamadas.
 - Armazenamento de sessão e limites com Upstash Redis REST quando configurado.
 - Modo local de desenvolvimento usa memória; o servidor recusa iniciar em `NODE_ENV=production` sem Redis persistente.
 - Workflow automatizado testa autenticação, chat e armazenamento persistente simulado.
 - Render Blueprint de pré-visualização preparado, com deploy automático desativado.
-- Groq e Gemini são apenas planejados; não estão conectados.
+- Groq e Gemini já possuem integração técnica no backend; para habilitá-los, suas chaves devem ser cadastradas como segredos no host.
 
 ## Serviços e custos previstos
 
 - **Render Free:** hospeda o servidor para testes sem custo de compute, sujeito às cotas e limitações do plano. O serviço gratuito adormece após 15 minutos sem tráfego, demora aproximadamente um minuto para acordar e usa filesystem efêmero. Não é indicado como hospedagem de produção.
 - **Upstash Redis Free:** armazena sessões e limites fora do processo do servidor. O plano gratuito publicado inclui 256 MB, 500 mil comandos mensais e 10 GB de banda. É necessário acompanhar os limites da conta.
-- **OpenRouter:** o chat usa somente o roteador `openrouter/free`. Uma chave do OpenRouter será necessária para chamadas reais. Nenhuma chave está configurada neste repositório.
+- **OpenRouter:** o chat usa `openrouter/free`.
+- **Groq:** usa `openai/gpt-oss-20b` via API compatível com OpenAI.
+- **Gemini:** usa `gemini-3.8-flash` via `generateContent`.
+
+As chaves dos três provedores são opcionais e devem ser configuradas somente no ambiente do servidor. Groq e Gemini podem gerar custos conforme plano, cotas e faturamento da conta; confirme as condições nos respectivos painéis antes de ativar as chaves. A Central não chama nenhum provedor automaticamente.
 
 Nenhum serviço foi criado, nenhuma conta conectada e nenhum segredo configurado. Os planos e limites podem mudar; confirme-os no painel dos provedores antes de cadastrar recursos.
 
@@ -67,7 +73,7 @@ O serviço Render gratuito é acessível pela internet; a tela de login protege 
 - Em produção, o cookie recebe Secure e o servidor exige Redis via HTTPS.
 - Requisições de escrita verificam a origem; o cookie usa SameSite=Strict.
 - O chat aceita somente mensagens user/assistant, até 20 mensagens e 12.000 caracteres por mensagem.
-- Respostas limitadas a 1.024 tokens; o servidor usa sempre `openrouter/free`.
+- Respostas limitadas a 1.024 tokens; o servidor usa modelos fixos por provedor e não aceita modelo informado pelo navegador.
 - Se o Redis ficar indisponível, a API responde com erro temporário em vez de ignorar silenciosamente o armazenamento persistente.
 - Não há MFA, recuperação de senha, contas individuais nem trilha de auditoria durável.
 - O plano gratuito do Render pode reiniciar o serviço e não oferece disco persistente. Upstash também possui cotas gratuitas.
@@ -79,7 +85,7 @@ O serviço Render gratuito é acessível pela internet; a tela de login protege 
 2. Criar o banco Redis gratuito e preencher seus segredos no provedor de hospedagem.
 3. Criar o Blueprint Render manualmente, sem deploy automático.
 4. Fazer um deploy privado de teste e validar login, sessão, HTTPS e chat no celular.
-5. Só então habilitar a chave OpenRouter gratuita no servidor.
-6. Avaliar integrações adicionais após a primeira versão estar estável.
+5. Habilitar somente as chaves dos provedores que forem autorizados, após revisar cotas e faturamento.
+6. Testar cada integração no ambiente hospedado e acompanhar os limites de uso.
 
 **Importante:** não envie senhas ou chaves nesta conversa. O projeto ainda não está hospedado nem pronto para uso público.
