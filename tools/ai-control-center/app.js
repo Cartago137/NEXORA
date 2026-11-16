@@ -51,6 +51,8 @@ async function showDashboard() {
       }
     }
     const count = Number(status.connectedCount ?? Object.values(providers).filter((item) => item.configured).length);
+    chatInput.disabled = count === 0;
+    chatSend.disabled = count === 0;
     document.getElementById("provider-count").innerHTML = `${count} <small>/ ${status.providerCount || 3}</small>`;
     const defaultReady = Boolean(providers.openrouter?.configured ?? status.configured);
     document.getElementById("provider-status").textContent = count ? `${count} provedor(es) com chave configurada` : "Aguardando configuração";
