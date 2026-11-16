@@ -87,4 +87,9 @@
     <string name="link_network_error">error de red</string>
     <string name="link_timeout">tiempo agotado</string>
     <string name="link_heartbeat_timeout">El otro dispositivo dejó de responder.</string>
+    <string name="save_state_description">Guarda el punto actual de la partida en un archivo separado para este juego.</string>
+    <string name="load_state_description">Restaura el último estado guardado; el progreso actual vuelve a ese momento.</string>
+    <string name="speed_description">Cambia la velocidad de emulación y ajusta la reproducción del audio.</string>
+    <string name="link_description">Conecta otro dispositivo para jugar en conjunto en juegos GBA compatibles.</string>
+    <string name="exit_game_description">Cierra el juego actual y vuelve a NEXORA.</string>
 </resources>
