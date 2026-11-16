@@ -80,6 +80,12 @@ object NativeBridge {
     /** Returns one outgoing serial event as [kind, id, cycle, baud, data, SIOCNT, RCNT]. */
     external fun nativeLinkTakeOutgoing(): LongArray?
 
+    /** Saves the complete mGBA machine state to an app-private file. Disabled during Link sessions. */
+    external fun nativeSaveState(path: String): Boolean
+
+    /** Restores a previously saved mGBA machine state. Disabled during Link sessions. */
+    external fun nativeLoadState(path: String): Boolean
+
     /** Detaches the native Link driver and clears session queues. */
     external fun nativeLinkDetach()
 
