@@ -2058,9 +2058,9 @@ private fun GameLibraryCard(
             )
         }
         val consoleLabel = when (game.name.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
-            "gb" -> "GAME BOY"
-            "gbc" -> "GAME BOY COLOR"
-            else -> "GAME BOY ADVANCE"
+            "gb" -> "GB"
+            "gbc" -> "GBC"
+            else -> "GBA"
         }
         Text(
             consoleLabel,
