@@ -400,6 +400,7 @@ private fun NexoraApp(
 ) {
     var selectedTab by remember { mutableStateOf(NexoraTab.HOME) }
     var activeGameName by remember { mutableStateOf<String?>(null) }
+    var activeGameSaveKey by remember { mutableStateOf<String?>(null) }
     var gamePendingRemoval by remember { mutableStateOf<GameEntry?>(null) }
     var removalFailed by remember { mutableStateOf(false) }
     var showLinkDialog by remember { mutableStateOf(false) }
@@ -577,6 +578,7 @@ private fun NexoraApp(
         onPlayGame(game) { status ->
             if (status == 4) {
                 activeGameName = game.name
+                activeGameSaveKey = Integer.toHexString(game.uri.hashCode())
                 lastPlayedUri = game.uri
                 context.getSharedPreferences("nexora_home", android.content.Context.MODE_PRIVATE)
                     .edit()
@@ -631,7 +633,9 @@ private fun NexoraApp(
                 if (activeGameName != null) {
                     PlayerScreen(
                         gameName = activeGameName!!,
+                        saveStateKey = activeGameSaveKey ?: Integer.toHexString(activeGameName!!.hashCode()),
                         isAppInForeground = isAppInForeground,
+                        isLinkConnected = linkTransport != null,
                         onOpenLink = {
                             hostIp = WifiLinkTransport.localIpv4Address()
                             showLinkDialog = true
@@ -640,6 +644,7 @@ private fun NexoraApp(
                             disconnectLink()
                             onExitGame()
                             activeGameName = null
+                            activeGameSaveKey = null
                         }
                     )
                     if (showLinkDialog) {
@@ -883,7 +888,14 @@ private fun NexoraApp(
 }
 
 @Composable
-private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onOpenLink: () -> Unit, onExit: () -> Unit) {
+private fun PlayerScreen(
+    gameName: String,
+    saveStateKey: String,
+    isAppInForeground: Boolean,
+    isLinkConnected: Boolean,
+    onOpenLink: () -> Unit,
+    onExit: () -> Unit
+) {
     val pixelBuffer = remember { IntArray(240 * 160) }
     val frameBitmap = remember {
         Bitmap.createBitmap(240, 160, Bitmap.Config.ARGB_8888)
@@ -893,9 +905,17 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onOpenLin
     var frameError by remember { mutableStateOf(false) }
     var frameVersion by remember { mutableIntStateOf(0) }
     var emulationSpeed by remember { mutableFloatStateOf(1.0f) }
+    var showFunctionsMenu by remember { mutableStateOf(false) }
+    var functionsBusy by remember { mutableStateOf(false) }
+    var functionsMessage by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val functionsScope = rememberCoroutineScope()
+    val stateFile = remember(saveStateKey) {
+        File(File(context.filesDir, "save_states"), "$saveStateKey.state")
+    }
 
-    LaunchedEffect(gameName, isAppInForeground) {
-        if (!isAppInForeground) {
+    LaunchedEffect(gameName, isAppInForeground, showFunctionsMenu) {
+        if (!isAppInForeground || showFunctionsMenu) {
             NativeBridge.nativeSetKeys(0)
             return@LaunchedEffect
         }
@@ -1042,8 +1062,12 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onOpenLin
     }
 
     androidx.activity.compose.BackHandler {
-        NativeBridge.nativeSetKeys(0)
-        onExit()
+        if (showFunctionsMenu) {
+            showFunctionsMenu = false
+        } else {
+            NativeBridge.nativeSetKeys(0)
+            onExit()
+        }
     }
 
     BoxWithConstraints(
@@ -1129,23 +1153,125 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onOpenLin
                 .align(Alignment.TopCenter)
                 .padding(top = 8.dp)
                 .background(NexoraPanel.copy(alpha = 0.94f), RoundedCornerShape(14.dp))
-                .padding(horizontal = 6.dp, vertical = 1.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                .padding(horizontal = 5.dp, vertical = 1.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = onOpenLink) {
-                Text("LINK", color = NexoraPink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            TextButton(onClick = { showFunctionsMenu = true }) {
+                Text("☰", color = NexoraPink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
-            listOf(1.0f, 1.5f, 2.0f, 3.0f).forEach { speed ->
-                TextButton(onClick = { emulationSpeed = speed }) {
-                    Text(
-                        text = "${speed}x",
-                        color = if (emulationSpeed == speed) NexoraPink else NexoraMuted,
-                        fontSize = 11.sp,
-                        fontWeight = if (emulationSpeed == speed) FontWeight.Bold else FontWeight.Medium
-                    )
-                }
-            }
+        }
+
+        if (showFunctionsMenu) {
+            AlertDialog(
+                onDismissRequest = { if (!functionsBusy) showFunctionsMenu = false },
+                title = {
+                    Text("NEXORA — MENU DE FUNÇÕES", color = NexoraText, fontSize = 17.sp)
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        TextButton(
+                            onClick = {
+                                functionsBusy = true
+                                functionsScope.launch {
+                                    val saved = withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            stateFile.parentFile?.mkdirs()
+                                            NativeBridge.nativeSaveState(stateFile.absolutePath)
+                                        }.getOrDefault(false)
+                                    }
+                                    functionsBusy = false
+                                    functionsMessage = if (saved) {
+                                        "Estado do jogo salvo com sucesso."
+                                    } else {
+                                        "Não foi possível salvar. O Save State fica indisponível durante uma sessão Link."
+                                    }
+                                }
+                            },
+                            enabled = !functionsBusy && !isLinkConnected
+                        ) { Text("Salvar estado", color = NexoraText) }
+
+                        TextButton(
+                            onClick = {
+                                functionsBusy = true
+                                functionsScope.launch {
+                                    val loaded = withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            NativeBridge.nativeLoadState(stateFile.absolutePath)
+                                        }.getOrDefault(false)
+                                    }
+                                    if (loaded) withContext(Dispatchers.IO) {
+                                        runCatching { NativeBridge.nativeClearAudio() }
+                                    }
+                                    functionsBusy = false
+                                    functionsMessage = if (loaded) {
+                                        "Estado carregado com sucesso."
+                                    } else {
+                                        "Não foi possível carregar. Verifique se existe um estado salvo."
+                                    }
+                                }
+                            },
+                            enabled = !functionsBusy && !isLinkConnected && stateFile.exists()
+                        ) { Text("Carregar estado", color = NexoraText) }
+
+                        Text("Velocidade de emulação", color = NexoraMuted, fontSize = 12.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            listOf(1.0f, 1.5f, 2.0f, 3.0f).forEach { speed ->
+                                TextButton(
+                                    onClick = {
+                                        emulationSpeed = speed
+                                        showFunctionsMenu = false
+                                    },
+                                    enabled = !functionsBusy
+                                ) {
+                                    Text(
+                                        "${speed}x",
+                                        color = if (emulationSpeed == speed) NexoraPink else NexoraMuted,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (emulationSpeed == speed) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+
+                        TextButton(
+                            onClick = {
+                                showFunctionsMenu = false
+                                onOpenLink()
+                            },
+                            enabled = !functionsBusy
+                        ) { Text("Link Cable / Troca Pokémon", color = NexoraText) }
+
+                        TextButton(
+                            onClick = {
+                                NativeBridge.nativeSetKeys(0)
+                                showFunctionsMenu = false
+                                onExit()
+                            },
+                            enabled = !functionsBusy
+                        ) { Text("Sair do jogo", color = NexoraPink) }
+
+                        functionsMessage?.let {
+                            Text(it, color = NexoraMuted, fontSize = 11.sp)
+                        }
+                        if (isLinkConnected) {
+                            Text(
+                                "Save States ficam bloqueados enquanto o Link Cable estiver conectado para evitar dessincronização.",
+                                color = NexoraMuted,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = { showFunctionsMenu = false },
+                        enabled = !functionsBusy
+                    ) { Text("Fechar", color = NexoraText) }
+                },
+                containerColor = NexoraPanel,
+                titleContentColor = NexoraText,
+                textContentColor = NexoraText
+            )
         }
     }
 }
