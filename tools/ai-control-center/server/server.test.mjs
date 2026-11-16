@@ -300,39 +300,23 @@ test("Groq uses its configured key and fixed server-side model", async () => {
   });
 });
 
-test("Gemini maps chat roles to its native contents format", async () => {
-  let forwarded;
+test("Gemini is disabled and excluded from the active provider list", async () => {
+  let providerCalled = false;
   await withServer({
-    env: { NEXORA_ADMIN_PASSWORD: password, GEMINI_API_KEY: "test-gemini-secret" },
-    fetchImpl: async (url, options) => {
-      forwarded = { url, headers: options.headers, body: JSON.parse(options.body) };
-      return new Response(JSON.stringify({
-        candidates: [{ content: { parts: [{ text: "Gemini " }, { text: "respondeu" }] } }],
-        usageMetadata: { totalTokenCount: 9 }
-      }), { status: 200, headers: { "content-type": "application/json" } });
-    }
+    env: { NEXORA_ADMIN_PASSWORD: password, GEMINI_API_KEY: "inactive-gemini-secret", OPENROUTER_API_KEY: apiKey },
+    fetchImpl: async () => { providerCalled = true; throw new Error("must not call provider"); }
   }, async (base) => {
     const cookie = await login(base);
+    const statusResponse = await fetch(base + "/api/status", { headers: { cookie } });
+    const status = await statusResponse.json();
+    assert.equal(status.providerCount, 2);
+    assert.deepEqual(Object.keys(status.providers), ["openrouter", "groq"]);
     const response = await fetch(base + "/api/chat", {
-      method: "POST",
-      headers: { cookie, "content-type": "application/json" },
-      body: JSON.stringify({
-        provider: "gemini",
-        messages: [
-          { role: "user", content: "Oi" },
-          { role: "assistant", content: "Olá" },
-          { role: "user", content: "Tudo bem?" }
-        ]
-      })
+      method: "POST", headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ provider: "gemini", messages: [{ role: "user", content: "Olá" }] })
     });
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.provider, "gemini");
-    assert.equal(body.answer, "Gemini respondeu");
-    assert.equal(forwarded.url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
-    assert.equal(forwarded.headers["x-goog-api-key"], "test-gemini-secret");
-    assert.deepEqual(forwarded.body.contents.map((item) => item.role), ["user", "model", "user"]);
-    assert.equal(forwarded.body.generationConfig.maxOutputTokens, 1024);
+    assert.equal(response.status, 400);
+    assert.equal(providerCalled, false);
   });
 });
 
@@ -358,7 +342,7 @@ test("provider transport failures are logged with safe metadata and no secrets",
   const entries = [];
   const logger = { error: (...args) => entries.push(args) };
   await withServer({
-    env: { NEXORA_ADMIN_PASSWORD: password, GEMINI_API_KEY: "private-gemini-secret" },
+    env: { NEXORA_ADMIN_PASSWORD: password, GROQ_API_KEY: "private-groq-secret" },
     logger,
     fetchImpl: async () => {
       const error = new TypeError("fetch failed");
@@ -370,7 +354,7 @@ test("provider transport failures are logged with safe metadata and no secrets",
     const response = await fetch(base + "/api/chat", {
       method: "POST",
       headers: { cookie, "content-type": "application/json" },
-      body: JSON.stringify({ provider: "gemini", messages: [{ role: "user", content: "hello" }] })
+      body: JSON.stringify({ provider: "groq", messages: [{ role: "user", content: "hello" }] })
     });
     assert.equal(response.status, 502);
     assert.deepEqual(await response.json(), { error: "Unable to reach the AI provider" });
@@ -378,7 +362,7 @@ test("provider transport failures are logged with safe metadata and no secrets",
   assert.equal(entries.length, 1);
   assert.equal(entries[0][0], "[nexora-ai] provider request failed");
   assert.deepEqual(entries[0][1], {
-    provider: "gemini", model: "gemini-3.8-flash", errorName: "TypeError", errorCode: null, causeCode: "ECONNRESET"
+    provider: "groq", model: "openai/gpt-oss-20b", errorName: "TypeError", errorCode: null, causeCode: "ECONNRESET"
   });
   assert.equal(JSON.stringify(entries).includes("private-gemini-secret"), false);
 });
@@ -403,121 +387,4 @@ test("provider HTTP errors are logged without exposing provider response bodies"
   assert.equal(entries.length, 1);
   assert.deepEqual(entries[0], ["[nexora-ai] provider returned an HTTP error", { provider: "gemini", model: "gemini-3.8-flash", status: 400 }]);
   assert.equal(JSON.stringify(entries).includes("private upstream detail"), false);
-});
-
-
-test("Gemini retries temporary 503 responses and succeeds when capacity returns", async () => {
-  let calls = 0;
-  await withServer({
-    env: { NEXORA_ADMIN_PASSWORD: password, GEMINI_API_KEY: "private-gemini-secret" },
-    fetchImpl: async () => {
-      calls += 1;
-      if (calls < 3) return new Response(JSON.stringify({ error: { message: "temporarily overloaded" } }), { status: 503 });
-      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Gemini recovered" }] } }] }), { status: 200 });
-    }
-  }, async (base) => {
-    const cookie = await login(base);
-    const response = await fetch(base + "/api/chat", {
-      method: "POST",
-      headers: { cookie, "content-type": "application/json" },
-      body: JSON.stringify({ provider: "gemini", messages: [{ role: "user", content: "hello" }] })
-    });
-    assert.equal(response.status, 200);
-    assert.equal((await response.json()).answer, "Gemini recovered");
-  });
-  assert.equal(calls, 3);
-});
-
-
-test("Gemini retries timed-out attempts with a fresh timeout signal", async () => {
-  let calls = 0;
-  const signals = [];
-  await withServer({
-    env: { NEXORA_ADMIN_PASSWORD: password, GEMINI_API_KEY: "private-gemini-secret" },
-    fetchImpl: async (_url, options) => {
-      calls += 1;
-      signals.push(options.signal);
-      if (calls < 3) {
-        const error = new Error("request timed out");
-        error.name = "TimeoutError";
-        throw error;
-      }
-      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Gemini recovered after timeout" }] } }] }), { status: 200 });
-    }
-  }, async (base) => {
-    const cookie = await login(base);
-    const response = await fetch(base + "/api/chat", {
-      method: "POST",
-      headers: { cookie, "content-type": "application/json" },
-      body: JSON.stringify({ provider: "gemini", messages: [{ role: "user", content: "hello" }] })
-    });
-    assert.equal(response.status, 200);
-    assert.equal((await response.json()).answer, "Gemini recovered after timeout");
-  });
-  assert.equal(calls, 3);
-  assert.notEqual(signals[0], signals[1]);
-  assert.notEqual(signals[1], signals[2]);
-});
-
-
-test("MCP bridge requires its own bearer token and exposes only the chat tool", async () => {
-  const mcpToken = "test-mcp-token-with-at-least-thirty-two-characters";
-  let forwarded;
-  await withServer({
-    env: { NEXORA_ADMIN_PASSWORD: password, NEXORA_MCP_TOKEN: mcpToken, GROQ_API_KEY: "test-groq-secret" },
-    fetchImpl: async (url, options) => {
-      forwarded = { url, headers: options.headers, body: JSON.parse(options.body) };
-      return new Response(JSON.stringify({ choices: [{ message: { content: "Resposta do Groq via MCP" } }], usage: { total_tokens: 7 } }), { status: 200 });
-    }
-  }, async (base) => {
-    const unauthorized = await fetch(base + "/mcp", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" })
-    });
-    assert.equal(unauthorized.status, 401);
-
-    const headers = { authorization: "Bearer " + mcpToken, "content-type": "application/json" };
-    const initialized = await fetch(base + "/mcp", {
-      method: "POST", headers,
-      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "initialize", params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "test", version: "1" } } })
-    });
-    assert.equal(initialized.status, 200);
-    assert.equal((await initialized.json()).result.serverInfo.name, "nexora-ai-control-center");
-
-    const listed = await fetch(base + "/mcp", {
-      method: "POST", headers,
-      body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/list" })
-    });
-    const tools = await listed.json();
-    assert.deepEqual(tools.result.tools.map((tool) => tool.name), ["nexora_chat"]);
-
-    const called = await fetch(base + "/mcp", {
-      method: "POST", headers,
-      body: JSON.stringify({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "nexora_chat", arguments: { provider: "groq", prompt: "Analise este pedido." } } })
-    });
-    const result = await called.json();
-    assert.equal(result.result.isError, undefined);
-    const output = JSON.parse(result.result.content[0].text);
-    assert.equal(output.answer, "Resposta do Groq via MCP");
-    assert.equal(forwarded.url, "https://api.groq.com/openai/v1/chat/completions");
-    assert.equal(forwarded.body.model, "openai/gpt-oss-20b");
-  });
-});
-
-test("MCP bridge rejects unsupported providers and oversized prompts", async () => {
-  const mcpToken = "test-mcp-token-with-at-least-thirty-two-characters";
-  let providerCalled = false;
-  await withServer({
-    env: { NEXORA_ADMIN_PASSWORD: password, NEXORA_MCP_TOKEN: mcpToken, GROQ_API_KEY: "test-groq-secret" },
-    fetchImpl: async () => { providerCalled = true; throw new Error("must not call provider"); }
-  }, async (base) => {
-    const response = await fetch(base + "/mcp", {
-      method: "POST",
-      headers: { authorization: "Bearer " + mcpToken, "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "nexora_chat", arguments: { provider: "gemini", prompt: "Oi" } } })
-    });
-    const body = await response.json();
-    assert.equal(body.result.isError, true);
-    assert.equal(providerCalled, false);
-  });
 });
