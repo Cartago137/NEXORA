@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.view.View
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -914,7 +915,6 @@ private fun PlayerScreen(
     var emulationSpeed by remember { mutableFloatStateOf(1.0f) }
     var showFunctionsMenu by remember { mutableStateOf(false) }
     var functionsBusy by remember { mutableStateOf(false) }
-    var functionsMessage by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val functionsScope = rememberCoroutineScope()
     val stateFile = remember(saveStateKey) {
@@ -1070,7 +1070,7 @@ private fun PlayerScreen(
 
     androidx.activity.compose.BackHandler {
         if (showFunctionsMenu) {
-            showFunctionsMenu = false
+            if (!functionsBusy) showFunctionsMenu = false
         } else {
             NativeBridge.nativeSetKeys(0)
             onExit()
@@ -1187,11 +1187,14 @@ private fun PlayerScreen(
                                         }.getOrDefault(false)
                                     }
                                     functionsBusy = false
-                                    functionsMessage = if (saved) {
-                                        context.getString(R.string.save_state_success)
-                                    } else {
-                                        context.getString(R.string.save_state_failure)
-                                    }
+                                    showFunctionsMenu = false
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(
+                                            if (saved) R.string.save_state_success else R.string.save_state_failure
+                                        ),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
                             },
                             enabled = !functionsBusy && !isLinkConnected
@@ -1210,11 +1213,14 @@ private fun PlayerScreen(
                                         runCatching { NativeBridge.nativeClearAudio() }
                                     }
                                     functionsBusy = false
-                                    functionsMessage = if (loaded) {
-                                        context.getString(R.string.load_state_success)
-                                    } else {
-                                        context.getString(R.string.load_state_failure)
-                                    }
+                                    showFunctionsMenu = false
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(
+                                            if (loaded) R.string.load_state_success else R.string.load_state_failure
+                                        ),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
                             },
                             enabled = !functionsBusy && !isLinkConnected && stateFile.exists()
@@ -1257,9 +1263,6 @@ private fun PlayerScreen(
                             enabled = !functionsBusy
                         ) { Text(stringResource(R.string.exit_game), color = NexoraPink) }
 
-                        functionsMessage?.let {
-                            Text(it, color = NexoraMuted, fontSize = 11.sp)
-                        }
                         if (isLinkConnected) {
                             Text(
                                 context.getString(R.string.save_states_disabled_link),
