@@ -13,8 +13,12 @@ const RATE_LIMIT_REQUESTS = 10;
 const LOGIN_WINDOW_MS = 15 * 60_000;
 const LOGIN_ATTEMPTS = 5;
 const SESSION_TTL_MS = 12 * 60 * 60_000;
-const FREE_MODEL = "openrouter/free";
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const PROVIDERS = {
+  openrouter: { label: "OpenRouter", envKey: "OPENROUTER_API_KEY", model: "openrouter/free", endpoint: "https://openrouter.ai/api/v1/chat/completions", kind: "openai" },
+  groq: { label: "Groq", envKey: "GROQ_API_KEY", model: "llama-3.3-70b-versatile", endpoint: "https://api.groq.com/openai/v1/chat/completions", kind: "openai" },
+  gemini: { label: "Gemini", envKey: "GEMINI_API_KEY", model: "gemini-2.5-flash", endpoint: "https://generativelanguage.googleapis.com/v1beta/models/", kind: "gemini" }
+};
+const DEFAULT_PROVIDER = "openrouter";
 const STATIC_ROOT = resolve(fileURLToPath(new URL("../", import.meta.url)));
 
 function json(response, status, payload, extraHeaders = {}) {
@@ -261,11 +265,16 @@ export function createControlCenterServer({
       if (!await currentSession(request)) return json(response, 401, { error: "Authentication required" });
 
       if (request.method === "GET" && url.pathname === "/api/status") {
+        const providers = Object.fromEntries(Object.entries(PROVIDERS).map(([id, provider]) => [
+          id, { name: provider.label, configured: Boolean(env[provider.envKey]), model: provider.model }
+        ]));
         return json(response, 200, {
-          provider: "OpenRouter",
-          configured: Boolean(env.OPENROUTER_API_KEY),
+          provider: DEFAULT_PROVIDER,
+          configured: providers[DEFAULT_PROVIDER].configured,
+          providers,
+          connectedCount: Object.values(providers).filter((provider) => provider.configured).length,
+          providerCount: Object.keys(PROVIDERS).length,
           modelPolicy: "free-only",
-          model: FREE_MODEL,
           paidModelsEnabled: false,
           sessionStorage: redisConfigured ? "persistent" : "in-memory"
         });
