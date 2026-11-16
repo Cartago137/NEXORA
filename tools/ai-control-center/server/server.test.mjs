@@ -387,3 +387,116 @@ test("provider HTTP errors are logged without exposing provider response bodies"
   assert.deepEqual(entries[0], ["[nexora-ai] provider returned an HTTP error", { provider: "groq", model: "openai/gpt-oss-20b", status: 400 }]);
   assert.equal(JSON.stringify(entries).includes("private upstream detail"), false);
 });
+
+
+const mcpToken = "test-mcp-token-with-at-least-thirty-two-characters";
+const mcpHeaders = {
+  authorization: "Bearer " + mcpToken,
+  "content-type": "application/json",
+  accept: "application/json, text/event-stream"
+};
+async function mcpRequest(base, body, headers = mcpHeaders) {
+  return fetch(base + "/mcp", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body)
+  });
+}
+
+test("MCP endpoint requires its independent bearer token", async () => {
+  await withServer({ env: { NEXORA_ADMIN_PASSWORD: password, NEXORA_MCP_TOKEN: mcpToken } }, async (base) => {
+    const response = await mcpRequest(base, { jsonrpc: "2.0", id: 1, method: "initialize" }, {
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream"
+    });
+    assert.equal(response.status, 401);
+    assert.equal(response.headers.get("www-authenticate"), "Bearer");
+  });
+});
+
+test("MCP initialize negotiates the supported protocol and exposes only chat capability", async () => {
+  await withServer({ env: { NEXORA_MCP_TOKEN: mcpToken } }, async (base) => {
+    const response = await mcpRequest(base, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-03-26",
+        capabilities: {},
+        clientInfo: { name: "NEXORA test", version: "1.0.0" }
+      }
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.result.protocolVersion, "2025-03-26");
+    assert.deepEqual(body.result.capabilities, { tools: {} });
+    assert.equal(body.result.serverInfo.name, "nexora-ai-control-center");
+  });
+});
+
+test("MCP tools/list exposes only the restricted nexora_chat tool", async () => {
+  await withServer({ env: { NEXORA_MCP_TOKEN: mcpToken } }, async (base) => {
+    const response = await mcpRequest(base, { jsonrpc: "2.0", id: 2, method: "tools/list" });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.result.tools.map((tool) => tool.name), ["nexora_chat"]);
+    assert.deepEqual(body.result.tools[0].inputSchema.properties.provider.enum, ["openrouter", "groq"]);
+  });
+});
+
+test("MCP nexora_chat forwards to the fixed Groq model without exposing credentials", async () => {
+  let forwarded;
+  await withServer({
+    env: { NEXORA_MCP_TOKEN: mcpToken, GROQ_API_KEY: "private-groq-secret" },
+    fetchImpl: async (url, options) => {
+      forwarded = { url, headers: options.headers, body: JSON.parse(options.body) };
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: "Resposta MCP de teste" } }],
+        usage: { total_tokens: 7 }
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+  }, async (base) => {
+    const response = await mcpRequest(base, {
+      jsonrpc: "2.0", id: 3, method: "tools/call",
+      params: { name: "nexora_chat", arguments: { provider: "groq", prompt: "Olá" } }
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.result.isError, undefined);
+    const payload = JSON.parse(body.result.content[0].text);
+    assert.equal(payload.answer, "Resposta MCP de teste");
+    assert.equal(payload.provider, "groq");
+    assert.equal(forwarded.url, "https://api.groq.com/openai/v1/chat/completions");
+    assert.equal(forwarded.headers.authorization, "Bearer private-groq-secret");
+    assert.equal(forwarded.body.model, "openai/gpt-oss-20b");
+    assert.equal(forwarded.body.max_tokens, 1024);
+  });
+});
+
+test("MCP rejects invalid providers and oversized prompts without upstream calls", async () => {
+  let providerCalled = false;
+  await withServer({
+    env: { NEXORA_MCP_TOKEN: mcpToken, OPENROUTER_API_KEY: apiKey },
+    fetchImpl: async () => { providerCalled = true; throw new Error("must not call provider"); }
+  }, async (base) => {
+    const invalidProvider = await mcpRequest(base, {
+      jsonrpc: "2.0", id: 4, method: "tools/call",
+      params: { name: "nexora_chat", arguments: { provider: "gemini", prompt: "Olá" } }
+    });
+    assert.equal((await invalidProvider.json()).result.isError, true);
+    const oversized = await mcpRequest(base, {
+      jsonrpc: "2.0", id: 5, method: "tools/call",
+      params: { name: "nexora_chat", arguments: { prompt: "x".repeat(12001) } }
+    });
+    assert.equal((await oversized.json()).result.isError, true);
+    assert.equal(providerCalled, false);
+  });
+});
+
+test("MCP initialization notification is accepted without a response body", async () => {
+  await withServer({ env: { NEXORA_MCP_TOKEN: mcpToken } }, async (base) => {
+    const response = await mcpRequest(base, { jsonrpc: "2.0", method: "notifications/initialized" });
+    assert.equal(response.status, 202);
+    assert.equal(await response.text(), "");
+  });
+});
