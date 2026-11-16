@@ -329,7 +329,8 @@ test("Gemini maps chat roles to its native contents format", async () => {
     const body = await response.json();
     assert.equal(body.provider, "gemini");
     assert.equal(body.answer, "Gemini respondeu");
-    assert.match(forwarded.url, /models\/gemini-3\.8-flash:generateContent\?key=test-gemini-secret$/);
+    assert.equal(forwarded.url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
+    assert.equal(forwarded.headers["x-goog-api-key"], "test-gemini-secret");
     assert.deepEqual(forwarded.body.contents.map((item) => item.role), ["user", "model", "user"]);
     assert.equal(forwarded.body.generationConfig.maxOutputTokens, 1024);
   });
