@@ -186,7 +186,7 @@ class WifiLinkTransport private constructor(
                 handshakeOutput.write(LinkProtocol.encode(hello))
                 handshakeOutput.flush()
 
-                val peerHello = readOne(peer)
+                val peerHello = readOne(peer, shouldCancel)
                 if (peerHello !is LinkProtocol.Hello) {
                     throw IllegalArgumentException("Peer did not send a Link handshake")
                 }
@@ -245,7 +245,8 @@ class WifiLinkTransport private constructor(
             expectedSessionId: UUID,
             gameCode: String,
             romCrc32: Long,
-            port: Int = DEFAULT_PORT
+            port: Int = DEFAULT_PORT,
+            shouldCancel: () -> Boolean = { false }
         ): WifiLinkTransport {
             val (host, targetPort) = parseHostEndpoint(hostAddress, port)
             val peer = Socket()
@@ -254,7 +255,7 @@ class WifiLinkTransport private constructor(
                 peer.connect(InetSocketAddress(host, targetPort), CONNECT_TIMEOUT_MS)
                 peer.soTimeout = HANDSHAKE_TIMEOUT_MS
 
-                val hello = readOne(peer)
+                val hello = readOne(peer, shouldCancel)
                 if (hello !is LinkProtocol.Hello) {
                     rejectHandshake(peer, "Host did not send a Link handshake")
                     throw IllegalArgumentException("Host did not send a Link handshake")
@@ -285,7 +286,7 @@ class WifiLinkTransport private constructor(
                 )
                 handshakeOutput.flush()
 
-                val finalAck = readOne(peer)
+                val finalAck = readOne(peer, shouldCancel)
                 require(finalAck is LinkProtocol.HelloAck && finalAck.accepted) {
                     "Host rejected the Link session"
                 }
@@ -367,15 +368,34 @@ class WifiLinkTransport private constructor(
             }
         }
 
-        private fun readOne(socket: Socket): LinkProtocol.Message {
+        private fun readOne(
+            socket: Socket,
+            shouldCancel: () -> Boolean = { false }
+        ): LinkProtocol.Message {
             val input = DataInputStream(socket.getInputStream())
             val decoder = LinkProtocol.Decoder()
             val buffer = ByteArray(4 * 1024)
+            val deadline = System.nanoTime() + HANDSHAKE_TIMEOUT_MS * 1_000_000L
             while (true) {
-                val count = input.read(buffer)
-                if (count < 0) throw EOFException("Peer disconnected during Link handshake")
-                val messages = decoder.feed(buffer, 0, count)
-                if (messages.isNotEmpty()) return messages.first()
+                if (shouldCancel()) {
+                    throw CancellationException("Link connection was cancelled")
+                }
+                val remainingNanos = deadline - System.nanoTime()
+                if (remainingNanos <= 0L) {
+                    throw SocketTimeoutException("Timed out during Link handshake")
+                }
+                socket.soTimeout = minOf(
+                    500,
+                    (remainingNanos / 1_000_000L).coerceAtLeast(1L).toInt()
+                )
+                try {
+                    val count = input.read(buffer)
+                    if (count < 0) throw EOFException("Peer disconnected during Link handshake")
+                    val messages = decoder.feed(buffer, 0, count)
+                    if (messages.isNotEmpty()) return messages.first()
+                } catch (_: SocketTimeoutException) {
+                    // Poll coroutine cancellation while waiting for the handshake frame.
+                }
             }
         }
     }
