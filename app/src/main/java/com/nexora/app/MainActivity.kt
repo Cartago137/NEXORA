@@ -54,6 +54,7 @@ import com.nexora.app.link.LinkProtocol
 import com.nexora.app.link.WifiLinkTransport
 import java.security.SecureRandom
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicLong
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -423,20 +424,21 @@ private fun NexoraApp(
     var joinCode by remember { mutableStateOf("") }
     val linkScope = rememberCoroutineScope()
     val roomCodeRandom = remember { SecureRandom() }
+    val lastPongNonce = remember { AtomicLong(0L) }
 
     fun disconnectLink() {
         val active = linkTransport
         NativeBridge.nativeLinkSetConnected(false)
-        if (active != null) {
-            runCatching { active.send(LinkProtocol.Goodbye("Disconnected by player")) }
-            active.close()
-        }
         linkTransport = null
-        linkBusy = false
+        linkBusy = true
         linkScope.launch(Dispatchers.IO) {
+            if (active != null) runCatching { active.close() }
             runCatching { NativeBridge.nativeLinkDetach() }
+            linkScope.launch {
+                linkBusy = false
+                linkMessage = context.getString(R.string.link_disconnected)
+            }
         }
-        linkMessage = context.getString(R.string.link_disconnected)
     }
 
     fun installLinkTransport(transport: WifiLinkTransport) {
@@ -449,6 +451,7 @@ private fun NexoraApp(
             return
         }
 
+        lastPongNonce.set(0L)
         linkTransport = transport
         linkBusy = false
         linkMessage = context.getString(R.string.link_connected_instruction)
@@ -477,17 +480,24 @@ private fun NexoraApp(
                         val localWord = message.receivedWords.getOrNull(1)
                             ?: message.receivedWords.firstOrNull()
                             ?: 0xFFFF
-                        NativeBridge.nativeLinkReceiveSerialResult(
+                        val accepted = NativeBridge.nativeLinkReceiveSerialResult(
                             message.transferId,
                             message.cycle,
                             localWord,
                             message.sioControl,
                             0
                         )
+                        if (!accepted) {
+                            NativeBridge.nativeLinkSetConnected(false)
+                            linkScope.launch {
+                                linkMessage = context.getString(R.string.link_transfer_rejected)
+                            }
+                        }
                     }
                     is LinkProtocol.Ping -> runCatching {
                         transport.send(LinkProtocol.Pong(message.nonce))
                     }
+                    is LinkProtocol.Pong -> lastPongNonce.set(message.nonce)
                     is LinkProtocol.Goodbye -> NativeBridge.nativeLinkSetConnected(false)
                     is LinkProtocol.ProtocolError -> {
                         NativeBridge.nativeLinkSetConnected(false)
@@ -500,14 +510,21 @@ private fun NexoraApp(
             },
             onDisconnected = { error ->
                 NativeBridge.nativeLinkSetConnected(false)
-                linkScope.launch(Dispatchers.IO) {
-                    runCatching { NativeBridge.nativeLinkDetach() }
-                }
                 linkScope.launch {
-                    if (linkTransport === transport) linkTransport = null
-                    linkBusy = false
-                    linkMessage = error?.message?.let { context.getString(R.string.link_connection_lost, it) }
-                        ?: context.getString(R.string.link_remote_ended)
+                    if (linkTransport === transport) {
+                        linkBusy = true
+                        val message = error?.message?.let {
+                            context.getString(R.string.link_connection_lost, it)
+                        } ?: context.getString(R.string.link_remote_ended)
+                        linkScope.launch(Dispatchers.IO) {
+                            runCatching { NativeBridge.nativeLinkDetach() }
+                            linkScope.launch {
+                                if (linkTransport === transport) linkTransport = null
+                                linkBusy = false
+                                linkMessage = message
+                            }
+                        }
+                    }
                 }
             }
         )
@@ -515,11 +532,17 @@ private fun NexoraApp(
 
     LaunchedEffect(linkTransport) {
         val active = linkTransport ?: return@LaunchedEffect
+        var nextPingNonce = 1L
+        var awaitingPongNonce: Long? = null
+        var pingSentAtNanos = 0L
+        var nextPingAtNanos = System.nanoTime() + 3_000_000_000L
+
         while (isActive && linkTransport === active) {
             if (NativeBridge.nativeLinkStatus() != 1) {
                 NativeBridge.nativeLinkSetConnected(false)
-                active.close()
+                linkBusy = true
                 withContext(Dispatchers.IO) {
+                    runCatching { active.close() }
                     runCatching { NativeBridge.nativeLinkDetach() }
                 }
                 if (linkTransport === active) linkTransport = null
@@ -528,8 +551,38 @@ private fun NexoraApp(
                 break
             }
 
+            val nowNanos = System.nanoTime()
+            val waitingForPong = awaitingPongNonce
+            if (waitingForPong != null) {
+                if (lastPongNonce.get() == waitingForPong) {
+                    awaitingPongNonce = null
+                    nextPingAtNanos = nowNanos + 3_000_000_000L
+                } else if (nowNanos - pingSentAtNanos > 10_000_000_000L) {
+                    linkMessage = context.getString(R.string.link_heartbeat_timeout)
+                    disconnectLink()
+                    break
+                }
+            }
+
             val packet = NativeBridge.nativeLinkTakeOutgoing()
             if (packet == null) {
+                if (awaitingPongNonce == null && nowNanos >= nextPingAtNanos) {
+                    val nonce = nextPingNonce++
+                    try {
+                        withContext(Dispatchers.IO) {
+                            active.send(LinkProtocol.Ping(nonce))
+                        }
+                        awaitingPongNonce = nonce
+                        pingSentAtNanos = nowNanos
+                    } catch (error: Throwable) {
+                        linkMessage = context.getString(
+                            R.string.link_send_failed,
+                            error.message ?: context.getString(R.string.link_network_error)
+                        )
+                        disconnectLink()
+                        break
+                    }
+                }
                 delay(2)
                 continue
             }
@@ -566,11 +619,13 @@ private fun NexoraApp(
                 withContext(Dispatchers.IO) { active.send(message) }
             } catch (error: Throwable) {
                 NativeBridge.nativeLinkSetConnected(false)
-                active.close()
+                linkBusy = true
                 withContext(Dispatchers.IO) {
+                    runCatching { active.close() }
                     runCatching { NativeBridge.nativeLinkDetach() }
                 }
                 if (linkTransport === active) linkTransport = null
+                linkBusy = false
                 linkMessage = context.getString(R.string.link_send_failed, error.message ?: context.getString(R.string.link_network_error))
                 break
             }
@@ -647,7 +702,7 @@ private fun NexoraApp(
                         gameName = activeGameName!!,
                         saveStateKey = activeGameSaveKey ?: gameStateKey(activeGameName!!),
                         isAppInForeground = isAppInForeground,
-                        isLinkConnected = linkTransport != null,
+                        isLinkConnected = linkTransport != null || linkBusy,
                         onOpenLink = {
                             hostIp = WifiLinkTransport.localIpv4Address()
                             showLinkDialog = true
