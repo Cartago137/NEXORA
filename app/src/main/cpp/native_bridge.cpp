@@ -21,6 +21,8 @@
 #include <chrono>
 #include <fcntl.h>
 #include <cstdlib>
+#include <cstdio>
+#include <string>
 #include <mutex>
 
 namespace {
@@ -985,9 +987,14 @@ Java_com_nexora_app_NativeBridge_nativeSaveState(
         return JNI_FALSE;
     }
 
-    VFile* stateFile = VFileOpen(nativePath, O_CREAT | O_TRUNC | O_WRONLY);
-    const bool saved = stateFile && mCoreSaveStateNamed(gActiveCore, stateFile, SAVESTATE_ALL);
+    const std::string temporaryPath = std::string(nativePath) + ".tmp";
+    VFile* stateFile = VFileOpen(temporaryPath.c_str(), O_CREAT | O_TRUNC | O_WRONLY);
+    const bool written = stateFile && mCoreSaveStateNamed(gActiveCore, stateFile, SAVESTATE_ALL);
     if (stateFile) stateFile->close(stateFile);
+
+    // Replace the previous state only after mGBA has completed the new file.
+    const bool saved = written && std::rename(temporaryPath.c_str(), nativePath) == 0;
+    if (!saved) std::remove(temporaryPath.c_str());
     env->ReleaseStringUTFChars(path, nativePath);
     return saved ? JNI_TRUE : JNI_FALSE;
 }
