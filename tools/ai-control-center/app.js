@@ -9,6 +9,7 @@ const chatInput = document.getElementById("chat-input");
 const chatSend = document.getElementById("chat-send");
 const chatTranscript = document.getElementById("chat-transcript");
 const chatFeedback = document.getElementById("chat-feedback");
+const providerSelect = document.getElementById("chat-provider");
 const conversation = [];
 let chatBusy = false;
 
@@ -39,13 +40,29 @@ async function showDashboard() {
   appShell.hidden = false;
   try {
     const status = await api("/api/status");
-    const providerStatus = document.getElementById("openrouter-status");
-    const providerHint = document.getElementById("provider-status");
-    providerStatus.textContent = status.configured ? "Chave configurada" : "Aguardando chave";
-    providerHint.textContent = status.configured ? "Pronto para testar o chat" : "Aguardando configuração";
-    chatFeedback.textContent = status.configured
-      ? "Integração configurada. Envie uma mensagem para iniciar uma chamada ao modelo gratuito."
-      : "A chave do OpenRouter ainda não está configurada no servidor. Nenhuma chamada será feita.";
+    const providers = status.providers || {};
+    const labels = { openrouter: "OpenRouter", groq: "Groq", gemini: "Gemini" };
+    for (const id of Object.keys(labels)) {
+      const element = document.getElementById(id + "-status");
+      const provider = providers[id];
+      if (element) {
+        element.textContent = provider?.configured ? "Chave configurada" : "Aguardando chave";
+        element.classList.toggle("configured", Boolean(provider?.configured));
+      }
+    }
+    const count = Number(status.connectedCount ?? Object.values(providers).filter((item) => item.configured).length);
+    document.getElementById("provider-count").innerHTML = `${count} <small>/ ${status.providerCount || 3}</small>`;
+    const defaultReady = Boolean(providers.openrouter?.configured ?? status.configured);
+    document.getElementById("provider-status").textContent = count ? `${count} provedor(es) com chave configurada` : "Aguardando configuração";
+    for (const option of providerSelect.options) {
+      const ready = Boolean(providers[option.value]?.configured ?? (option.value === "openrouter" && status.configured));
+      option.disabled = !ready;
+      if (!ready) option.textContent = labels[option.value] + " · não configurado";
+    }
+    providerSelect.value = defaultReady ? "openrouter" : (Object.keys(providers).find((id) => providers[id]?.configured) || "openrouter");
+    chatFeedback.textContent = count
+      ? "Provedores com chave configurada: " + Object.keys(providers).filter((id) => providers[id]?.configured).map((id) => labels[id]).join(", ") + ". Escolha um provedor disponível antes de enviar."
+      : "Nenhuma chave de provedor está configurada no servidor. Nenhuma chamada será feita.";
   } catch (error) {
     if (error.message === "Authentication required") return showLogin("Sua sessão expirou. Entre novamente.");
     document.getElementById("openrouter-status").textContent = "Indisponível";
@@ -119,11 +136,11 @@ chatForm.addEventListener("submit", async (event) => {
   try {
     const result = await api("/api/chat", {
       method: "POST",
-      body: JSON.stringify({ messages: nextMessages })
+      body: JSON.stringify({ messages: nextMessages, provider: providerSelect.value })
     });
     conversation.push({ role: "user", content }, { role: "assistant", content: result.answer });
     addChatMessage("assistant", result.answer);
-    chatFeedback.textContent = `Resposta recebida · modelo: ${result.model || "gratuito"}`;
+    chatFeedback.textContent = `Resposta recebida · ${result.provider || providerSelect.value} · modelo: ${result.model || "padrão"}`;
   } catch (error) {
     addChatMessage("assistant", "Não consegui concluir esta solicitação. " + error.message);
     chatFeedback.textContent = error.message;
