@@ -17,6 +17,14 @@ O backend serve a interface e a API na mesma origem. A Central oferece roteament
 - Falhas dos provedores registram metadados técnicos seguros (provedor, modelo, status HTTP ou código de transporte), sem registrar chaves, cabeçalhos ou conteúdo das mensagens.
 - Testes automatizados simulam os provedores e o Redis; não fazem chamadas externas nem geram cobranças.
 
+## Integração externa via MCP
+
+O endpoint `POST /mcp` implementa o transporte HTTP do Model Context Protocol sem estado de sessão. Ele exige `Authorization: Bearer <NEXORA_MCP_TOKEN>`, com token aleatório de pelo menos 32 caracteres, configurado somente no ambiente do servidor.
+
+A ferramenta publicada é `nexora_chat`: recebe um prompt e encaminha para OpenRouter ou Groq, usando modelos e endpoints fixos no backend. Ela não oferece acesso ao shell, arquivos, segredos, deploys ou administração do servidor. O limite de chamadas é compartilhado com o chat do painel. Requisições MCP não autenticadas são rejeitadas.
+
+Para conectar um cliente MCP remoto, use a URL HTTPS do serviço terminada em `/mcp` e configure autenticação Bearer com o valor de `NEXORA_MCP_TOKEN`. O token deve ser criado e inserido diretamente no gerenciador de segredos do Render; nunca o envie pelo chat ou coloque no Git. A disponibilidade de clientes MCP remotos depende do produto/plano e das opções de conexão disponíveis na conta.
+
 ## Variáveis de ambiente
 
 Configure apenas no gerenciador de segredos do host:
