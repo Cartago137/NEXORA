@@ -352,3 +352,55 @@ test("unknown providers are rejected without upstream calls", async () => {
     assert.equal(providerCalled, false);
   });
 });
+
+
+test("provider transport failures are logged with safe metadata and no secrets", async () => {
+  const entries = [];
+  const logger = { error: (...args) => entries.push(args) };
+  await withServer({
+    env: { NEXORA_ADMIN_PASSWORD: password, GEMINI_API_KEY: "private-gemini-secret" },
+    logger,
+    fetchImpl: async () => {
+      const error = new TypeError("fetch failed");
+      error.cause = Object.assign(new Error("socket failure"), { code: "ECONNRESET" });
+      throw error;
+    }
+  }, async (base) => {
+    const cookie = await login(base);
+    const response = await fetch(base + "/api/chat", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ provider: "gemini", messages: [{ role: "user", content: "hello" }] })
+    });
+    assert.equal(response.status, 502);
+    assert.deepEqual(await response.json(), { error: "Unable to reach the AI provider" });
+  });
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0][0], "[nexora-ai] provider request failed");
+  assert.deepEqual(entries[0][1], {
+    provider: "gemini", model: "gemini-3.8-flash", errorName: "TypeError", errorCode: null, causeCode: "ECONNRESET"
+  });
+  assert.equal(JSON.stringify(entries).includes("private-gemini-secret"), false);
+});
+
+test("provider HTTP errors are logged without exposing provider response bodies", async () => {
+  const entries = [];
+  const logger = { error: (...args) => entries.push(args) };
+  await withServer({
+    env: { NEXORA_ADMIN_PASSWORD: password, GEMINI_API_KEY: "private-gemini-secret" },
+    logger,
+    fetchImpl: async () => new Response(JSON.stringify({ error: { message: "private upstream detail" } }), { status: 400 })
+  }, async (base) => {
+    const cookie = await login(base);
+    const response = await fetch(base + "/api/chat", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ provider: "gemini", messages: [{ role: "user", content: "hello" }] })
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: "The AI provider could not complete the request" });
+  });
+  assert.equal(entries.length, 1);
+  assert.deepEqual(entries[0], ["[nexora-ai] provider returned an HTTP error", { provider: "gemini", model: "gemini-3.8-flash", status: 400 }]);
+  assert.equal(JSON.stringify(entries).includes("private upstream detail"), false);
+});
