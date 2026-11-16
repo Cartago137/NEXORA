@@ -69,6 +69,36 @@ class LinkProtocolTest {
     }
 
     @Test
+    fun decoderRejectsInvalidMagic() {
+        val frame = LinkProtocol.encode(LinkProtocol.Ping(7L))
+        frame[0] = 0
+        assertThrows(IllegalArgumentException::class.java) {
+            LinkProtocol.Decoder().feed(frame)
+        }
+    }
+
+    @Test
+    fun decoderRejectsUnsupportedVersion() {
+        val frame = LinkProtocol.encode(LinkProtocol.Ping(7L))
+        frame[4] = 2
+        assertThrows(IllegalArgumentException::class.java) {
+            LinkProtocol.Decoder().feed(frame)
+        }
+    }
+
+    @Test
+    fun decoderRejectsPayloadLengthAboveProtocolLimit() {
+        val frame = LinkProtocol.encode(LinkProtocol.Ping(7L))
+        frame[6] = 0
+        frame[7] = 1
+        frame[8] = 0
+        frame[9] = 1 // 65,537 bytes, one byte above MAX_PAYLOAD_BYTES.
+        assertThrows(IllegalArgumentException::class.java) {
+            LinkProtocol.Decoder().feed(frame)
+        }
+    }
+
+    @Test
     fun serialResultPreservesPlayerOrder() {
         val message = LinkProtocol.SerialResult(
             transferId = 9L,
