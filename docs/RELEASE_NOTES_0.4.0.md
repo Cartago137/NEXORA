@@ -36,8 +36,9 @@
 
 ## Validation status
 
-- 17 JVM protocol/transport tests are included in the current CI workflow.
-- Debug and signed release APKs must pass in the final workflow run for this exact 0.4.0 commit.
+- **CI run #519 (`43944029339`) passed** for source commit `f9659941cb297757e26e35b2349533f0957a8606`.
+- All 17 JVM protocol/transport tests passed.
+- Debug APK and signed release APK were built and uploaded successfully.
 - Physical checks on Motorola G54 remain outstanding: GBA/GB/GBC gameplay, audio, controls, speed, Save States, orientation, Library and icon/splash.
 - Two-device Cable Club trade acceptance remains outstanding because a second Android device is not currently available for testing.
 
