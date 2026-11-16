@@ -412,6 +412,7 @@ private fun NexoraApp(
     var activeGameSaveKey by remember { mutableStateOf<String?>(null) }
     var gamePendingRemoval by remember { mutableStateOf<GameEntry?>(null) }
     var removalFailed by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     var showLinkDialog by remember { mutableStateOf(false) }
     var linkTransport by remember { mutableStateOf<WifiLinkTransport?>(null) }
     var linkMessage by remember { mutableStateOf<String?>(null) }
@@ -435,7 +436,7 @@ private fun NexoraApp(
         linkScope.launch(Dispatchers.IO) {
             runCatching { NativeBridge.nativeLinkDetach() }
         }
-        linkMessage = "Conexão encerrada."
+        linkMessage = context.getString(R.string.link_disconnected)
     }
 
     fun installLinkTransport(transport: WifiLinkTransport) {
@@ -444,13 +445,13 @@ private fun NexoraApp(
             NativeBridge.nativeLinkSetConnected(false)
             transport.close()
             linkBusy = false
-            linkMessage = "Não foi possível ativar o cabo Link no núcleo GBA."
+            linkMessage = context.getString(R.string.link_native_attach_failed)
             return
         }
 
         linkTransport = transport
         linkBusy = false
-        linkMessage = "Conectado. Entre no Cable Club dentro do jogo para iniciar a troca."
+        linkMessage = context.getString(R.string.link_connected_instruction)
         transport.startReceiving(
             onMessage = { message ->
                 when (message) {
@@ -468,7 +469,7 @@ private fun NexoraApp(
                         if (!accepted) {
                             NativeBridge.nativeLinkSetConnected(false)
                             linkScope.launch {
-                                linkMessage = "Transferência GBA rejeitada ou fora de sequência."
+                                linkMessage = context.getString(R.string.link_transfer_rejected)
                             }
                         }
                     }
@@ -491,7 +492,7 @@ private fun NexoraApp(
                     is LinkProtocol.ProtocolError -> {
                         NativeBridge.nativeLinkSetConnected(false)
                         linkScope.launch {
-                            linkMessage = "O outro aparelho encerrou a conexão: ${message.message}"
+                            linkMessage = context.getString(R.string.link_remote_ended_reason, message.message)
                         }
                     }
                     else -> Unit
@@ -505,8 +506,8 @@ private fun NexoraApp(
                 linkScope.launch {
                     if (linkTransport === transport) linkTransport = null
                     linkBusy = false
-                    linkMessage = error?.message?.let { "Conexão perdida: $it" }
-                        ?: "O outro aparelho encerrou a conexão."
+                    linkMessage = error?.message?.let { context.getString(R.string.link_connection_lost, it) }
+                        ?: context.getString(R.string.link_remote_ended)
                 }
             }
         )
@@ -523,7 +524,7 @@ private fun NexoraApp(
                 }
                 if (linkTransport === active) linkTransport = null
                 linkBusy = false
-                linkMessage = "A sessão Link foi interrompida."
+                linkMessage = context.getString(R.string.link_session_interrupted)
                 break
             }
 
@@ -533,7 +534,7 @@ private fun NexoraApp(
                 continue
             }
             if (packet.size != 7) {
-                linkMessage = "O núcleo gerou um evento Link inválido."
+                linkMessage = context.getString(R.string.link_invalid_event)
                 disconnectLink()
                 break
             }
@@ -557,7 +558,7 @@ private fun NexoraApp(
                 else -> null
             }
             if (message == null) {
-                linkMessage = "O núcleo gerou um tipo de evento Link desconhecido."
+                linkMessage = context.getString(R.string.link_unknown_event)
                 disconnectLink()
                 break
             }
@@ -570,13 +571,12 @@ private fun NexoraApp(
                     runCatching { NativeBridge.nativeLinkDetach() }
                 }
                 if (linkTransport === active) linkTransport = null
-                linkMessage = "Falha ao enviar dados Link: ${error.message ?: "erro de rede"}"
+                linkMessage = context.getString(R.string.link_send_failed, error.message ?: context.getString(R.string.link_network_error))
                 break
             }
         }
     }
 
-    val context = LocalContext.current
     var lastPlayedUri by remember {
         mutableStateOf(
             context.getSharedPreferences("nexora_home", android.content.Context.MODE_PRIVATE)
@@ -664,23 +664,23 @@ private fun NexoraApp(
                         val romCrc32 = NativeBridge.nativeGetRomCrc32()
                         AlertDialog(
                             onDismissRequest = { if (!linkBusy) showLinkDialog = false },
-                            title = { Text("GBA Link Cable", color = NexoraText) },
+                            title = { Text(stringResource(R.string.link_dialog_title), color = NexoraText) },
                             text = {
                                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     if (linkTransport != null) {
-                                        Text("Sala conectada", color = NexoraPurple, fontWeight = FontWeight.Bold)
-                                        Text("Jogador ${linkTransport!!.session.localPlayerId + 1} conectado ao outro aparelho.", color = NexoraText)
-                                        Text("Abra o Centro Pokémon e fale com a enfermeira no segundo andar para entrar no Cable Club.", color = NexoraMuted, fontSize = 12.sp)
-                                        Button(onClick = { disconnectLink() }) { Text("Desconectar") }
+                                        Text(stringResource(R.string.link_room_connected), color = NexoraPurple, fontWeight = FontWeight.Bold)
+                                        Text(stringResource(R.string.link_player_connected, linkTransport!!.session.localPlayerId + 1), color = NexoraText)
+                                        Text(stringResource(R.string.link_cable_club_instruction), color = NexoraMuted, fontSize = 12.sp)
+                                        Button(onClick = { disconnectLink() }) { Text(stringResource(R.string.link_disconnect)) }
                                     } else {
-                                        Text("Os dois aparelhos precisam estar na mesma rede Wi-Fi e usar a mesma ROM.", color = NexoraMuted, fontSize = 12.sp)
+                                        Text(stringResource(R.string.link_wifi_same_rom), color = NexoraMuted, fontSize = 12.sp)
                                         Button(
                                             onClick = {
                                                 val code = (1000 + roomCodeRandom.nextInt(9000)).toString()
                                                 roomCode = code
                                                 hostIp = WifiLinkTransport.localIpv4Address()
                                                 linkBusy = true
-                                                linkMessage = "Sala criada. Aguardando o outro aparelho..."
+                                                linkMessage = context.getString(R.string.link_room_waiting)
                                                 linkScope.launch {
                                                     try {
                                                         val session = withContext(Dispatchers.IO) {
@@ -691,7 +691,7 @@ private fun NexoraApp(
                                                                 onListening = { address ->
                                                                     linkScope.launch {
                                                                         hostIp = address
-                                                                        linkMessage = "Aguardando o outro aparelho..."
+                                                                        linkMessage = context.getString(R.string.link_room_waiting_short)
                                                                     }
                                                                 }
                                                             )
@@ -699,16 +699,16 @@ private fun NexoraApp(
                                                         installLinkTransport(session)
                                                     } catch (error: Throwable) {
                                                         linkBusy = false
-                                                        linkMessage = "Não foi possível criar a sala: ${error.message ?: "tempo esgotado"}"
+                                                        linkMessage = context.getString(R.string.link_create_room_failed, error.message ?: context.getString(R.string.link_timeout))
                                                     }
                                                 }
                                             },
                                             enabled = !linkBusy && gameCode.length == 4 && romCrc32 != 0L
-                                        ) { Text("Criar sala") }
+                                        ) { Text(stringResource(R.string.link_create_room)) }
                                         if (roomCode != null) {
-                                            Text("Código da sala: ${roomCode}", color = NexoraPink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                            Text(stringResource(R.string.link_room_code, roomCode ?: ""), color = NexoraPink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                                             Text(
-                                                "IP DO ANFITRIÃO",
+                                                stringResource(R.string.link_host_ip),
                                                 color = NexoraMuted,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.SemiBold
@@ -723,12 +723,12 @@ private fun NexoraApp(
                                                     .background(NexoraPanelLight, RoundedCornerShape(12.dp))
                                                     .padding(horizontal = 12.dp, vertical = 11.dp)
                                             )
-                                            Text("O outro jogador deve informar esse IP e o código.", color = NexoraMuted, fontSize = 11.sp)
+                                            Text(stringResource(R.string.link_share_ip_code), color = NexoraMuted, fontSize = 11.sp)
                                         }
                                         TextField(
                                             value = joinIp,
                                             onValueChange = { joinIp = it },
-                                            label = { Text("IP do anfitrião") },
+                                            label = { Text(stringResource(R.string.link_host_ip_label)) },
                                             singleLine = true,
                                             colors = TextFieldDefaults.colors(
                                                 focusedTextColor = NexoraText,
@@ -745,7 +745,7 @@ private fun NexoraApp(
                                         TextField(
                                             value = joinCode,
                                             onValueChange = { joinCode = it.filter(Char::isDigit).take(4) },
-                                            label = { Text("Código de 4 dígitos") },
+                                            label = { Text(stringResource(R.string.link_room_code_label)) },
                                             singleLine = true,
                                             colors = TextFieldDefaults.colors(
                                                 focusedTextColor = NexoraText,
@@ -762,7 +762,7 @@ private fun NexoraApp(
                                         Button(
                                             onClick = {
                                                 linkBusy = true
-                                                linkMessage = "Conectando à sala..."
+                                                linkMessage = context.getString(R.string.link_joining)
                                                 val code = joinCode
                                                 val address = joinIp.trim()
                                                 linkScope.launch {
@@ -778,15 +778,15 @@ private fun NexoraApp(
                                                         installLinkTransport(session)
                                                     } catch (error: Throwable) {
                                                         linkBusy = false
-                                                        linkMessage = "Não foi possível entrar na sala: ${error.message ?: "erro de rede"}"
+                                                        linkMessage = context.getString(R.string.link_join_room_failed, error.message ?: context.getString(R.string.link_network_error))
                                                     }
                                                 }
                                             },
                                             enabled = !linkBusy && joinIp.isNotBlank() &&
                                                 joinCode.length == 4 && gameCode.length == 4 &&
                                                 romCrc32 != 0L
-                                        ) { Text("Entrar na sala") }
-                                        if (linkBusy) Text("Aguardando conexão...", color = NexoraPurple, fontSize = 12.sp)
+                                        ) { Text(stringResource(R.string.link_join_room)) }
+                                        if (linkBusy) Text(stringResource(R.string.link_waiting_connection), color = NexoraPurple, fontSize = 12.sp)
                                     }
                                     linkMessage?.let {
                                         Text(it, color = if (linkTransport != null) NexoraPurple else NexoraMuted, fontSize = 12.sp)
