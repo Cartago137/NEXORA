@@ -1,6 +1,6 @@
 # NEXORA — Project Continuity and Engineering State
 
-Last updated: 2026-11-16 (unified GBA/GB/GBC, gameplay tools and Link Cable hardening)
+Last updated: 2026-11-16 (NEXORA Android 0.4.0 release candidate)
 
 This is the durable engineering handoff for the Android NEXORA app. Update it after every meaningful implementation, test, or decision. Do not rely on chat history alone.
 
@@ -20,9 +20,12 @@ This is the durable engineering handoff for the Android NEXORA app. Update it af
 - Repository: `Cartago137/NEXORA`
 - Current unified branch: `feature/nexora-unified-next-release`
 - Current draft PR: [#33 — Unify NEXORA Link Cable, gameplay tools and latest interface](https://github.com/Cartago137/NEXORA/pull/33)
-- Current handoff commit: `097d33350e48d769affd1bf2b7e3e840cb04f8de`.
-- Previous green CI: run #475 / `43941142412`, commit `4e23f7` (exact full SHA available in Actions). JVM tests passed; debug and signed release APK builds succeeded. Artifacts were downloaded and inspected. Subsequent Link hardening commits after that run still need a fresh CI pass.
-- Debug artifact from run #475: `14261704478`; signed release artifact: `14262664714`. These artifacts correspond to the previous green commit, not the current head.
+- Current handoff commit: `91eb963522e9b517d8f80bc33aed67d738a8032f`.
+- Android app version is now `0.4.0` (`versionCode = 4`). Release notes: `docs/RELEASE_NOTES_0.4.0.md`.
+- Previous complete green CI: run #475 / `43941142412`, commit `4e23f7` (exact full SHA available in Actions). JVM tests passed; debug and signed release APK builds succeeded. Those artifacts are version 0.3.0 and are not the current release.
+- Hardening CI run #511 / `43943246507` on commit `f38947d0af01e16b05e3941af76bc1492534bb42`: all 17 JVM tests passed and debug APK assembled successfully. The run was superseded during signed release assembly by the 0.4.0 version bump; it is not the final 0.4.0 validation.
+- A fresh complete CI run is required for the current 0.4.0 HEAD.
+- Debug artifact from run #475: `14261704478`; signed release artifact: `14262664714`. These artifacts correspond to version 0.3.0 and must not be presented as the final 0.4.0 APK.
 - Historical feature branches and draft PRs are preserved for traceability: Link protocol/SIO (#22–#24), Library (#29), speed/D-pad (#30), and GB/GBC (#20). The unified PR #33 carries the combined work.
 - Temporary conflict-check PR #32 was closed; it was not merged.
 - No PR is to be merged without explicit user approval.
