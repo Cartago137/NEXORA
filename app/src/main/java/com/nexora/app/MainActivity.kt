@@ -287,7 +287,7 @@ class MainActivity : ComponentActivity() {
                                 .lowercase(Locale.ROOT)
 
                             when {
-                                extension !in setOf("gba", "agb", "bin") -> {
+                                extension !in setOf("gba", "agb", "bin", "gb", "gbc") -> {
                                     invalidCount++
                                     releaseDocumentAccess(uri)
                                 }
@@ -904,11 +904,19 @@ private fun PlayerScreen(
     onOpenLink: () -> Unit,
     onExit: () -> Unit
 ) {
-    val pixelBuffer = remember { IntArray(240 * 160) }
-    val frameBitmap = remember {
-        Bitmap.createBitmap(240, 160, Bitmap.Config.ARGB_8888)
+    val videoWidth = remember(gameName) {
+        NativeBridge.nativeGetVideoWidth().takeIf { it > 0 } ?: 240
     }
-    val frameImage = remember { frameBitmap.asImageBitmap() }
+    val videoHeight = remember(gameName) {
+        NativeBridge.nativeGetVideoHeight().takeIf { it > 0 } ?: 160
+    }
+    val isGbFamily = remember(gameName) { NativeBridge.nativeGetPlatform() == 1 }
+    val videoAspectRatio = videoWidth.toFloat() / videoHeight.toFloat()
+    val pixelBuffer = remember(gameName) { IntArray(videoWidth * videoHeight) }
+    val frameBitmap = remember(gameName) {
+        Bitmap.createBitmap(videoWidth, videoHeight, Bitmap.Config.ARGB_8888)
+    }
+    val frameImage = remember(gameName, frameBitmap) { frameBitmap.asImageBitmap() }
     var frameReady by remember { mutableStateOf(false) }
     var frameError by remember { mutableStateOf(false) }
     var frameVersion by remember { mutableIntStateOf(0) }
@@ -1030,7 +1038,7 @@ private fun PlayerScreen(
                         val success = NativeBridge.nativeRunFrame(pixelBuffer)
                         if (success) {
                             // Keep pixel conversion/copying off the UI thread.
-                            frameBitmap.setPixels(pixelBuffer, 0, 240, 0, 0, 240, 160)
+                            frameBitmap.setPixels(pixelBuffer, 0, videoWidth, 0, 0, videoWidth, videoHeight)
                         }
                         success
                     }.getOrDefault(false)
@@ -1092,8 +1100,10 @@ private fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Box(modifier = Modifier.width(160.dp).fillMaxSize()) {
-                    Box(Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 2.dp)) {
-                        GbaControl("L", 1 shl 9, compact = true)
+                    if (!isGbFamily) {
+                        Box(Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 2.dp)) {
+                            GbaControl("L", 1 shl 9, compact = true)
+                        }
                     }
                     Box(Modifier.align(Alignment.CenterStart)) {
                         GbaDPad()
@@ -1108,7 +1118,7 @@ private fun PlayerScreen(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        GameFrame(frameError, frameReady, frameVersion, frameImage)
+                        GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio)
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
@@ -1122,8 +1132,10 @@ private fun PlayerScreen(
                 }
 
                 Box(modifier = Modifier.width(160.dp).fillMaxSize()) {
-                    Box(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 2.dp)) {
-                        GbaControl("R", 1 shl 8, compact = true)
+                    if (!isGbFamily) {
+                        Box(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 2.dp)) {
+                            GbaControl("R", 1 shl 8, compact = true)
+                        }
                     }
                     Row(
                         modifier = Modifier.align(Alignment.CenterEnd),
@@ -1150,7 +1162,8 @@ private fun PlayerScreen(
                 }
 
                 GbaPortraitControlDeck(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    showShoulderButtons = !isGbFamily
                 )
             }
         }
@@ -1251,8 +1264,15 @@ private fun PlayerScreen(
                                 showFunctionsMenu = false
                                 onOpenLink()
                             },
-                            enabled = !functionsBusy
+                            enabled = !functionsBusy && !isGbFamily
                         ) { Text(stringResource(R.string.link_cable_trade), color = NexoraText) }
+                        if (isGbFamily) {
+                            Text(
+                                stringResource(R.string.link_cable_gba_only),
+                                color = NexoraMuted,
+                                fontSize = 10.sp
+                            )
+                        }
 
                         TextButton(
                             onClick = {
@@ -1291,7 +1311,8 @@ private fun GameFrame(
     frameError: Boolean,
     frameReady: Boolean,
     frameVersion: Int,
-    frameImage: androidx.compose.ui.graphics.ImageBitmap
+    frameImage: androidx.compose.ui.graphics.ImageBitmap,
+    aspectRatio: Float
 ) {
     when {
         frameError -> Text(
@@ -1303,10 +1324,10 @@ private fun GameFrame(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            // Use the whole available area while preserving the GBA's native 3:2 ratio.
-            val fittedWidth = minOf(maxWidth, maxHeight * 1.5f)
+            // Preserve the active console's native aspect ratio (GBA 3:2, GB/GBC 10:9).
+            val fittedWidth = minOf(maxWidth, maxHeight * aspectRatio)
             Canvas(
-                modifier = Modifier.width(fittedWidth).aspectRatio(1.5f)
+                modifier = Modifier.width(fittedWidth).aspectRatio(aspectRatio)
             ) {
                 frameVersion.let { /* Snapshot read invalidates this draw scope. */ }
                 drawImage(
@@ -1409,18 +1430,23 @@ private fun DPadDirectionVisual(label: String) {
 }
 
 @Composable
-private fun GbaPortraitControlDeck(modifier: Modifier = Modifier) {
+private fun GbaPortraitControlDeck(
+    modifier: Modifier = Modifier,
+    showShoulderButtons: Boolean = true
+) {
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            GbaControl("L", 1 shl 9, compact = true)
-            GbaControl("R", 1 shl 8, compact = true)
+        if (showShoulderButtons) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                GbaControl("L", 1 shl 9, compact = true)
+                GbaControl("R", 1 shl 8, compact = true)
+            }
         }
 
         Row(
