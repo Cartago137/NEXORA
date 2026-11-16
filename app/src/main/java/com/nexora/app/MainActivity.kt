@@ -431,13 +431,15 @@ private fun NexoraApp(
     val lastPongNonce = remember { AtomicLong(0L) }
 
     fun disconnectLink() {
-        linkConnectJob?.cancel()
+        val pendingConnect = linkConnectJob
+        pendingConnect?.cancel()
         linkConnectJob = null
         val active = linkTransport
         NativeBridge.nativeLinkSetConnected(false)
         linkTransport = null
         linkBusy = true
         linkScope.launch(Dispatchers.IO) {
+            pendingConnect?.join()
             if (active != null) runCatching { active.close() }
             runCatching { NativeBridge.nativeLinkDetach() }
             linkScope.launch {
