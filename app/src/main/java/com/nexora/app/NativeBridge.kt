@@ -26,7 +26,7 @@ object NativeBridge {
     /** Returns 0 for GBA and 1 for the shared GB/GBC core. */
     external fun nativeGetPlatform(): Int
 
-    /** Runs one GBA frame into a reusable 240x160 ARGB pixel buffer. */
+    /** Runs one frame into a tightly packed ARGB buffer sized for the active console. */
     external fun nativeRunFrame(output: IntArray): Boolean
 
     /** Opens or creates the per-game battery save file through mGBA. */
@@ -41,7 +41,7 @@ object NativeBridge {
     /** Discards buffered audio when gameplay is paused or leaves the foreground. */
     external fun nativeClearAudio()
 
-    /** Replaces the active GBA key bitmask. */
+    /** Replaces the active console's key bitmask. */
     external fun nativeSetKeys(keys: Int)
 
     /** Adds a pressed key without releasing other simultaneously held keys. */
