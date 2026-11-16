@@ -1,67 +1,71 @@
 # NEXORA GBA Link — conexão e Link Cable
 
-**Estado:** primeira integração Android/JNI/SIO e salas LAN de dois aparelhos compilam; troca Pokémon real ainda não foi validada em dispositivos físicos.  
+**Estado:** protocolo, transporte LAN, sala host/join e primeira ponte JNI/mGBA MULTI SIO estão integrados no branch unificado. Troca Pokémon real ainda não foi validada em dois aparelhos físicos.  
 **Protocolo:** NXLP v1  
-**Escopo desta implementação:** dois NEXORAs na mesma rede Wi-Fi, usando o modo GBA MULTI SIO.
+**Escopo atual:** dois NEXORAs na mesma rede Wi-Fi, GBA MULTI SIO de 16 bits.
 
-## Resultado desta etapa
+## Como conectar
 
-O NEXORA já oferece uma interface de sala dentro da tela do jogo. O anfitrião cria uma sala e recebe um código de quatro dígitos e o endereço IPv4 local. O segundo aparelho informa IP e código. O código é convertido em um identificador de sessão compartilhado; o handshake verifica o identificador, o game code e o CRC32 da ROM antes de aceitar a conexão.
+1. Os dois aparelhos precisam estar na mesma rede Wi-Fi.
+2. Ambos devem carregar o mesmo jogo GBA, com o mesmo game code e CRC32 da ROM (mesma revisão).
+3. No jogo, abrir o botão de menu ☰ e selecionar **Link Cable / Troca Pokémon**.
+4. O anfitrião cria uma sala e compartilha o código de quatro dígitos e o IPv4/porta.
+5. O segundo aparelho informa o endereço e o código para entrar.
+6. Depois de conectado, abrir o Centro Pokémon e falar com a enfermeira no segundo andar para entrar no Cable Club.
 
-A porta TCP padrão é 38271. O anfitrião aguarda até 120 segundos por um participante. O socket usa TCP_NODELAY, keepalive e buffers limitados; a leitura ocorre em thread dedicada. A camada Kotlin transporta eventos NXLP e não executa diretamente callbacks de emulação.
+A porta TCP padrão é 38271. O host aguarda até 120 segundos por um participante. O socket usa TCP_NODELAY, keepalive e buffers limitados. A leitura de rede ocorre em thread dedicada. O handshake valida sessão, player role, game code e CRC32 antes de aceitar a conexão.
 
-O JNI liga o transporte a um primeiro driver `GBASIODriver` instalado no modo `SIO_MULTI` do core mGBA ativo. P0 (host) inicia a transferência e publica `SIOMLT_SEND`; P1 (client) recebe a solicitação, agenda o evento de transferência no relógio de emulação e responde com sua palavra de 16 bits. Os dois lados preenchem `SIOMULTI0..3`, atualizam os bits de estado de `SIOCNT`, limpam BUSY e geram a IRQ SIO quando habilitada.
+## Arquitetura de transferência
 
-O leitor de rede não adquire o mutex do core. O resultado serial chega pela fila protegida por mutex/condição; o callback do evento de P0 espera a resposta por um tempo limitado, sem realizar I/O de socket. O agendamento usa a tabela de ciclos do mGBA para o número de participantes.
+- P0 (host) inicia a transferência GBA MULTI e envia um `SerialTransfer`.
+- P1 (joiner) recebe a solicitação por uma fila JNI protegida, processada no começo do próximo `nativeRunFrame`.
+- O driver agenda a conclusão local com os ciclos de transferência do mGBA, atualiza SIOMULTI/SIOCNT e emite IRQ SIO quando habilitada.
+- P1 devolve um `SerialResult`.
+- P0 recebe o resultado por uma fila nativa e completa o evento SIO por polling não bloqueante a cada 2048 ciclos GBA.
+- Transferências têm ID crescente, filas limitadas e prazo máximo de quatro segundos. Falha de rede ou sequência inválida interrompe a sessão.
 
-## Como o mGBA organiza o Link Cable
+O callback SIO não executa I/O de socket nem espera em uma condition variable. Isso remove o bloqueio de vários segundos que existia na primeira versão do driver. Entretanto, o mecanismo atual ainda não é um lockstep distribuído determinístico: o core local pode avançar enquanto SIOCNT está BUSY. A precisão do comportamento deve ser validada no Cable Club em dois dispositivos.
 
-O GBA expõe vários modos SIO, e o mGBA os despacha por meio de `GBASIODriver`:
+## Modos SIO e escopo
 
-| Modo SIO | Finalidade | Estado no NEXORA |
+| Modo | Uso | Estado atual |
 |---|---|---|
-| NORMAL 8-bit | transferência serial síncrona de 8 bits | Não implementado pelo driver remoto |
-| NORMAL 32-bit | transferência serial síncrona de 32 bits | Não implementado pelo driver remoto |
-| MULTI | cabo multiplayer, com palavras de 16 bits e IDs de jogador | Primeiro caminho remoto implementado (P0/P1) |
-| UART | comunicação serial assíncrona | Não implementado |
-| GPIO | linhas seriais controladas por registradores | Não implementado |
-| JOYBUS | interface de acessórios Joybus | Não implementado |
+| MULTI 16-bit | Link Cable GBA multiplayer | Primeiro driver remoto P0/P1 implementado, teste físico pendente |
+| NORMAL 8-bit | Serial síncrono de 8 bits | Não implementado |
+| NORMAL 32-bit | Serial síncrono de 32 bits | Não implementado |
+| UART | Serial assíncrono | Não implementado |
+| GPIO | Linhas seriais controladas por registradores | Não implementado |
+| JOYBUS | Acessórios Joybus | Não implementado |
+| RFU / Wireless Adapter | Comunicação sem fio própria de alguns jogos | Não implementado |
 
-Para Pokémon FireRed/LeafGreen, a meta inicial é o fluxo de Link Cable do Cable Club, que usa o caminho multiplayer SIO. Outros protocolos de comunicação e acessórios não devem ser considerados compatíveis por esta implementação.
-
-O mGBA também possui um mecanismo de lockstep e nós locais para coordenar vários cores na mesma máquina. Isso é diferente de simplesmente enviar pacotes de rede: a sincronização local mantém as transferências alinhadas nos pontos certos do relógio emulado.
-
-## Estratégia de rede e limitações conhecidas
-
-Há duas arquiteturas importantes para multiplayer:
-
-1. **SIO remoto direto:** envia pedidos e respostas serial pela rede. É a primeira prova de integração usada nesta branch. É mais simples para ligar o Cable Club ao transporte existente, mas a resposta da rede pode atrasar o callback de transferência de P0 e produzir pausas. A sessão atual também não executa uma sincronização determinística de cada quadro.
-2. **Par replicado:** cada aparelho mantém duas instâncias locais do jogo, uma para cada jogador; os aparelhos sincronizam entradas por quadro e verificam os estados. Um projeto experimental independente baseado em mGBA demonstrou viabilidade em Android ARM64 e sessões prolongadas em dois aparelhos. Essa arquitetura é uma referência para a evolução de estabilidade/latência, mas ainda não foi portada para o NEXORA.
-
-A implementação atual não é um driver universal de cabo. Não inclui UART, NORMAL 8/32, GPIO, Joybus, RFU/Wireless Adapter, quatro dispositivos, descoberta automática, Bluetooth ou relay de internet. O código de sala é um identificador curto para uso na LAN, não uma credencial de segurança.
+A primeira meta é Pokémon FireRed/LeafGreen via Cable Club. O código de sala é um identificador curto para uso na LAN, não uma credencial de segurança. A versão atual não inclui relay de internet, Bluetooth, descoberta automática ou quatro aparelhos.
 
 ## Protocolo NXLP v1
 
 Mensagens definidas:
 
-- `Hello` / `HelloAck`: negociação de sessão, jogador, quantidade máxima de participantes, código do jogo e CRC32 da ROM.
-- `SerialTransfer`: pedido serial com ID de transferência, ciclo de emulação, modo SIO, baud rate, largura e registradores.
+- `Hello` / `HelloAck`: negociação de sessão, jogador, quantidade máxima de participantes, game code e CRC32 da ROM.
+- `SerialTransfer`: pedido serial com ID, ciclo de emulação, modo SIO, baud rate, largura e registradores.
 - `SerialResult`: palavras recebidas ordenadas por ID de jogador e estado SIO.
-- `Ping` / `Pong`: medição de latência e detecção de conexão inativa.
+- `Ping` / `Pong`: verificação de conexão.
 - `Goodbye` / `ProtocolError`: encerramento e erros explícitos.
 
-Todos os inteiros usam big-endian. O cabeçalho contém a assinatura `NXLP`, versão, tipo e tamanho do payload. O decodificador incremental lida com leituras TCP fragmentadas e vários quadros recebidos juntos, limita o tamanho dos dados e rejeita versões, tipos e comprimentos inválidos. O protocolo não envia ROMs nem arquivos de save.
+Todos os inteiros usam big-endian. O cabeçalho contém assinatura `NXLP`, versão, tipo e tamanho do payload. O decodificador incremental aceita quadros TCP fragmentados e vários quadros coalescidos, limita o tamanho dos dados e rejeita versões, tipos, assinaturas e comprimentos inválidos. O protocolo não envia ROMs nem arquivos de save.
 
-## Validação
+## Testes automatizados
 
-No workflow Android run 229, os testes JVM passaram e o APK debug e o APK release assinado foram gerados. Os testes de protocolo cobrem round-trip, fragmentação, mensagens coalescidas, ordem das palavras seriais e identidade determinística do código da sala.
+Os testes JVM cobrem:
+- Identidade de sessão derivada do código de sala.
+- Round-trip de Hello, transferências seriais e resultados.
+- Fragmentação e coalescência de quadros.
+- Rejeição de assinatura, versão e tamanho de payload inválidos.
+- Parse e validação do endereço/porta.
+- Handshake host/join local, troca de mensagens e rejeição de game code/CRC incompatíveis.
 
-Isso confirma compilação e testes automatizados da camada Kotlin. **Não comprova uma troca Pokémon real.** A validação final exige instalar a mesma versão em dois celulares, carregar a mesma ROM nos dois, criar/entrar na sala, falar com a enfermeira no segundo andar do Centro Pokémon e concluir uma troca no Cable Club.
+O CI do branch unificado foi atualizado para executar `:app:testDebugUnitTest` além da compilação Android. Os resultados do novo branch ainda precisam ser confirmados; não assumir que o build está verde antes de inspecionar os logs.
 
-## Próximas etapas
+## Critério de conclusão
 
-1. Validar conexão host/join em dois dispositivos físicos e medir pausas/tempo das transferências.
-2. Corrigir diferenças de ciclo/estado que os testes de Cable Club revelarem, sem falsificar uma conclusão de transferência.
-3. Validar troca Pokémon completa em FireRed/LeafGreen e só então declarar o recurso funcional.
-4. Migrar o runtime para sincronização replicada por quadro se a latência do SIO remoto prejudicar a experiência.
-5. Expandir o suporte para outros modos SIO, mais jogadores e transportes adicionais depois da primeira troca validada.
+A compilação e os testes de protocolo não comprovam uma troca Pokémon. O aceite final exige dois celulares Android instalando a mesma versão, carregando a mesma ROM FireRed/revisão, criando e entrando na sala, chegando ao Cable Club, concluindo e confirmando uma troca, e verificando os saves dos dois jogos.
+
+Até esse teste, o recurso deve ser descrito como **integração experimental de Link Cable em validação**, não como troca Pokémon pronta.
