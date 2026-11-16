@@ -107,6 +107,15 @@ The user currently does not have a second phone available. Do not claim an actua
 - Verify both games' battery saves, repeat a second trade, test disconnect during transfer and reconnect.
 - If transfer timing or game state diverges, replace the direct asynchronous event approach with a stricter distributed SIO/lockstep design before calling the feature ready.
 
+## Follow-up: Save State, accelerated audio and menu help (PR #34)
+
+- Follow-up branch: `fix/nexora-audio-save-state-help`; draft PR #34 targets the unified development branch, not `main`.
+- Save State root cause found in the native bridge: the temporary state file was opened with `O_WRONLY`, while mGBA's own state-file creation uses `O_RDWR`. The bridge now opens the temporary file with `O_CREAT | O_TRUNC | O_RDWR` before calling `mCoreSaveStateNamed`.
+- Accelerated audio now attempts Android `PlaybackParams.setSpeed` rather than always requesting a multiplied PCM sample rate through `setPlaybackRate`; a guarded fallback remains. This is a code-level correction, not yet verified acoustically on the Motorola G54.
+- Function-menu actions now show short descriptions through a long-press toast: Save State, Load State, 1.0x/1.5x/2.0x/3.0x, Link Cable and Exit. Strings are localized in Portuguese, English and Spanish.
+- PR #34 CI run #526 / `43960081153` was observed in progress during Android SDK component installation. It was triggered before the final follow-up commit `c185a97b69b6f80d826f05e3d0580c68bb114ac7`; do not treat it as validation of that final head unless a new run is confirmed.
+- Still required: confirm CI on the final head, test Save State -> advance -> Load State on real GBA and GB/GBC games, and listen at 1.5x/2.0x/3.0x on the Motorola G54. Build success alone does not prove device audio quality or Save State round-trip correctness.
+
 ## Handoff protocol
 
 1. Inspect current PR, branch and Actions before editing.
