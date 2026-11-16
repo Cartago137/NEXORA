@@ -8,9 +8,11 @@ import java.net.Inet4Address
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
+import java.net.SocketTimeoutException
 import java.net.Socket
 import java.util.ArrayDeque
 import java.util.UUID
+import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
@@ -142,7 +144,8 @@ class WifiLinkTransport private constructor(
             romCrc32: Long,
             port: Int = DEFAULT_PORT,
             sessionId: UUID = UUID.randomUUID(),
-            onListening: ((String) -> Unit)? = null
+            onListening: ((String) -> Unit)? = null,
+            shouldCancel: () -> Boolean = { false }
         ): WifiLinkTransport {
             val server = ServerSocket()
             var peer: Socket? = null
@@ -150,8 +153,25 @@ class WifiLinkTransport private constructor(
                 server.reuseAddress = true
                 server.bind(InetSocketAddress(port))
                 runCatching { onListening?.invoke(localIpv4Address()) }
-                server.soTimeout = ACCEPT_TIMEOUT_MS
-                peer = server.accept()
+                val acceptDeadline = System.nanoTime() + ACCEPT_TIMEOUT_MS * 1_000_000L
+                while (peer == null) {
+                    if (shouldCancel()) {
+                        throw CancellationException("Link room creation was cancelled")
+                    }
+                    val remainingNanos = acceptDeadline - System.nanoTime()
+                    if (remainingNanos <= 0L) {
+                        throw SocketTimeoutException("Timed out waiting for the Link peer")
+                    }
+                    server.soTimeout = minOf(
+                        500,
+                        (remainingNanos / 1_000_000L).coerceAtLeast(1L).toInt()
+                    )
+                    try {
+                        peer = server.accept()
+                    } catch (_: SocketTimeoutException) {
+                        // Poll cancellation while retaining the overall 120-second room timeout.
+                    }
+                }
                 configure(peer)
                 peer.soTimeout = HANDSHAKE_TIMEOUT_MS
 
