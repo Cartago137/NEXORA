@@ -88,6 +88,81 @@ class WifiLinkTransportTest {
     }
 
     @Test
+    fun twoPeersExchangeGbaSerialTransferAndResult() {
+        val port = ServerSocket(0).use { it.localPort }
+        val sessionId = UUID.randomUUID()
+        val executor = Executors.newSingleThreadExecutor()
+        val hostReady = CountDownLatch(1)
+        val hostFuture = executor.submit<WifiLinkTransport> {
+            WifiLinkTransport.host(
+                gameCode = "BPRE",
+                romCrc32 = 0x1234ABCDL,
+                port = port,
+                sessionId = sessionId,
+                onListening = { hostReady.countDown() }
+            )
+        }
+        assertTrue("Host did not start listening", hostReady.await(3, TimeUnit.SECONDS))
+
+        val client = WifiLinkTransport.join(
+            hostAddress = "127.0.0.1",
+            expectedSessionId = sessionId,
+            gameCode = "BPRE",
+            romCrc32 = 0x1234ABCDL,
+            port = port
+        )
+        val host = hostFuture.get(5, TimeUnit.SECONDS)
+
+        val transferReceived = CountDownLatch(1)
+        val resultReceived = CountDownLatch(1)
+        val hostMessage = arrayOfNulls<LinkProtocol.Message>(1)
+        val clientMessage = arrayOfNulls<LinkProtocol.Message>(1)
+        host.startReceiving(
+            onMessage = {
+                hostMessage[0] = it
+                if (it is LinkProtocol.SerialTransfer) transferReceived.countDown()
+            },
+            onDisconnected = {}
+        )
+        client.startReceiving(
+            onMessage = {
+                clientMessage[0] = it
+                if (it is LinkProtocol.SerialResult) resultReceived.countDown()
+            },
+            onDisconnected = {}
+        )
+
+        val request = LinkProtocol.SerialTransfer(
+            transferId = 1L,
+            cycle = 1234L,
+            mode = LinkProtocol.SerialMode.MULTIPLAYER,
+            baudCode = 0,
+            bitWidth = 16,
+            dataOut = 0x1234,
+            sioControl = 0x5083,
+            rcnt = 0
+        )
+        val response = LinkProtocol.SerialResult(
+            transferId = 1L,
+            cycle = 1300L,
+            receivedWords = listOf(0xFFFF, 0xABCD),
+            sioControl = 0x0080
+        )
+
+        client.send(request)
+        assertTrue("Host did not receive the GBA serial transfer", transferReceived.await(3, TimeUnit.SECONDS))
+        assertEquals(request, hostMessage[0])
+
+        host.send(response)
+        assertTrue("Joiner did not receive the GBA serial result", resultReceived.await(3, TimeUnit.SECONDS))
+        assertEquals(response, clientMessage[0])
+
+        client.close()
+        host.close()
+        executor.shutdownNow()
+    }
+
+    @Test
     fun joinRejectsDifferentGameCode() {
         val port = ServerSocket(0).use { it.localPort }
         val sessionId = UUID.randomUUID()
