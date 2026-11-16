@@ -566,11 +566,12 @@ private fun NexoraApp(
                         awaitingPongNonce = nonce
                         pingSentAtNanos = nowNanos
                     } catch (error: Throwable) {
-                        linkMessage = context.getString(
-                            R.string.link_send_failed,
-                            error.message ?: context.getString(R.string.link_network_error)
+                        disconnectLink(
+                            context.getString(
+                                R.string.link_send_failed,
+                                error.message ?: context.getString(R.string.link_network_error)
+                            )
                         )
-                        disconnectLink()
                         break
                     }
                 }
