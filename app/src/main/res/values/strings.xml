@@ -103,4 +103,9 @@
     <string name="load_state_failure">Não foi possível carregar o estado salvo.</string>
     <string name="save_states_disabled_link">Save States ficam bloqueados durante uma sessão Link para evitar dessincronização.</string>
     <string name="link_cable_gba_only">O Link Cable está disponível apenas para jogos GBA.</string>
+    <string name="console_filter">Console</string>
+    <string name="console_all">Todos</string>
+    <string name="console_gba">GBA</string>
+    <string name="console_gb">GB</string>
+    <string name="console_gbc">GBC</string>
 </resources>
