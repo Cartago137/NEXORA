@@ -37,3 +37,14 @@
   border-color: rgba(91, 205, 142, .35);
   background: rgba(91, 205, 142, .09);
 }
+
+
+/* Chat utilities */
+.chat-tools,.prompt-shortcuts{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 10px}
+.chat-tools{justify-content:flex-end}
+.chat-tools button,.prompt-shortcuts button{border:1px solid var(--line);border-radius:8px;background:#20283a;color:#c6cfe0;padding:7px 10px;font:inherit;font-size:10px;cursor:pointer}
+.chat-tools button:hover,.prompt-shortcuts button:hover{border-color:var(--accent);color:#fff}
+.chat-tools button:disabled{opacity:.4;cursor:not-allowed}
+.prompt-shortcuts{margin:10px 0 0}
+.prompt-shortcuts button{background:#1b2232;color:#aeb9cf}
+@media(max-width:420px){.chat-tools button,.prompt-shortcuts button{font-size:9px;padding:7px 8px}}
