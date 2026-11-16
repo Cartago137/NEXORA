@@ -15,8 +15,8 @@ const LOGIN_ATTEMPTS = 5;
 const SESSION_TTL_MS = 12 * 60 * 60_000;
 const PROVIDERS = {
   openrouter: { label: "OpenRouter", envKey: "OPENROUTER_API_KEY", model: "openrouter/free", endpoint: "https://openrouter.ai/api/v1/chat/completions", kind: "openai" },
-  groq: { label: "Groq", envKey: "GROQ_API_KEY", model: "llama-3.3-70b-versatile", endpoint: "https://api.groq.com/openai/v1/chat/completions", kind: "openai" },
-  gemini: { label: "Gemini", envKey: "GEMINI_API_KEY", model: "gemini-2.5-flash", endpoint: "https://generativelanguage.googleapis.com/v1beta/models/", kind: "gemini" }
+  groq: { label: "Groq", envKey: "GROQ_API_KEY", model: "openai/gpt-oss-20b", endpoint: "https://api.groq.com/openai/v1/chat/completions", kind: "openai" },
+  gemini: { label: "Gemini", envKey: "GEMINI_API_KEY", model: "gemini-3.8-flash", endpoint: "https://generativelanguage.googleapis.com/v1beta/models/", kind: "gemini" }
 };
 const DEFAULT_PROVIDER = "openrouter";
 const STATIC_ROOT = resolve(fileURLToPath(new URL("../", import.meta.url)));
