@@ -19,6 +19,13 @@ object NativeBridge {
      */
     external fun nativeLoadRom(path: String): Int
 
+    /** Active frame dimensions; GB/GBC normally use 160x144, GBA uses 240x160. */
+    external fun nativeGetVideoWidth(): Int
+    external fun nativeGetVideoHeight(): Int
+
+    /** Returns 0 for GBA and 1 for the shared GB/GBC core. */
+    external fun nativeGetPlatform(): Int
+
     /** Runs one GBA frame into a reusable 240x160 ARGB pixel buffer. */
     external fun nativeRunFrame(output: IntArray): Boolean
 
