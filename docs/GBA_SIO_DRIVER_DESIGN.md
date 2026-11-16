@@ -22,7 +22,7 @@ The unified branch `feature/nexora-unified-next-release` carries the implementat
 - Host writes `SIOMLT_SEND`, starts a MULTI transfer, and queues a bounded `SerialTransfer` message.
 - Joiner receives the message on the network reader thread. JNI appends it to a bounded native incoming queue; it does not acquire the core mutex.
 - At the beginning of the next `nativeRunFrame`, the joiner consumes the queued request, updates its remote SIO state, and schedules the local mGBA timing event for the transfer duration.
-- P1 completes its local timing event, writes the received words/status, raises SIO IRQ if enabled, and queues a `SerialResult` response.
+- P1 completes its local timing event, writes the received words/status, raises SIO IRQ if enabled, and queues a `SerialResult` response only while the remote session is still connected. If the peer has disconnected, P1 completes with the SIO error state rather than reporting success.
 - P0 receives that response into a native result slot. Its timing callback polls the slot every 2048 GBA cycles while SIOCNT remains BUSY.
 - P0 has a 4-second transfer deadline. Disconnect, queue fault, invalid sequence, or timeout marks the transfer failed and clears BUSY with an error status.
 - The Kotlin socket reader runs on its own daemon thread. The Compose-side pump forwards outgoing native events through the Wi-Fi transport.
