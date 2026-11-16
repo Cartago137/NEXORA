@@ -54,7 +54,7 @@ O servidor local usa `127.0.0.1:8787`. O modo local sem Redis usa memória e nã
 
 ## Preparação de hospedagem Render
 
-O arquivo `render.yaml` descreve um serviço web gratuito ligado à branch `feature/ai-control-center`. O deploy automático está desligado. A configuração:
+O arquivo `render.yaml` descreve um serviço web gratuito ligado à branch `feature/ai-control-center`. O deploy automático está desligado. As três chaves de provedores estão declaradas como segredos opcionais (`sync: false`); esse modo solicita valores no primeiro provisionamento do Blueprint, mas não injeta segredos em ambientes de preview e não atualiza serviços existentes em sincronizações posteriores. A configuração:
 
 - executa `npm test` durante o build;
 - usa `npm start` para iniciar o servidor;
@@ -62,7 +62,7 @@ O arquivo `render.yaml` descreve um serviço web gratuito ligado à branch `feat
 - exige que a senha administrativa e as credenciais Upstash sejam preenchidas como segredos no painel;
 - não inclui uma chave OpenRouter. Ela poderá ser adicionada depois, se e quando a integração for autorizada.
 
-O serviço Render gratuito é acessível pela internet; a tela de login protege o painel, mas não equivale a uma rede privada. O endereço não deve ser divulgado. O HTTPS é fornecido pelo Render. Não sincronize nem crie o Blueprint até que o armazenamento Redis e os segredos tenham sido preparados.
+Para uma implantação já existente, adicione manualmente `OPENROUTER_API_KEY`, `GROQ_API_KEY` e/ou `GEMINI_API_KEY` em Environment no painel do Render; salvar as variáveis requer novo deploy para entrarem em vigor. O serviço Render gratuito é acessível pela internet; a tela de login protege o painel, mas não equivale a uma rede privada. O endereço não deve ser divulgado. O HTTPS é fornecido pelo Render. Não sincronize nem crie o Blueprint até que o armazenamento Redis e os segredos tenham sido preparados.
 
 ## Segurança e limites conhecidos
 
