@@ -298,17 +298,25 @@ export function createControlCenterServer({
           if (provider.kind === "gemini") {
             const contents = body.messages.map((message) => ({ role: message.role === "assistant" ? "model" : "user", parts: [{ text: message.content }] }));
             const requestUrl = provider.endpoint + provider.model + ":generateContent";
-            const requestOptions = {
-              method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-              body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS } }),
-              signal: AbortSignal.timeout(30_000)
-            };
-            // Gemini may return 503 during temporary capacity shortages. Retry twice with bounded backoff.
+            const requestBody = JSON.stringify({ contents, generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS } });
+            // Gemini can return 503 or take unusually long under temporary capacity pressure.
+            // Create a fresh timeout signal per attempt and retry bounded transient failures.
             for (let attempt = 0; attempt < 3; attempt += 1) {
-              upstream = await fetchImpl(requestUrl, requestOptions);
-              if (upstream.status !== 503 || attempt === 2) break;
-              logger.warn?.("[nexora-ai] Gemini temporarily unavailable; retrying", { attempt: attempt + 1, status: 503 });
-              await new Promise((resolveDelay) => setTimeout(resolveDelay, 500 * (2 ** attempt)));
+              try {
+                upstream = await fetchImpl(requestUrl, {
+                  method: "POST",
+                  headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+                  body: requestBody,
+                  signal: AbortSignal.timeout(60_000)
+                });
+                if (upstream.status !== 503 || attempt === 2) break;
+                logger.warn?.("[nexora-ai] Gemini temporarily unavailable; retrying", { attempt: attempt + 1, status: 503 });
+              } catch (error) {
+                const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError" || error?.code === "ETIMEDOUT";
+                if (!timedOut || attempt === 2) throw error;
+                logger.warn?.("[nexora-ai] Gemini request timed out; retrying", { attempt: attempt + 1 });
+              }
+              await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_000 * (2 ** attempt)));
             }
           } else {
             upstream = await fetchImpl(provider.endpoint, {
