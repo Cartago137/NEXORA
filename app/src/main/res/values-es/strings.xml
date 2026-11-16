@@ -35,4 +35,16 @@
     <string name="pin_selected">Fijar seleccionados</string>
     <string name="remove_selected">Eliminar seleccionados</string>
     <string name="remove_selected_question">¿Eliminar %1$d juego(s) de la Biblioteca? Los archivos originales permanecerán en el teléfono.</string>
+    <string name="functions_menu_title">NEXORA — MENÚ DE FUNCIONES</string>
+    <string name="save_state">Guardar estado</string>
+    <string name="load_state">Cargar estado</string>
+    <string name="emulation_speed">Velocidad de emulación</string>
+    <string name="link_cable_trade">Cable Link / Intercambio Pokémon</string>
+    <string name="exit_game">Salir del juego</string>
+    <string name="close">Cerrar</string>
+    <string name="save_state_success">Estado del juego guardado correctamente.</string>
+    <string name="save_state_failure">No se pudo guardar el estado del juego.</string>
+    <string name="load_state_success">Estado del juego cargado correctamente.</string>
+    <string name="load_state_failure">No se pudo cargar el estado guardado.</string>
+    <string name="save_states_disabled_link">Los estados guardados están desactivados durante una sesión Link para evitar desincronización.</string>
 </resources>
