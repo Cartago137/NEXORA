@@ -427,3 +427,34 @@ test("Gemini retries temporary 503 responses and succeeds when capacity returns"
   });
   assert.equal(calls, 3);
 });
+
+
+test("Gemini retries timed-out attempts with a fresh timeout signal", async () => {
+  let calls = 0;
+  const signals = [];
+  await withServer({
+    env: { NEXORA_ADMIN_PASSWORD: password, GEMINI_API_KEY: "private-gemini-secret" },
+    fetchImpl: async (_url, options) => {
+      calls += 1;
+      signals.push(options.signal);
+      if (calls < 3) {
+        const error = new Error("request timed out");
+        error.name = "TimeoutError";
+        throw error;
+      }
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Gemini recovered after timeout" }] } }] }), { status: 200 });
+    }
+  }, async (base) => {
+    const cookie = await login(base);
+    const response = await fetch(base + "/api/chat", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ provider: "gemini", messages: [{ role: "user", content: "hello" }] })
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).answer, "Gemini recovered after timeout");
+  });
+  assert.equal(calls, 3);
+  assert.notEqual(signals[0], signals[1]);
+  assert.notEqual(signals[1], signals[2]);
+});
