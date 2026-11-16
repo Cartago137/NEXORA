@@ -45,6 +45,8 @@ test("dashboard assets are served from the same origin", async () => {
     assert.match(html, /Acesse sua central/);
     assert.match(html, /id="export-chat"/);
     assert.match(html, /id="clear-chat"/);
+    assert.match(html, /v0\.3 · chat e MCP/);
+    assert.match(html, /Histórico da conversa/);
     assert.match(html, /data-prompt=/);
 
   });
