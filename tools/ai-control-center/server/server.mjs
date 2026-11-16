@@ -272,59 +272,43 @@ export function createControlCenterServer({
       }
 
       if (request.method === "POST" && url.pathname === "/api/chat") {
-        if (!env.OPENROUTER_API_KEY) {
-          return json(response, 503, { error: "OpenRouter is not configured on the server" });
-        }
         const address = request.socket.remoteAddress ?? "unknown";
         const requests = await incrementRateLimit("nexora:chat:" + address, chatRequestsByAddress, RATE_LIMIT_WINDOW_MS);
-        if (requests > RATE_LIMIT_REQUESTS) {
-          return json(response, 429, { error: "Rate limit reached; try again in a minute" });
-        }
-
+        if (requests > RATE_LIMIT_REQUESTS) return json(response, 429, { error: "Rate limit reached; try again in a minute" });
         let body;
+        try { body = await readJson(request); }
+        catch (error) { return json(response, error.status ?? 400, { error: "Invalid request body" }); }
+        if (!validateMessages(body?.messages)) return json(response, 400, { error: "messages must contain 1–20 user/assistant text messages, each up to 12,000 characters" });
+        const providerId = typeof body.provider === "string" ? body.provider : DEFAULT_PROVIDER;
+        const provider = PROVIDERS[providerId];
+        if (!provider) return json(response, 400, { error: "Unsupported AI provider" });
+        const apiKey = env[provider.envKey];
+        if (!apiKey) return json(response, 503, { error: provider.label + " is not configured on the server" });
         try {
-          body = await readJson(request);
-        } catch (error) {
-          return json(response, error.status ?? 400, { error: "Invalid request body" });
-        }
-        if (!validateMessages(body?.messages)) {
-          return json(response, 400, {
-            error: "messages must contain 1–20 user/assistant text messages, each up to 12,000 characters"
-          });
-        }
-
-        try {
-          const upstream = await fetchImpl(OPENROUTER_URL, {
-            method: "POST",
-            headers: {
-              authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-              "content-type": "application/json",
-              "x-title": "NEXORA AI Control Center"
-            },
-            body: JSON.stringify({
-              model: FREE_MODEL,
-              messages: body.messages,
-              max_tokens: MAX_OUTPUT_TOKENS,
-              stream: false
-            }),
-            signal: AbortSignal.timeout(30_000)
-          });
-          const result = await upstream.json().catch(() => null);
-          if (!upstream.ok) {
-            return json(response, upstream.status >= 500 ? 502 : upstream.status, {
-              error: "The AI provider could not complete the request"
+          let upstream;
+          if (provider.kind === "gemini") {
+            const contents = body.messages.map((message) => ({ role: message.role === "assistant" ? "model" : "user", parts: [{ text: message.content }] }));
+            upstream = await fetchImpl(provider.endpoint + provider.model + ":generateContent?key=" + encodeURIComponent(apiKey), {
+              method: "POST", headers: { "content-type": "application/json" },
+              body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS } }),
+              signal: AbortSignal.timeout(30_000)
+            });
+          } else {
+            upstream = await fetchImpl(provider.endpoint, {
+              method: "POST",
+              headers: { authorization: "Bearer " + apiKey, "content-type": "application/json", ...(providerId === "openrouter" ? { "x-title": "NEXORA AI Control Center" } : {}) },
+              body: JSON.stringify({ model: provider.model, messages: body.messages, max_tokens: MAX_OUTPUT_TOKENS, stream: false }),
+              signal: AbortSignal.timeout(30_000)
             });
           }
-          const answer = result?.choices?.[0]?.message?.content;
-          if (typeof answer !== "string") return json(response, 502, { error: "Unexpected provider response" });
-          return json(response, 200, {
-            model: result.model ?? FREE_MODEL,
-            answer,
-            usage: result.usage ?? null
-          });
-        } catch {
-          return json(response, 502, { error: "Unable to reach the AI provider" });
-        }
+          const result = await upstream.json().catch(() => null);
+          if (!upstream.ok) return json(response, upstream.status >= 500 ? 502 : upstream.status, { error: "The AI provider could not complete the request" });
+          const answer = provider.kind === "gemini"
+            ? result?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("")
+            : result?.choices?.[0]?.message?.content;
+          if (typeof answer !== "string" || !answer.trim()) return json(response, 502, { error: "Unexpected provider response" });
+          return json(response, 200, { provider: providerId, model: result.model ?? provider.model, answer, usage: result.usage ?? result.usageMetadata ?? null });
+        } catch { return json(response, 502, { error: "Unable to reach the AI provider" }); }
       }
       return json(response, 404, { error: "Not found" });
     }
