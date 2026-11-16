@@ -16,7 +16,7 @@ Painel web privado e independente do aplicativo Android, acessível por navegado
 - Modo local de desenvolvimento usa memória; o servidor recusa iniciar em `NODE_ENV=production` sem Redis persistente.
 - Workflow automatizado testa autenticação, chat e armazenamento persistente simulado.
 - Render Blueprint de pré-visualização preparado, com deploy automático desativado.
-- Gemini foi desativado após falhas persistentes; sua implementação permanece preservada, mas não aparece como provedor ativo nem aceita chamadas.
+- Gemini foi removido do código ativo após falhas persistentes. A Central oferece somente OpenRouter e Groq.
 
 ## Serviços e custos previstos
 
@@ -31,7 +31,7 @@ Nenhum serviço foi criado, nenhuma conta conectada e nenhum segredo configurado
 
 ## Integração com clientes MCP
 
-A Central expõe `POST /mcp` para clientes compatíveis com Model Context Protocol via HTTP. A ferramenta `nexora_chat` permite enviar prompts somente ao OpenRouter ou Groq. A rota exige um segredo independente `NEXORA_MCP_TOKEN` (Bearer, mínimo de 32 caracteres), não concede acesso administrativo e compartilha o limite de chamadas do chat. Configure o segredo diretamente no Render e conecte o cliente à URL HTTPS do serviço com autenticação Bearer. Não compartilhe o token na conversa nem o registre no repositório. Para clientes desktop compatíveis, a conexão pode ser adicionada em ChatGPT desktop > Settings > MCP servers, usando transporte Streamable HTTP, a URL `https://nexora-ai-control-center-preview.onrender.com/mcp` e autenticação Bearer. A configuração MCP do desktop é separada do aplicativo móvel; o app Android não oferece a tela de cadastro de servidores MCP.
+A Central expõe `POST /mcp` para clientes compatíveis com Model Context Protocol via HTTP. A ferramenta `nexora_chat` permite enviar prompts somente ao OpenRouter ou Groq. A rota exige um segredo independente `NEXORA_MCP_TOKEN` (Bearer, mínimo de 32 caracteres), não concede acesso administrativo e compartilha o limite de chamadas do chat. Configure o segredo diretamente no Render e conecte o cliente à URL HTTPS do serviço com autenticação Bearer. Não compartilhe o token na conversa nem o registre no repositório. A conexão depende de um cliente MCP compatível com HTTP Streamable e autenticação Bearer. A disponibilidade de servidores MCP personalizados varia conforme o produto, plano e plataforma do cliente; o aplicativo ChatGPT para Android não oferece cadastro de servidores MCP personalizados no plano Free. A ferramenta `nexora_chat` não concede acesso ao ChatGPT atual por si só: é necessário conectar um cliente elegível.
 
 ## Requisitos
 
@@ -84,11 +84,10 @@ Para uma implantação já existente, adicione manualmente `OPENROUTER_API_KEY`,
 
 ## Próximas etapas
 
-1. Validar os novos testes de Redis e a compilação Android.
-2. Criar o banco Redis gratuito e preencher seus segredos no provedor de hospedagem.
-3. Criar o Blueprint Render manualmente, sem deploy automático.
-4. Fazer um deploy privado de teste e validar login, sessão, HTTPS e chat no celular.
-5. Habilitar somente as chaves dos provedores que forem autorizados, após revisar cotas e faturamento.
-6. Testar cada integração no ambiente hospedado e acompanhar os limites de uso.
+1. Validar os testes do backend, incluindo autenticação e chamadas MCP simuladas.
+2. Confirmar no Render a presença das variáveis secretas necessárias sem expor seus valores.
+3. Validar login, sessão, HTTPS e chat no celular.
+4. Validar a ponte MCP com um cliente compatível, sem compartilhar o token.
+5. Habilitar somente provedores autorizados e acompanhar cotas e faturamento.
 
-**Importante:** não envie senhas ou chaves nesta conversa. O projeto ainda não está hospedado nem pronto para uso público.
+**Importante:** não envie senhas ou chaves nesta conversa. A pré-visualização Render está hospedada para testes privados. A Central não está aprovada para uso público ou produção.
