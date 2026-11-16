@@ -41,7 +41,12 @@ test("dashboard assets are served from the same origin", async () => {
     const response = await fetch(base);
     assert.equal(response.status, 200);
     assert.match(response.headers.get("content-type"), /text\/html/);
-    assert.match(await response.text(), /Acesse sua central/);
+    const html = await response.text();
+    assert.match(html, /Acesse sua central/);
+    assert.match(html, /id="export-chat"/);
+    assert.match(html, /id="clear-chat"/);
+    assert.match(html, /data-prompt=/);
+
   });
 });
 
