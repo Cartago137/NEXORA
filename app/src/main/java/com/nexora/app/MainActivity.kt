@@ -596,8 +596,11 @@ private fun NexoraApp(
         }
     }
 
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     Surface(modifier = Modifier.fillMaxSize(), color = NexoraBackground) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
             if (activeGameName == null) {
                 Row(
                     modifier = Modifier
@@ -833,8 +836,13 @@ private fun NexoraApp(
                 }
             }
 
-            if (activeGameName == null) {
+            if (activeGameName == null && !isLandscape) {
                 BottomNavigation(selectedTab = selectedTab, onSelect = { selectedTab = it })
+            }
+            }
+
+            if (activeGameName == null && isLandscape) {
+                SideNavigation(selectedTab = selectedTab, onSelect = { selectedTab = it })
             }
         }
     }
@@ -2171,6 +2179,24 @@ private fun BottomNavigation(selectedTab: NexoraTab, onSelect: (NexoraTab) -> Un
             .background(NexoraPanel)
             .padding(horizontal = 8.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        NavigationItem("⌂", stringResource(R.string.nav_home), NexoraTab.HOME, selectedTab, onSelect)
+        NavigationItem("▦", stringResource(R.string.nav_library), NexoraTab.LIBRARY, selectedTab, onSelect)
+        NavigationItem("◷", stringResource(R.string.nav_history), NexoraTab.HISTORY, selectedTab, onSelect)
+        NavigationItem("⚙", stringResource(R.string.nav_settings), NexoraTab.SETTINGS, selectedTab, onSelect)
+    }
+}
+
+@Composable
+private fun SideNavigation(selectedTab: NexoraTab, onSelect: (NexoraTab) -> Unit) {
+    Column(
+        modifier = Modifier
+            .width(76.dp)
+            .fillMaxHeight()
+            .background(NexoraPanel.copy(alpha = 0.82f))
+            .padding(vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         NavigationItem("⌂", stringResource(R.string.nav_home), NexoraTab.HOME, selectedTab, onSelect)
         NavigationItem("▦", stringResource(R.string.nav_library), NexoraTab.LIBRARY, selectedTab, onSelect)
