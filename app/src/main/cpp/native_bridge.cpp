@@ -116,6 +116,7 @@ struct RemoteSioDriver {
     uint16_t localWord = 0xFFFF;
     uint16_t remoteWord = 0xFFFF;
     int currentBaud = 0;
+    std::chrono::steady_clock::time_point transferDeadline{};
 };
 
 std::mutex gLinkMutex;
@@ -185,25 +186,39 @@ static void remoteSioEvent(struct mTiming* timing, void* context, uint32_t cycle
 
     if (remote->role == 0) {
         uint16_t received = 0xFFFF;
-        bool completed = false;
         bool hasResult = false;
+        bool failed = false;
         {
-            std::unique_lock<std::mutex> lock(gLinkMutex);
-            completed = gLinkCondition.wait_for(lock, kLinkTransferTimeout, [&] {
-                return !gLinkConnected || gLinkFault ||
-                    (gLinkResultReady && gLinkResultTransferId == remote->currentTransferId);
-            });
-            if (completed && gLinkResultReady &&
-                gLinkResultTransferId == remote->currentTransferId && !gLinkFault) {
+            std::lock_guard<std::mutex> lock(gLinkMutex);
+            if (gLinkResultReady &&
+                gLinkResultTransferId == remote->currentTransferId &&
+                gLinkConnected && !gLinkFault) {
                 received = gLinkResultWord;
                 hasResult = true;
                 gLinkResultReady = false;
                 gLinkExpectedTransferId = 0;
-            } else {
+            } else if (!gLinkConnected || gLinkFault ||
+                       std::chrono::steady_clock::now() >= remote->transferDeadline) {
                 gLinkFault = true;
                 gLinkConnected = false;
+                failed = true;
             }
         }
+
+        if (!hasResult && !failed) {
+            // Never wait for Wi-Fi inside mGBA's timing callback. The GBA CPU
+            // remains free to run while SIOCNT stays BUSY; the callback polls
+            // the bounded native result queue on a later emulation cycle.
+            GBA* gba = remote->driver.p ? remote->driver.p->p : nullptr;
+            if (gba) {
+                constexpr int32_t kLinkResultPollCycles = 2048;
+                mTimingSchedule(&gba->timing, &remote->event, kLinkResultPollCycles);
+            } else {
+                failed = true;
+            }
+            if (!failed) return;
+        }
+
         finishRemoteTransfer(remote, remote->localWord, received, !hasResult);
         gLinkCondition.notify_all();
         return;
@@ -301,6 +316,7 @@ static uint16_t remoteSioWriteRegister(GBASIODriver* driver, uint32_t address, u
             remote->currentCycle = cycle;
             remote->currentBaud = baud;
             remote->localWord = localWord;
+            remote->transferDeadline = std::chrono::steady_clock::now() + kLinkTransferTimeout;
             remote->transferActive = true;
             sio->siocnt = value;
             sio->rcnt &= static_cast<uint16_t>(~1u);
