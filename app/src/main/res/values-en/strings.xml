@@ -90,4 +90,16 @@
     <string name="pin_selected">Pin selected</string>
     <string name="remove_selected">Remove selected</string>
     <string name="remove_selected_question">Remove %1$d game(s) from the Library? The original files will remain on your phone.</string>
+    <string name="functions_menu_title">NEXORA — FUNCTION MENU</string>
+    <string name="save_state">Save State</string>
+    <string name="load_state">Load State</string>
+    <string name="emulation_speed">Emulation speed</string>
+    <string name="link_cable_trade">Link Cable / Pokémon Trade</string>
+    <string name="exit_game">Exit game</string>
+    <string name="close">Close</string>
+    <string name="save_state_success">Game state saved successfully.</string>
+    <string name="save_state_failure">Could not save the game state.</string>
+    <string name="load_state_success">Game state loaded successfully.</string>
+    <string name="load_state_failure">Could not load the saved game state.</string>
+    <string name="save_states_disabled_link">Save States are disabled during a Link session to prevent desynchronization.</string>
 </resources>
