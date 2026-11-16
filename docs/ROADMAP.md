@@ -62,7 +62,7 @@ A phase is complete only after implementation, review, automated tests and the r
 
 ## Phase 5 — Stability and release candidate
 
-- [ ] Android CI JVM tests, debug APK and signed release APK all pass on the final unified commit.
+- [x] Android CI: 17 JVM tests, debug APK and signed release APK passed on NEXORA 0.4.0 source commit `f9659941cb297757e26e35b2349533f0957a8606` (run #519).
 - [ ] Physical regression: GBA, GB, GBC, audio, frame rendering, native saves and Save States.
 - [ ] Physical regression: controls, speed, orientation, Library and mascot.
 - [ ] Two-device Link Cable acceptance test.
