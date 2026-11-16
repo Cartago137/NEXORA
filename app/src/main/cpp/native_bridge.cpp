@@ -27,14 +27,18 @@
 
 namespace {
 constexpr char kLogTag[] = "NEXORA";
-constexpr int kGbaWidth = 240;
-constexpr int kGbaHeight = 160;
+constexpr int kMaxVideoWidth = 256;
+constexpr int kMaxVideoHeight = 224;
+constexpr off_t kMinRomBytes = 0x100;
 constexpr off_t kMaxRomBytes = 64 * 1024 * 1024;
 std::mutex gCoreMutex;
 mCore* gActiveCore = nullptr;
 bool gRomLoaded = false;
 uint64_t gFrameCount = 0;
-std::array<color_t, kGbaWidth * kGbaHeight> gVideoBuffer{};
+std::array<color_t, kMaxVideoWidth * kMaxVideoHeight> gVideoBuffer{};
+int gVideoWidth = 240;
+int gVideoHeight = 160;
+mPlatform gActivePlatform = mPLATFORM_NONE;
 #if !defined(NDEBUG)
 uint64_t gFrameLockWaitNanos = 0;
 uint64_t gFrameCoreNanos = 0;
@@ -68,6 +72,9 @@ void unloadActiveCore() {
     // mGBA's GBA deinit implementation releases the core allocation itself.
     gActiveCore->deinit(gActiveCore);
     gActiveCore = nullptr;
+    gActivePlatform = mPLATFORM_NONE;
+    gVideoWidth = 240;
+    gVideoHeight = 160;
     gFrameCount = 0;
 }
 
@@ -437,13 +444,21 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
 
     logInfo("ROM load stage 2: cached ROM opened.");
     const off_t romSize = rom->size(rom);
-    if (romSize < 0xC0 || romSize > kMaxRomBytes) {
+    if (romSize < kMinRomBytes || romSize > kMaxRomBytes) {
         rom->close(rom);
         return 3;
     }
 
-    logInfo("ROM load stage 3: ROM size accepted; creating mGBA core.");
-    mCore* core = mCoreCreate(mPLATFORM_GBA);
+    // Detect the actual cartridge platform from its header; do not trust the filename.
+    // mPLATFORM_GB is mGBA's shared original Game Boy / Game Boy Color core.
+    const mPlatform platform = mCoreIsCompatible(rom);
+    if (platform != mPLATFORM_GBA && platform != mPLATFORM_GB) {
+        rom->close(rom);
+        return 3;
+    }
+
+    logInfo("ROM load stage 3: compatible ROM detected; creating matching mGBA core.");
+    mCore* core = mCoreCreate(platform);
     if (core == nullptr) {
         rom->close(rom);
         return 0;
@@ -477,7 +492,8 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
     options.skipBios = true;
     mCoreConfigLoadDefaults(&core->config, &options);
     mCoreLoadForeignConfig(core, &core->config);
-    core->setVideoBuffer(core, gVideoBuffer.data(), kGbaWidth);
+    // Keep a max-width stride for GBA, GB/GBC, and optional SGB output.
+    core->setVideoBuffer(core, gVideoBuffer.data(), kMaxVideoWidth);
     // Fast Forward can generate up to three frames of audio before the
     // Android output worker gets scheduled. mGBA stops adding samples when
     // this queue reaches its configured limit, so the normal 2048-frame
@@ -494,7 +510,21 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
         return 3;
     }
 
-    logInfo("ROM load stage 8: ROM loaded; resetting CPU and video pipeline.");
+    logInfo("ROM load stage 8: ROM loaded; validating active video dimensions.");
+    unsigned videoWidth = 0;
+    unsigned videoHeight = 0;
+    core->desiredVideoDimensions(core, &videoWidth, &videoHeight);
+    if (videoWidth == 0 || videoHeight == 0 ||
+        videoWidth > kMaxVideoWidth || videoHeight > kMaxVideoHeight) {
+        core->unloadROM(core);
+        mCoreConfigDeinit(&core->config);
+        core->deinit(core);
+        return 3;
+    }
+    gVideoWidth = static_cast<int>(videoWidth);
+    gVideoHeight = static_cast<int>(videoHeight);
+    gActivePlatform = platform;
+
     core->reset(core);
 
     // This pinned mGBA revision exposes audio through two blip channels.
@@ -512,7 +542,9 @@ Java_com_nexora_app_NativeBridge_nativeLoadRom(
     gActiveCore = core;
     gRomLoaded = true;
     gFrameCount = 0;
-    logInfo("ROM load complete: GBA core is ready for frame execution.");
+    logInfo(platform == mPLATFORM_GBA
+        ? "ROM load complete: GBA core is ready for frame execution."
+        : "ROM load complete: GB/GBC core is ready for frame execution.");
     return 4;
 }
 
@@ -521,7 +553,7 @@ JNIEXPORT jboolean JNICALL
 Java_com_nexora_app_NativeBridge_nativeRunFrame(
     JNIEnv* env, jobject /* instance */, jintArray output
 ) {
-    if (output == nullptr || env->GetArrayLength(output) < kGbaWidth * kGbaHeight) {
+    if (output == nullptr) {
         return JNI_FALSE;
     }
 
@@ -532,7 +564,8 @@ Java_com_nexora_app_NativeBridge_nativeRunFrame(
 #if !defined(NDEBUG)
     const auto lockAcquired = std::chrono::steady_clock::now();
 #endif
-    if (gActiveCore == nullptr || !gRomLoaded) {
+    if (gActiveCore == nullptr || !gRomLoaded ||
+        env->GetArrayLength(output) < gVideoWidth * gVideoHeight) {
         return JNI_FALSE;
     }
 
@@ -556,8 +589,14 @@ Java_com_nexora_app_NativeBridge_nativeRunFrame(
     if (outputPixels == nullptr) {
         return JNI_FALSE;
     }
-    for (size_t i = 0; i < gVideoBuffer.size(); ++i) {
-        outputPixels[i] = toAndroidArgb(gVideoBuffer[i]);
+    // mGBA renders into a max-width backing buffer. Pack the active
+    // console dimensions tightly into Android's IntArray.
+    for (int y = 0; y < gVideoHeight; ++y) {
+        for (int x = 0; x < gVideoWidth; ++x) {
+            const size_t sourceIndex = static_cast<size_t>(y) * kMaxVideoWidth + x;
+            const size_t targetIndex = static_cast<size_t>(y) * gVideoWidth + x;
+            outputPixels[targetIndex] = toAndroidArgb(gVideoBuffer[sourceIndex]);
+        }
     }
     env->ReleasePrimitiveArrayCritical(output, outputPixels, 0);
     const auto transferFinished = std::chrono::steady_clock::now();
@@ -621,6 +660,27 @@ Java_com_nexora_app_NativeBridge_nativeLoadBatterySave(
     logInfo(loaded ? "Battery-save stage 2: save file loaded." : "Battery-save stage 2: no existing save file loaded.");
     env->ReleaseStringUTFChars(path, nativePath);
     return loaded ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_nexora_app_NativeBridge_nativeGetVideoWidth(JNIEnv* /* env */, jobject /* instance */) {
+    std::lock_guard<std::mutex> lock(gCoreMutex);
+    return gActiveCore != nullptr && gRomLoaded ? gVideoWidth : 0;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_nexora_app_NativeBridge_nativeGetVideoHeight(JNIEnv* /* env */, jobject /* instance */) {
+    std::lock_guard<std::mutex> lock(gCoreMutex);
+    return gActiveCore != nullptr && gRomLoaded ? gVideoHeight : 0;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_nexora_app_NativeBridge_nativeGetPlatform(JNIEnv* /* env */, jobject /* instance */) {
+    std::lock_guard<std::mutex> lock(gCoreMutex);
+    return gActiveCore != nullptr && gRomLoaded ? static_cast<jint>(gActivePlatform) : -1;
 }
 
 extern "C"
@@ -812,7 +872,8 @@ JNIEXPORT jboolean JNICALL
 Java_com_nexora_app_NativeBridge_nativeLinkAttach(JNIEnv*, jobject, jint role) {
     if (role < 0 || role > 1) return JNI_FALSE;
     std::lock_guard<std::mutex> coreLock(gCoreMutex);
-    if (!gActiveCore || !gRomLoaded || !gActiveCore->board) return JNI_FALSE;
+    if (!gActiveCore || !gRomLoaded || !gActiveCore->board ||
+        gActivePlatform != mPLATFORM_GBA) return JNI_FALSE;
 
     detachRemoteSioDriverLocked();
     {
