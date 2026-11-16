@@ -1068,7 +1068,7 @@ Java_com_nexora_app_NativeBridge_nativeSaveState(
     }
 
     const std::string temporaryPath = std::string(nativePath) + ".tmp";
-    VFile* stateFile = VFileOpen(temporaryPath.c_str(), O_CREAT | O_TRUNC | O_WRONLY);
+    VFile* stateFile = VFileOpen(temporaryPath.c_str(), O_CREAT | O_TRUNC | O_RDWR);
     const bool written = stateFile && mCoreSaveStateNamed(gActiveCore, stateFile, SAVESTATE_ALL);
     if (stateFile) stateFile->close(stateFile);
 

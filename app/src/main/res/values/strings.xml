@@ -141,4 +141,9 @@
     <string name="link_network_error">erro de rede</string>
     <string name="link_timeout">tempo esgotado</string>
     <string name="link_heartbeat_timeout">O outro aparelho parou de responder.</string>
+    <string name="save_state_description">Salvar o ponto atual da partida em um arquivo separado para este jogo.</string>
+    <string name="load_state_description">Restaura o último estado salvo; o progresso atual volta ao momento do salvamento.</string>
+    <string name="speed_description">Altera a velocidade da emulação e acompanha a reprodução do áudio.</string>
+    <string name="link_description">Conecta outro aparelho para jogar em conjunto nos jogos GBA compatíveis.</string>
+    <string name="exit_game_description">Fecha a partida atual e retorna ao NEXORA.</string>
 </resources>
