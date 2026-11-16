@@ -44,7 +44,7 @@
     <string name="nav_history">Histórico</string>
     <string name="nav_settings">Ajustes</string>
     <string name="file_access_permission_failed">Não foi possível manter o acesso a esse arquivo. Escolha o arquivo novamente usando o seletor do Android.</string>
-    <string name="unsupported_rom_format">Formato não reconhecido. Escolha um arquivo .gba, .agb ou .bin.</string>
+    <string name="unsupported_rom_format">Formato não reconhecido. Escolha um arquivo .gb, .gbc, .gba, .agb ou .bin.</string>
     <string name="game_already_added">Esse arquivo já está na sua biblioteca.</string>
     <string name="game_added_success">Jogo adicionado à biblioteca!</string>
     <string name="remove">Remover</string>
@@ -102,4 +102,5 @@
     <string name="load_state_success">Estado carregado com sucesso.</string>
     <string name="load_state_failure">Não foi possível carregar o estado salvo.</string>
     <string name="save_states_disabled_link">Save States ficam bloqueados durante uma sessão Link para evitar dessincronização.</string>
+    <string name="link_cable_gba_only">O Link Cable está disponível apenas para jogos GBA.</string>
 </resources>
