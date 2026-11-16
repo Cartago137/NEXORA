@@ -438,6 +438,8 @@ private fun NexoraApp(
         val active = linkTransport
         NativeBridge.nativeLinkSetConnected(false)
         linkTransport = null
+        roomCode = null
+        joinCode = ""
         linkBusy = true
         linkScope.launch(Dispatchers.IO) {
             pendingConnect?.join()
@@ -747,6 +749,7 @@ private fun NexoraApp(
                                                     } catch (error: Throwable) {
                                                         linkConnectJob = null
                                                         linkBusy = false
+                                                        roomCode = null
                                                         linkMessage = context.getString(R.string.link_create_room_failed, error.message ?: context.getString(R.string.link_timeout))
                                                     }
                                                 }
