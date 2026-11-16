@@ -62,11 +62,13 @@
       <section class="lower-grid">
         <article class="panel chat-panel" id="tarefas">
           <div class="section-heading compact"><div><span class="eyebrow">ASSISTENTE</span><h2>Conversa com a IA</h2></div><span class="tag" id="chat-model-tag">Selecione um provedor</span></div>
-          <p class="chat-intro">Escolha um dos dois provedores ativos com chave configurada. As mensagens só são enviadas após você pressionar Enviar; custos e cotas dependem do plano de cada provedor.</p>
+          <p class="chat-intro">Escolha um provedor configurado. O histórico existe somente nesta sessão do navegador; exporte a conversa antes de atualizar ou fechar a página.</p>
+          <div class="chat-tools"><button type="button" id="export-chat" disabled>Exportar conversa</button><button type="button" id="clear-chat" disabled>Limpar conversa</button></div>
           <div class="chat-transcript" id="chat-transcript" role="log" aria-live="polite" aria-label="Conversa">
             <div class="chat-empty" id="chat-empty"><span class="empty-icon">✦</span><strong>Pronto para conversar</strong><p>Faça uma pergunta para testar a integração quando a chave gratuita estiver configurada no servidor.</p></div>
           </div>
           <div class="provider-choice"><label for="chat-provider">Provedor para esta conversa</label><select id="chat-provider" name="provider"><option value="openrouter">OpenRouter · roteador gratuito</option><option value="groq">Groq · GPT-OSS 20B</option></select></div>
+          <div class="prompt-shortcuts" aria-label="Atalhos de mensagem"><button type="button" data-prompt="Revise a arquitetura atual do NEXORA e proponha melhorias priorizadas, sem alterar a main.">Revisar arquitetura</button><button type="button" data-prompt="Ajude a investigar este problema no NEXORA. Primeiro liste hipóteses e testes seguros antes de propor alterações.">Investigar problema</button><button type="button" data-prompt="Monte um plano de implementação para a próxima versão do NEXORA, com etapas, riscos e critérios de validação.">Planejar versão</button></div>
           <form class="chat-composer" id="chat-form">
             <label class="visually-hidden" for="chat-input">Sua mensagem</label>
             <textarea id="chat-input" name="message" rows="2" maxlength="12000" placeholder="Escreva sua mensagem..." required></textarea>
