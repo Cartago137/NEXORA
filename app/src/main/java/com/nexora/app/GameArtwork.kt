@@ -74,7 +74,7 @@ internal object GameArtworkCatalog {
     fun cacheFile(context: android.content.Context, url: String): File {
         val digest = MessageDigest.getInstance("SHA-256")
             .digest(url.toByteArray())
-            .joinToString("") { "%02x".format(it) }
+            .joinToString("") { "%02x".format(it.toInt() and 0xFF) }
         return File(File(context.filesDir, "artwork_cache"), "$digest.jpg")
     }
 
