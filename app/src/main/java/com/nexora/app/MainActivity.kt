@@ -2057,6 +2057,18 @@ private fun GameLibraryCard(
                 modifier = Modifier.fillMaxSize()
             )
         }
+        val consoleLabel = when (game.name.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
+            "gb" -> "GAME BOY"
+            "gbc" -> "GAME BOY COLOR"
+            else -> "GAME BOY ADVANCE"
+        }
+        Text(
+            consoleLabel,
+            color = NexoraPink,
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.7.sp
+        )
         Text(
             game.name.substringBeforeLast('.'),
             color = NexoraText,
