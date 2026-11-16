@@ -967,19 +967,19 @@ private fun PlayerScreen(
     onOpenLink: () -> Unit,
     onExit: () -> Unit
 ) {
-    val videoWidth = remember(gameName) {
+    val videoWidth = remember(saveStateKey) {
         NativeBridge.nativeGetVideoWidth().takeIf { it > 0 } ?: 240
     }
-    val videoHeight = remember(gameName) {
+    val videoHeight = remember(saveStateKey) {
         NativeBridge.nativeGetVideoHeight().takeIf { it > 0 } ?: 160
     }
-    val isGbFamily = remember(gameName) { NativeBridge.nativeGetPlatform() == 1 }
+    val isGbFamily = remember(saveStateKey) { NativeBridge.nativeGetPlatform() == 1 }
     val videoAspectRatio = videoWidth.toFloat() / videoHeight.toFloat()
-    val pixelBuffer = remember(gameName) { IntArray(videoWidth * videoHeight) }
-    val frameBitmap = remember(gameName) {
+    val pixelBuffer = remember(saveStateKey) { IntArray(videoWidth * videoHeight) }
+    val frameBitmap = remember(saveStateKey) {
         Bitmap.createBitmap(videoWidth, videoHeight, Bitmap.Config.ARGB_8888)
     }
-    val frameImage = remember(gameName, frameBitmap) { frameBitmap.asImageBitmap() }
+    val frameImage = remember(saveStateKey, frameBitmap) { frameBitmap.asImageBitmap() }
     var frameReady by remember { mutableStateOf(false) }
     var frameError by remember { mutableStateOf(false) }
     var frameVersion by remember { mutableIntStateOf(0) }
@@ -992,7 +992,7 @@ private fun PlayerScreen(
         File(File(context.filesDir, "save_states"), "$saveStateKey.state")
     }
 
-    LaunchedEffect(gameName, isAppInForeground, showFunctionsMenu) {
+    LaunchedEffect(gameName, saveStateKey, isAppInForeground, showFunctionsMenu) {
         if (!isAppInForeground || showFunctionsMenu) {
             NativeBridge.nativeSetKeys(0)
             return@LaunchedEffect
