@@ -274,8 +274,7 @@ export function createControlCenterServer({
           providers,
           connectedCount: Object.values(providers).filter((provider) => provider.configured).length,
           providerCount: Object.keys(PROVIDERS).length,
-          modelPolicy: "free-only",
-          paidModelsEnabled: false,
+          modelPolicy: "fixed-per-provider",
           sessionStorage: redisConfigured ? "persistent" : "in-memory"
         });
       }
@@ -297,8 +296,8 @@ export function createControlCenterServer({
           let upstream;
           if (provider.kind === "gemini") {
             const contents = body.messages.map((message) => ({ role: message.role === "assistant" ? "model" : "user", parts: [{ text: message.content }] }));
-            upstream = await fetchImpl(provider.endpoint + provider.model + ":generateContent?key=" + encodeURIComponent(apiKey), {
-              method: "POST", headers: { "content-type": "application/json" },
+            upstream = await fetchImpl(provider.endpoint + provider.model + ":generateContent", {
+              method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
               body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS } }),
               signal: AbortSignal.timeout(30_000)
             });
