@@ -393,7 +393,7 @@ export function createControlCenterServer({
         catch (error) { return json(response, error.status ?? 400, { error: "Invalid request body" }); }
         if (!validateMessages(body?.messages)) return json(response, 400, { error: "messages must contain 1–20 user/assistant text messages, each up to 12,000 characters" });
         const providerId = typeof body.provider === "string" ? body.provider : DEFAULT_PROVIDER;
-        const provider = PROVIDERS[providerId];
+        const provider = ACTIVE_PROVIDERS[providerId];
         if (!provider) return json(response, 400, { error: "Unsupported AI provider" });
         const apiKey = env[provider.envKey];
         if (!apiKey) return json(response, 503, { error: provider.label + " is not configured on the server" });
