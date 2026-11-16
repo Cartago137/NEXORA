@@ -18,6 +18,7 @@ const PROVIDERS = {
   groq: { label: "Groq", envKey: "GROQ_API_KEY", model: "openai/gpt-oss-20b", endpoint: "https://api.groq.com/openai/v1/chat/completions", kind: "openai" },
   gemini: { label: "Gemini", envKey: "GEMINI_API_KEY", model: "gemini-3.8-flash", endpoint: "https://generativelanguage.googleapis.com/v1beta/models/", kind: "gemini" }
 };
+const ACTIVE_PROVIDERS = { openrouter: PROVIDERS.openrouter, groq: PROVIDERS.groq };
 const DEFAULT_PROVIDER = "openrouter";
 const STATIC_ROOT = resolve(fileURLToPath(new URL("../", import.meta.url)));
 
@@ -321,7 +322,7 @@ export function createControlCenterServer({
         if (!["openrouter", "groq"].includes(providerId) || typeof prompt !== "string" || !prompt.trim() || prompt.length > MAX_MESSAGE_CHARS) {
           return json(response, 200, { jsonrpc: "2.0", id: rpcId, result: { isError: true, content: [{ type: "text", text: "Invalid provider or prompt. Use OpenRouter/Groq and a prompt up to 12,000 characters." }] } });
         }
-        const provider = PROVIDERS[providerId];
+        const provider = ACTIVE_PROVIDERS[providerId];
         const apiKey = env[provider.envKey];
         if (!apiKey) {
           return json(response, 200, { jsonrpc: "2.0", id: rpcId, result: { isError: true, content: [{ type: "text", text: provider.label + " is not configured." }] } });
@@ -369,7 +370,7 @@ export function createControlCenterServer({
       if (!await currentSession(request)) return json(response, 401, { error: "Authentication required" });
 
       if (request.method === "GET" && url.pathname === "/api/status") {
-        const providers = Object.fromEntries(Object.entries(PROVIDERS).map(([id, provider]) => [
+        const providers = Object.fromEntries(Object.entries(ACTIVE_PROVIDERS).map(([id, provider]) => [
           id, { name: provider.label, configured: Boolean(env[provider.envKey]), model: provider.model }
         ]));
         return json(response, 200, {
@@ -377,7 +378,7 @@ export function createControlCenterServer({
           configured: providers[DEFAULT_PROVIDER].configured,
           providers,
           connectedCount: Object.values(providers).filter((provider) => provider.configured).length,
-          providerCount: Object.keys(PROVIDERS).length,
+          providerCount: Object.keys(ACTIVE_PROVIDERS).length,
           modelPolicy: "fixed-per-provider",
           sessionStorage: redisConfigured ? "persistent" : "in-memory"
         });
