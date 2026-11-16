@@ -1,6 +1,6 @@
 # NEXORA — Project Continuity and Engineering State
 
-Last updated: 2026-11-14 (landscape navigation rail direction updated)
+Last updated: 2026-11-16 (unified multiplayer + gameplay-tools integration)
 
 This document is the durable handoff point for work across ChatGPT conversations. Update it whenever a meaningful implementation, decision, test result, or blocker changes. Do not rely on chat summaries as the only record.
 
@@ -15,16 +15,14 @@ This document is the durable handoff point for work across ChatGPT conversations
 ## Current source-control baseline
 
 - Repository: `Cartago137/NEXORA`
-- Existing integration branch: `feature/library-folders`
-- Existing draft PR: [#29 — Restore touch controls and add library folders](https://github.com/Cartago137/NEXORA/pull/29)
-- PR #29 contains the restored touch-control layout and the Library folder work. It has not been merged.
-- New working branch: `feature/player-speed-and-touch-gestures`
-- New draft PR: [#30 — Add runtime emulation speed and continuous D-pad gestures](https://github.com/Cartago137/NEXORA/pull/30)
-- Current PR #30 head at this handoff: `5635ef54a9c6a4c193f0f80f718637566ff0118d`; PR is open and remains draft. Subsequent continuity-document commits may advance the head.
-- Implementation commits: `7432b8619f9d00f61370a622c7bedc07cc9cb8a0`, `7b2be717f3c8556b5af5515a7ed737451607cb0a`, `42d814b90983ed6806693844356f6913460ef35b`
-- CI trigger correction commit: `5e8c69e033d62b65683bf74491bc3c00803297d0`
-- New work must branch from the latest accepted development line and remain in a draft PR until reviewed and physically tested.
-- Do not merge PR #29 or the new work without the user's explicit approval.
+- Unified working branch: `feature/nexora-unified-next-release`
+- Unified draft PR: [#33 — Unify NEXORA Link Cable, gameplay tools and latest interface](https://github.com/Cartago137/NEXORA/pull/33)
+- PR #33 is based on the latest UI/library/speed/D-pad branch and adds the existing Wi-Fi Link Cable/SIO work, native Save States, and the compact gameplay menu.
+- Last confirmed integration commit at this handoff: `b538e6cc9ae300531abaebe61c5805b7261646ab` (CI workflow now runs JVM unit tests and watches the unified branch). Further commits may advance the head.
+- Prior branches and draft PRs are intentionally preserved: #22 protocol foundation, #23 SIO investigation, #24 Wi-Fi room + first SIO driver, #29 Library folders, and #30 speed + continuous D-pad.
+- Temporary mergeability-check PR #32 was closed after confirming the two old branches conflict; no source was merged through it.
+- Do not merge PR #33 or any other work into `main` without the user's explicit approval.
+- Build success is not the same as physical-device validation; no two-device Pokémon trade has yet been physically confirmed.
 
 ## Main navigation — landscape layout (latest user direction)
 
@@ -95,9 +93,10 @@ The user reconfirmed on 2026-11-14 that optional gameplay actions must be groupe
 
 - Add one dedicated function/menu button, visually represented by three horizontal lines (hamburger icon). This is one button, not separate speed buttons and not a row of extra gameplay controls.
 - Tapping it opens a compact overlay/panel titled `NEXORA — MENU DE FUNÇÕES` over the running game.
-- The panel contains optional actions such as:
+- The panel contains optional actions:
   - Save State
   - Load State
+  - Link Cable / Pokémon trade room
   - Fast Forward / emulation speed selector (1.0x, 1.5x, 2.0x, 3.0x)
   - Exit game
   - Future optional gameplay tools can be added in this same panel rather than placed directly over the game.
@@ -106,7 +105,9 @@ The user reconfirmed on 2026-11-14 that optional gameplay actions must be groupe
 - Keep Android Back available as a separate system navigation action.
 - Visual direction: dark purple premium NEXORA overlay, restrained and compact, inspired by the function-menu interaction the user liked in My Boy!, but using NEXORA's own visual identity.
 - The menu button should be positioned with the existing auxiliary controls (SELECT/START/function area) with ergonomic adaptation for portrait and landscape; it must not obstruct the game viewport or core controls.
-- Status: interaction and product behavior approved; implementation in the current feature branch is still pending. Do not claim it is already present in the APK until implemented, built, and tested.
+- Implemented on `feature/nexora-unified-next-release`: one hamburger button opens an AlertDialog-style compact menu; speed options were moved out of the permanent HUD; Save State/Load State call mGBA named-state APIs; opening the menu stops frame/audio processing and closing it restarts the loop. The Link room is reachable from this same menu.
+- Native state files are stored privately under `filesDir/save_states`, keyed by the imported game's URI hash. Save/Load is disabled during a Link session to avoid state divergence.
+- Status: code is integrated but still requires Android CI, state-file round-trip testing, and physical-device validation. Do not describe the actions as verified until those checks pass.
 
 ## Original cat mascot — implemented in current feature branch
 
@@ -166,14 +167,69 @@ At the end of every substantial work session:
 4. In the final chat response, provide a concise handoff: what changed, where it lives, what is verified, and the next concrete task.
 5. When continuing in a new chat, first read this file and inspect the current branch/PR/Actions state before editing. Never assume a previous chat's build or test status is still current.
 
+## Multiplayer / Pokémon Link Cable — unified status
+
+- Historical implementation is preserved in PRs #22, #23 and #24; the latest branch was `feature/pokemon-link-room` (head `8ddfe6ceb74f205e95bc3d169ddabb179a5ee484`).
+- The current unified branch carries forward:
+  - NXLP v1 bounded binary protocol and decoder.
+  - TCP host/join transport on the same local Wi-Fi network, port 38271.
+  - Four-digit room code mapped to a session ID.
+  - Handshake checks GBA game code and CRC32 ROM identity; both devices must use the same ROM revision.
+  - JNI APIs for game code, ROM CRC, attach/detach, incoming serial transfer/result and outgoing event queue.
+  - mGBA custom GBA MULTI SIO driver, with P0 host and P1 joiner.
+  - Link room dialog accessible from the in-game functions menu.
+- Engineering correction on 2026-11-16: removed the 4-second blocking wait from the P0 mGBA timing callback. It now polls the bounded native result queue by rescheduling a timing event every 2048 GBA cycles, with a 4-second failure deadline. This prevents network waiting from blocking the emulation thread. It still needs two-device timing validation; this is not proof of lockstep accuracy.
+- Current scope is two devices on one LAN and GBA MULTI SIO only. No internet relay, Bluetooth, four-player session, UART, GPIO, JOYBUS or RFU support is claimed.
+- The previous implementation documentation explicitly said a Pokémon trade had not been physically tested. This remains true. Required acceptance test: two Android devices running the exact same Pokémon FireRed ROM/revision, host/join, enter Cable Club on both games, complete and confirm an actual Pokémon trade, then verify both games' saves.
+- The user currently does not have a second phone available for multiplayer testing. Automated tests and CI can validate protocol/build behavior, but cannot replace the physical two-device trade test.
+
+## Save States — unified implementation
+
+- mGBA 0.10.5 pinned revision exposes `mCoreSaveStateNamed` and `mCoreLoadStateNamed`; verified against upstream `include/mgba/core/core.h` and `include/mgba/core/serialize.h`.
+- JNI functions `nativeSaveState(path)` and `nativeLoadState(path)` use `SAVESTATE_ALL` and app-private files.
+- The player UI derives a per-ROM state filename from the imported URI hash.
+- Save/Load is disabled while the Link Cable is connected; native functions also check the link connection under the same lock ordering used by SIO attach.
+- Status: implemented in source, not yet build-verified or device-tested at this handoff. Test save → advance gameplay → load → confirm exact state restoration; also test app restart and missing/corrupt state files.
+
+## Validation checklist
+
+### Automated / CI
+- Android debug APK build.
+- Signed release APK build when the repository signing secrets are configured; otherwise record the unsigned release limitation.
+- JVM tests for LinkProtocol and WifiLinkTransport.
+- Native C++ compile for both configured ABIs.
+- Verify JNI declarations match native exported function names.
+- Inspect complete workflow logs and artifacts; do not rely on a green badge alone.
+
+### Physical-device checks (Motorola G54, Android 15)
+- Portrait and landscape layouts; D-pad drag transitions, diagonals, release/cancel, simultaneous A/B/L/R/START/SELECT.
+- Speed 1.0x/1.5x/2.0x/3.0x, rapid switching, audio latency and return to normal.
+- Save State/Load State round-trip, missing/corrupt state, and app restart.
+- Link host/join on two devices, exact ROM compatibility, transfer timing, disconnect/reconnect, actual Pokémon FireRed Cable Club trade.
+- Existing ROM loading, frame rendering, audio, native battery saves, and save persistence after fully closing/reopening the app.
+- Library folders, favorites, pinned games, multi-select and safe deletion.
+- Mascot launcher icon, adaptive icon crop, splash screen, and in-app placements.
+
+The user does not currently have a second phone for multiplayer testing. Never claim real two-device multiplayer validation without two physical devices.
+
+## Conversation handoff protocol
+
+At the end of every substantial work session:
+1. Commit source changes to the active feature branch.
+2. Update this file with exact branch, PR, commit SHA, CI run/status, artifacts, tests, and unresolved issues.
+3. Keep the PR as draft until automated checks and required physical tests are complete; do not merge without explicit approval.
+4. In the final chat response, state what changed, what is verified, what remains unverified, and the next engineering task.
+5. When continuing in a new chat, read this file and inspect the current branch/PR/Actions state before editing.
+
 ## Next engineering steps
 
-1. Implementation is present on `feature/player-speed-and-touch-gestures`: live 1.0x/1.5x/2.0x/3.0x selector, frame pacing scaling, AudioTrack playback-rate scaling, and one continuous D-pad gesture surface.
-2. CI workflow triggers were expanded so pushes to the feature branch and pull requests targeting `feature/library-folders` run Android builds.
-3. Latest implementation and cover-art commits before this continuity update: `4c588f846427eaf07fd15e996c1c433cf92d99ee` (fit full cover), `f47d9305a770b8c6a0395163490044af06b7b3e5` (remove NEXORA overlay from featured cover), `3c0d8b5183cfc40b87a1695b7703bd9499b4f814` (record requirements), and `5635ef54a9c6a4c193f0f80f718637566ff0118d` (third-party notice). Actions run `43534264596` was in progress for this source at handoff; no artifact from this run is confirmed.
-4. Review the current Actions build after the full-cover display change. The latest cover matcher normalizes punctuation so `Pokémon - Fire Red Version (Rev 1)` resolves correctly. Full images use `ContentScale.Fit`; no crop/stretch and no NEXORA overlay on the featured cover.
-5. Add/update unit or instrumentation tests where practical and document what cannot be tested without the physical device.
-6. Build debug and release APKs in GitHub Actions.
-7. Validate cover downloads/cache behavior, mascot icon/splash rendering, and the speed/D-pad changes on the Motorola G54. First-time cover retrieval requires internet; cached artwork should remain available offline.
-8. Update this handoff file with the exact CI run, artifacts, and test status.
-9. Ask the user to test the APK on the Motorola G54; only then mark physical validation complete.
+1. Complete the first unified Android CI run; fix every compile/test failure and rerun until green.
+2. Review and harden the SIO driver: transfer IDs, timeout, queue overflow, disconnect during active transfer, P0/P1 roles, and serial status/IRQ behavior.
+3. Add native or integration-level SIO tests where feasible, plus protocol tests for fragmented frames, invalid lengths, sequence errors and reconnects.
+4. Review Save State API behavior, file error handling and game identity key; run save/load round-trip tests.
+5. Complete localization of the gameplay menu and Link room messages for Portuguese, English and Spanish.
+6. Implement the remaining approved landscape navigation rail on the RIGHT side of the display, preserving the bottom navigation in portrait.
+7. Review the artwork catalog and third-party notices; preserve full cover aspect ratios and avoid logos/watermarks on artwork.
+8. Build debug/release APKs and validate on the Motorola G54.
+9. Complete the actual two-device Pokémon FireRed trade acceptance test when a second Android device is available.
+10. Update this document with exact CI runs, artifacts and test results.
