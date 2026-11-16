@@ -1,32 +1,40 @@
-# NEXORA AI Control Center — login e API inicial
+# NEXORA AI Control Center — servidor e provedores
 
-O backend agora serve a interface web e a API na mesma origem. A Central ainda não está publicada nem pronta para uso público.
+O backend serve a interface e a API na mesma origem. A Central oferece roteamento selecionável para OpenRouter, Groq e Gemini; cada credencial permanece exclusivamente no ambiente do servidor.
 
-## O que esta etapa implementa
+## Arquitetura
 
 - Servidor Node.js sem dependências externas.
-- Tela de login integrada à interface.
-- Senha administrativa lida somente da variável `NEXORA_ADMIN_PASSWORD`; mínimo de 16 caracteres.
-- Sessão aleatória em cookie `HttpOnly`, `SameSite=Strict`, com validade de 12 horas; o navegador nunca recebe a chave do provedor.
-- Cookie `Secure` ativado quando `NODE_ENV=production`; produção exige HTTPS no host.
-- Verificação de origem para login e logout, limite de tentativas de login e encerramento de sessão.
-- Interface HTML/CSS/JS servida pelo mesmo processo e mesma origem da API.
-- Chave OpenRouter lida exclusivamente de variável de ambiente do servidor.
-- Rota de chat fixa em `openrouter/free`; o cliente não escolhe modelo e modelos pagos seguem bloqueados.
-- Limites de 1.024 tokens de saída, 20 mensagens por solicitação, 12.000 caracteres por mensagem e 10 solicitações por minuto por endereço.
-- Testes automatizados com chamadas externas simuladas.
+- Login administrativo com senha `NEXORA_ADMIN_PASSWORD` (mínimo de 16 caracteres).
+- Sessão aleatória em cookie HttpOnly, SameSite=Strict, validade de 12 horas; somente o hash da sessão é persistido.
+- Em produção, cookie Secure e Redis REST via HTTPS obrigatórios.
+- Verificação de origem para requisições de escrita, limite de tentativas de login e encerramento de sessão.
+- `GET /api/status` informa quais chaves estão configuradas sem retornar qualquer segredo.
+- `POST /api/chat` aceita `provider` opcional (`openrouter`, `groq` ou `gemini`); o servidor escolhe o endpoint e modelo fixos. O cliente nunca pode escolher endpoint, modelo ou chave.
+- OpenRouter usa `openrouter/free`; Groq usa `openai/gpt-oss-20b`; Gemini usa `gemini-3.8-flash`.
+- Groq usa formato de chat compatível com OpenAI. Gemini usa `generateContent` e conversão de papéis user/assistant para user/model.
+- Limites: 1.024 tokens de saída, 20 mensagens, 12.000 caracteres por mensagem e 10 solicitações por minuto por endereço.
+- Testes automatizados simulam os provedores e o Redis; não fazem chamadas externas nem geram cobranças.
 
-## Variáveis necessárias
+## Variáveis de ambiente
 
-Configure no gerenciador de segredos do serviço de hospedagem:
+Configure apenas no gerenciador de segredos do host:
 
-- `NEXORA_ADMIN_PASSWORD`: senha administrativa exclusiva, com pelo menos 16 caracteres.
-- `OPENROUTER_API_KEY`: chave da API OpenRouter, quando a integração for ativada.
-- `NODE_ENV=production`: ativa o atributo Secure do cookie em produção.
-- `HOST=0.0.0.0`: necessário em hosts que exigem escuta na interface de rede.
-- `PORT`: porta fornecida pelo host.
+- `NEXORA_ADMIN_PASSWORD`: senha administrativa exclusiva, mínimo de 16 caracteres.
+- `OPENROUTER_API_KEY`: opcional; ativa o roteador gratuito OpenRouter.
+- `GROQ_API_KEY`: opcional; ativa Groq.
+- `GEMINI_API_KEY`: opcional; ativa Gemini.
+- `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`: devem ser fornecidos juntos; obrigatórios em produção.
+- `NODE_ENV=production`: ativa cookie Secure e exigência de Redis.
+- `HOST=0.0.0.0` e `PORT`: conforme o host.
 
-O arquivo `.env.example` contém somente valores fictícios. Nunca publique valores reais.
+O arquivo `.env.example` contém apenas valores fictícios/vazios. Nunca publique credenciais.
+
+## Custos e autorização
+
+A Central não faz chamadas automáticas ao iniciar, ao carregar o painel ou ao consultar o status. Uma chamada a um provedor só ocorre quando uma mensagem é enviada e o provedor escolhido possui chave configurada.
+
+Somente `openrouter/free` fixa a rota para modelos gratuitos. Groq e Gemini podem ter cotas gratuitas, limites e preços que variam por conta e podem mudar. Antes de cadastrar essas chaves, confirme o plano, faturamento e limites diretamente nos painéis dos provedores. A presença de uma chave indica apenas que ela foi configurada; não valida saldo, cota ou acesso ao modelo.
 
 ## Executar e testar
 
@@ -37,15 +45,11 @@ npm test
 npm start
 ```
 
-Em desenvolvimento local, o servidor escuta em `127.0.0.1:8787`. Acesse `http://127.0.0.1:8787`.
+Em desenvolvimento local, o servidor escuta em `127.0.0.1:8787`.
 
-## Limitações antes de publicar
+## Limitações
 
-- Sessões ficam em memória e são apagadas quando o processo reinicia. Esta etapa é adequada a uma única instância; produção contínua precisará de armazenamento de sessão compartilhado e expiração.
-- O limite de solicitações também é local ao processo e precisará ser compartilhado em implantação com múltiplas instâncias.
-- A senha é uma credencial administrativa única, não há contas individuais, recuperação de senha nem MFA.
-- Antes de expor à internet, configurar HTTPS, hospedagem, armazenamento de sessão adequado, limites compartilhados, monitoramento e política de backup.
-- O painel ainda não envia tarefas para o repositório nem modifica automaticamente o emulador.
-- Nenhuma chave foi cadastrada e nenhum provedor foi chamado nos testes.
-
-O roteador gratuito pode ter limites e disponibilidade definidos pelo provedor; não há garantia de resposta em toda chamada.
+- Sem Redis, sessões e rate limits ficam em memória e se perdem ao reiniciar; produção recusa iniciar sem Redis persistente.
+- A senha é uma credencial administrativa única; não há contas individuais, recuperação de senha nem MFA.
+- A Central ainda não executa tarefas no repositório nem modifica automaticamente o aplicativo Android.
+- O Render Free é adequado apenas para pré-visualização, sujeito a suspensão por inatividade e filesystem efêmero.
