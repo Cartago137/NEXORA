@@ -297,11 +297,19 @@ export function createControlCenterServer({
           let upstream;
           if (provider.kind === "gemini") {
             const contents = body.messages.map((message) => ({ role: message.role === "assistant" ? "model" : "user", parts: [{ text: message.content }] }));
-            upstream = await fetchImpl(provider.endpoint + provider.model + ":generateContent", {
+            const requestUrl = provider.endpoint + provider.model + ":generateContent";
+            const requestOptions = {
               method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
               body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS } }),
               signal: AbortSignal.timeout(30_000)
-            });
+            };
+            // Gemini may return 503 during temporary capacity shortages. Retry twice with bounded backoff.
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+              upstream = await fetchImpl(requestUrl, requestOptions);
+              if (upstream.status !== 503 || attempt === 2) break;
+              logger.warn?.("[nexora-ai] Gemini temporarily unavailable; retrying", { attempt: attempt + 1, status: 503 });
+              await new Promise((resolveDelay) => setTimeout(resolveDelay, 500 * (2 ** attempt)));
+            }
           } else {
             upstream = await fetchImpl(provider.endpoint, {
               method: "POST",
