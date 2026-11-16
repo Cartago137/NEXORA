@@ -5,6 +5,7 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -159,6 +160,31 @@ class WifiLinkTransportTest {
 
         client.close()
         host.close()
+        executor.shutdownNow()
+    }
+
+    @Test
+    fun hostRoomCanBeCancelledWhileWaitingForPeer() {
+        val port = ServerSocket(0).use { it.localPort }
+        val cancelled = AtomicBoolean(false)
+        val listening = CountDownLatch(1)
+        val executor = Executors.newSingleThreadExecutor()
+        val future = executor.submit<WifiLinkTransport> {
+            WifiLinkTransport.host(
+                gameCode = "BPRE",
+                romCrc32 = 0x1234ABCDL,
+                port = port,
+                sessionId = UUID.randomUUID(),
+                onListening = { listening.countDown() },
+                shouldCancel = { cancelled.get() }
+            )
+        }
+
+        assertTrue("Host did not start listening", listening.await(3, TimeUnit.SECONDS))
+        cancelled.set(true)
+        val failure = runCatching { future.get(2, TimeUnit.SECONDS) }.exceptionOrNull()
+        assertTrue("Host should stop accepting when cancelled", failure is java.util.concurrent.ExecutionException)
+        assertTrue("Cancellation should be the underlying cause", failure?.cause is java.util.concurrent.CancellationException)
         executor.shutdownNow()
     }
 
