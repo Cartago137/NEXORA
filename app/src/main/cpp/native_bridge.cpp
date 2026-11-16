@@ -980,7 +980,7 @@ Java_com_nexora_app_NativeBridge_nativeSaveState(
             return JNI_FALSE;
         }
     }
-    if (!gActiveCore || !gRomLoaded) {
+    if (!gActiveCore || !gRomLoaded || gRemoteSio.attached) {
         env->ReleaseStringUTFChars(path, nativePath);
         return JNI_FALSE;
     }
@@ -1009,7 +1009,7 @@ Java_com_nexora_app_NativeBridge_nativeLoadState(
             return JNI_FALSE;
         }
     }
-    if (!gActiveCore || !gRomLoaded) {
+    if (!gActiveCore || !gRomLoaded || gRemoteSio.attached) {
         env->ReleaseStringUTFChars(path, nativePath);
         return JNI_FALSE;
     }
