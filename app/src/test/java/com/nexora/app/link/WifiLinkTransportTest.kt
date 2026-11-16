@@ -42,15 +42,17 @@ class WifiLinkTransportTest {
         val port = ServerSocket(0).use { it.localPort }
         val sessionId = UUID.randomUUID()
         val executor = Executors.newSingleThreadExecutor()
+        val hostReady = CountDownLatch(1)
         val hostFuture = executor.submit<WifiLinkTransport> {
             WifiLinkTransport.host(
                 gameCode = "BPRE",
                 romCrc32 = 0x1234ABCDL,
                 port = port,
-                sessionId = sessionId
+                sessionId = sessionId,
+                onListening = { hostReady.countDown() }
             )
         }
-        Thread.sleep(100) // Give the host worker time to bind the ephemeral test port.
+        assertTrue("Host did not start listening", hostReady.await(3, TimeUnit.SECONDS))
 
         val client = WifiLinkTransport.join(
             hostAddress = "127.0.0.1",
@@ -86,19 +88,53 @@ class WifiLinkTransportTest {
     }
 
     @Test
-    fun joinRejectsDifferentRomIdentity() {
+    fun joinRejectsDifferentGameCode() {
         val port = ServerSocket(0).use { it.localPort }
         val sessionId = UUID.randomUUID()
         val executor = Executors.newSingleThreadExecutor()
+        val hostReady = CountDownLatch(1)
         val hostFuture = executor.submit<WifiLinkTransport> {
             WifiLinkTransport.host(
                 gameCode = "BPRE",
                 romCrc32 = 0x1234ABCDL,
                 port = port,
-                sessionId = sessionId
+                sessionId = sessionId,
+                onListening = { hostReady.countDown() }
             )
         }
-        Thread.sleep(100) // Give the host worker time to bind the ephemeral test port.
+        assertTrue("Host did not start listening", hostReady.await(3, TimeUnit.SECONDS))
+
+        val failure = runCatching {
+            WifiLinkTransport.join(
+                hostAddress = "127.0.0.1",
+                expectedSessionId = sessionId,
+                gameCode = "BPRF",
+                romCrc32 = 0x1234ABCDL,
+                port = port
+            )
+        }.exceptionOrNull()
+
+        assertTrue("A mismatched game code must be rejected", failure is IllegalArgumentException)
+        runCatching { hostFuture.get(2, TimeUnit.SECONDS).close() }
+        executor.shutdownNow()
+    }
+
+    @Test
+    fun joinRejectsDifferentRomIdentity() {
+        val port = ServerSocket(0).use { it.localPort }
+        val sessionId = UUID.randomUUID()
+        val executor = Executors.newSingleThreadExecutor()
+        val hostReady = CountDownLatch(1)
+        val hostFuture = executor.submit<WifiLinkTransport> {
+            WifiLinkTransport.host(
+                gameCode = "BPRE",
+                romCrc32 = 0x1234ABCDL,
+                port = port,
+                sessionId = sessionId,
+                onListening = { hostReady.countDown() }
+            )
+        }
+        assertTrue("Host did not start listening", hostReady.await(3, TimeUnit.SECONDS))
 
         val failure = runCatching {
             WifiLinkTransport.join(
