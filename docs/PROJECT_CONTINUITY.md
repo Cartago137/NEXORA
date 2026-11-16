@@ -1,6 +1,6 @@
 # NEXORA — Project Continuity and Engineering State
 
-Last updated: 2026-11-16 (NEXORA Android 0.4.0 release candidate)
+Last updated: 2026-11-16 (NEXORA Android 0.4.0 CI and signed APK complete)
 
 This is the durable engineering handoff for the Android NEXORA app. Update it after every meaningful implementation, test, or decision. Do not rely on chat history alone.
 
@@ -20,12 +20,15 @@ This is the durable engineering handoff for the Android NEXORA app. Update it af
 - Repository: `Cartago137/NEXORA`
 - Current unified branch: `feature/nexora-unified-next-release`
 - Current draft PR: [#33 — Unify NEXORA Link Cable, gameplay tools and latest interface](https://github.com/Cartago137/NEXORA/pull/33)
-- Current handoff commit: `91eb963522e9b517d8f80bc33aed67d738a8032f`.
-- Android app version is now `0.4.0` (`versionCode = 4`). Release notes: `docs/RELEASE_NOTES_0.4.0.md`.
-- Previous complete green CI: run #475 / `43941142412`, commit `4e23f7` (exact full SHA available in Actions). JVM tests passed; debug and signed release APK builds succeeded. Those artifacts are version 0.3.0 and are not the current release.
-- Hardening CI run #511 / `43943246507` on commit `f38947d0af01e16b05e3941af76bc1492534bb42`: all 17 JVM tests passed and debug APK assembled successfully. The run was superseded during signed release assembly by the 0.4.0 version bump; it is not the final 0.4.0 validation.
-- A fresh complete CI run is required for the current 0.4.0 HEAD.
-- Debug artifact from run #475: `14261704478`; signed release artifact: `14262664714`. These artifacts correspond to version 0.3.0 and must not be presented as the final 0.4.0 APK.
+- App source release commit: `f9659941cb297757e26e35b2349533f0957a8606`.
+- Android app version is `0.4.0` (`versionCode = 4`). Release notes: `docs/RELEASE_NOTES_0.4.0.md`.
+- Previous complete green CI: run #475 / `43941142412`, version 0.3.0 (historical only).
+- Final NEXORA 0.4.0 CI: run #519 / `43944029339`, source commit `f9659941cb297757e26e35b2349533f0957a8606`; status `success`. All 17 JVM tests passed, debug APK assembled, persistent release signing key prepared, and signed release APK assembled/uploaded.
+- Final 0.4.0 debug artifact: `14264167074`.
+- Final 0.4.0 signed release artifact: `14265325988`.
+- Release artifact ZIP SHA-256: `c01e37c0ee8fde33571adc358ff7976a77e2480fe6f25b38094745556ae21efb`.
+- Extracted signed APK SHA-256: `7258c7f33ea12485bedd9589a65ea107c9816f5d309155fde4001f8ed9072fb7`.
+- APK contains `arm64-v8a` and `x86_64` native libraries and exports the expected JNI methods for frame rendering, active console dimensions/platform, Link attach and Save State/Load State.
 - Historical feature branches and draft PRs are preserved for traceability: Link protocol/SIO (#22–#24), Library (#29), speed/D-pad (#30), and GB/GBC (#20). The unified PR #33 carries the combined work.
 - Temporary conflict-check PR #32 was closed; it was not merged.
 - No PR is to be merged without explicit user approval.
@@ -115,9 +118,8 @@ The user currently does not have a second phone available. Do not claim an actua
 
 ## Next engineering steps
 
-1. Run fresh CI for the current Link lifecycle/heartbeat/cancellation changes and fix all failures.
-2. Inspect native SIO transfer ordering, BUSY/READY, IRQ, role and disconnect behavior; add native tests where feasible.
-3. Validate Save State round-trip and GB/GBC emulation on hardware when available.
-4. Finish any missing settings/UI polish and ensure navigation rail remains ergonomic.
-5. Produce a final signed APK from the exact reviewed commit.
-6. Complete two-device FireRed Cable Club trade acceptance before describing Pokémon exchange as fully ready.
+1. Keep the 0.4.0 signed APK and source commit aligned; do not replace it with a different build without updating release notes.
+2. Continue reviewing native SIO transfer ordering, BUSY/READY, IRQ, player role and disconnect behavior; add native tests where feasible.
+3. Validate Save State round-trip and GB/GBC emulation on physical hardware when available.
+4. Complete the Motorola G54 regression checklist (speed, audio, D-pad, Library, orientation, mascot and artwork).
+5. Complete two-device FireRed Cable Club trade acceptance before describing Pokémon exchange as fully ready.
