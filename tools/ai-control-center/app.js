@@ -9,6 +9,8 @@ const chatInput = document.getElementById("chat-input");
 const chatSend = document.getElementById("chat-send");
 const chatTranscript = document.getElementById("chat-transcript");
 const chatFeedback = document.getElementById("chat-feedback");
+const exportChatButton = document.getElementById("export-chat");
+const clearChatButton = document.getElementById("clear-chat");
 const providerSelect = document.getElementById("chat-provider");
 const conversation = [];
 let chatBusy = false;
@@ -78,6 +80,28 @@ async function showDashboard() {
   }
 }
 
+function updateConversationActions() {
+  const hasMessages = conversation.length > 0;
+  exportChatButton.disabled = !hasMessages;
+  clearChatButton.disabled = !hasMessages;
+}
+
+function clearChatTranscript() {
+  chatTranscript.replaceChildren();
+  const empty = document.createElement("div");
+  empty.className = "chat-empty";
+  empty.id = "chat-empty";
+  const icon = document.createElement("span");
+  icon.className = "empty-icon";
+  icon.textContent = "✦";
+  const title = document.createElement("strong");
+  title.textContent = "Pronto para conversar";
+  const description = document.createElement("p");
+  description.textContent = "Faça uma pergunta para testar a integração quando a chave estiver configurada no servidor.";
+  empty.append(icon, title, description);
+  chatTranscript.append(empty);
+}
+
 function addChatMessage(role, content) {
   const empty = document.getElementById("chat-empty");
   if (empty) empty.remove();
@@ -99,6 +123,40 @@ function setChatBusy(busy) {
   chatInput.disabled = busy;
   chatSend.textContent = busy ? "Aguarde..." : "Enviar";
 }
+
+
+exportChatButton.addEventListener("click", () => {
+  if (!conversation.length) return;
+  const transcript = conversation.map((message) => {
+    const speaker = message.role === "user" ? "VOCÊ" : "NEXORA AI";
+    return speaker + "\\n" + message.content;
+  }).join("\\n\\n" + "—".repeat(36) + "\\n\\n");
+  const blob = new Blob(["NEXORA — Histórico da conversa\\n\\n" + transcript], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "nexora-conversa-" + new Date().toISOString().slice(0, 10) + ".txt";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  chatFeedback.textContent = "Conversa exportada para um arquivo de texto.";
+});
+
+clearChatButton.addEventListener("click", () => {
+  if (!conversation.length) return;
+  conversation.length = 0;
+  clearChatTranscript();
+  updateConversationActions();
+  chatFeedback.textContent = "Histórico desta sessão limpo. Nenhuma conversa foi salva no servidor.";
+});
+
+document.querySelectorAll("[data-prompt]").forEach((button) => {
+  button.addEventListener("click", () => {
+    chatInput.value = button.dataset.prompt || "";
+    chatInput.focus();
+  });
+});
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -148,6 +206,7 @@ chatForm.addEventListener("submit", async (event) => {
     });
     conversation.push({ role: "user", content }, { role: "assistant", content: result.answer });
     addChatMessage("assistant", result.answer);
+    updateConversationActions();
     chatFeedback.textContent = `Resposta recebida · ${result.provider || providerSelect.value} · modelo: ${result.model || "padrão"}`;
   } catch (error) {
     addChatMessage("assistant", "Não consegui concluir esta solicitação. " + error.message);
