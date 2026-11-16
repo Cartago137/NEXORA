@@ -49,6 +49,10 @@ async function showDashboard() {
         element.textContent = provider?.configured ? "Chave configurada" : "Aguardando chave";
         element.classList.toggle("configured", Boolean(provider?.configured));
       }
+      const detail = document.getElementById(id + "-detail");
+      if (detail) detail.textContent = provider?.configured
+        ? "Pronto para uso · chave presente"
+        : (id === "openrouter" ? "Rota gratuita · chave pendente" : "Chave pendente");
     }
     const count = Number(status.connectedCount ?? Object.values(providers).filter((item) => item.configured).length);
     chatInput.disabled = count === 0;
