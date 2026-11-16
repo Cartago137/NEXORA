@@ -140,4 +140,5 @@
     <string name="link_waiting_connection">Aguardando conexão...</string>
     <string name="link_network_error">erro de rede</string>
     <string name="link_timeout">tempo esgotado</string>
+    <string name="link_heartbeat_timeout">O outro aparelho parou de responder.</string>
 </resources>
