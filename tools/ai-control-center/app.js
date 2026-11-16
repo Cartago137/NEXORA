@@ -41,7 +41,7 @@ async function showDashboard() {
   try {
     const status = await api("/api/status");
     const providers = status.providers || {};
-    const labels = { openrouter: "OpenRouter", groq: "Groq", gemini: "Gemini" };
+    const labels = { openrouter: "OpenRouter", groq: "Groq" };
     for (const id of Object.keys(labels)) {
       const element = document.getElementById(id + "-status");
       const provider = providers[id];
@@ -57,10 +57,10 @@ async function showDashboard() {
     const count = Number(status.connectedCount ?? Object.values(providers).filter((item) => item.configured).length);
     chatInput.disabled = count === 0;
     chatSend.disabled = count === 0;
-    document.getElementById("provider-count").innerHTML = `${count} <small>/ ${status.providerCount || 3}</small>`;
+    document.getElementById("provider-count").innerHTML = `${count} <small>/ ${status.providerCount || 2}</small>`;
     const defaultReady = Boolean(providers.openrouter?.configured ?? status.configured);
     document.getElementById("provider-status").textContent = count ? `${count} provedor(es) com chave configurada` : "Aguardando configuração";
-    const optionLabels = { openrouter: "OpenRouter · roteador gratuito", groq: "Groq · GPT-OSS 20B", gemini: "Gemini · 3.8 Flash" };
+    const optionLabels = { openrouter: "OpenRouter · roteador gratuito", groq: "Groq · GPT-OSS 20B" };
     for (const option of providerSelect.options) {
       const ready = Boolean(providers[option.value]?.configured ?? (option.value === "openrouter" && status.configured));
       option.disabled = !ready;
@@ -139,7 +139,7 @@ chatForm.addEventListener("submit", async (event) => {
   const nextMessages = [...conversation, { role: "user", content }];
   addChatMessage("user", content);
   chatInput.value = "";
-  chatFeedback.textContent = "Enviando sua mensagem ao modelo gratuito...";
+  chatFeedback.textContent = "Enviando sua mensagem ao provedor selecionado...";
   setChatBusy(true);
   try {
     const result = await api("/api/chat", {
@@ -167,7 +167,7 @@ document.querySelectorAll(".nav-link").forEach((link) => {
 });
 
 providerSelect.addEventListener("change", () => {
-  const names = { openrouter: "OpenRouter", groq: "Groq", gemini: "Gemini" };
+  const names = { openrouter: "OpenRouter", groq: "Groq" };
   document.getElementById("chat-model-tag").textContent = "Provedor · " + names[providerSelect.value];
 });
 
