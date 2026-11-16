@@ -790,7 +790,7 @@ private fun NexoraApp(
                             },
                             confirmButton = {
                                 TextButton(onClick = { showLinkDialog = false }, enabled = !linkBusy) {
-                                    Text("Fechar", color = NexoraText)
+                                    Text(stringResource(R.string.close), color = NexoraText)
                                 }
                             },
                             containerColor = NexoraPanel,
@@ -1172,7 +1172,7 @@ private fun PlayerScreen(
             AlertDialog(
                 onDismissRequest = { if (!functionsBusy) showFunctionsMenu = false },
                 title = {
-                    Text("NEXORA — MENU DE FUNÇÕES", color = NexoraText, fontSize = 17.sp)
+                    Text(stringResource(R.string.functions_menu_title), color = NexoraText, fontSize = 17.sp)
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -1188,14 +1188,14 @@ private fun PlayerScreen(
                                     }
                                     functionsBusy = false
                                     functionsMessage = if (saved) {
-                                        "Estado do jogo salvo com sucesso."
+                                        context.getString(R.string.save_state_success)
                                     } else {
-                                        "Não foi possível salvar. O Save State fica indisponível durante uma sessão Link."
+                                        context.getString(R.string.save_state_failure)
                                     }
                                 }
                             },
                             enabled = !functionsBusy && !isLinkConnected
-                        ) { Text("Salvar estado", color = NexoraText) }
+                        ) { Text(stringResource(R.string.save_state), color = NexoraText) }
 
                         TextButton(
                             onClick = {
@@ -1211,16 +1211,16 @@ private fun PlayerScreen(
                                     }
                                     functionsBusy = false
                                     functionsMessage = if (loaded) {
-                                        "Estado carregado com sucesso."
+                                        context.getString(R.string.load_state_success)
                                     } else {
-                                        "Não foi possível carregar. Verifique se existe um estado salvo."
+                                        context.getString(R.string.load_state_failure)
                                     }
                                 }
                             },
                             enabled = !functionsBusy && !isLinkConnected && stateFile.exists()
-                        ) { Text("Carregar estado", color = NexoraText) }
+                        ) { Text(stringResource(R.string.load_state), color = NexoraText) }
 
-                        Text("Velocidade de emulação", color = NexoraMuted, fontSize = 12.sp)
+                        Text(stringResource(R.string.emulation_speed), color = NexoraMuted, fontSize = 12.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             listOf(1.0f, 1.5f, 2.0f, 3.0f).forEach { speed ->
                                 TextButton(
@@ -1246,7 +1246,7 @@ private fun PlayerScreen(
                                 onOpenLink()
                             },
                             enabled = !functionsBusy
-                        ) { Text("Link Cable / Troca Pokémon", color = NexoraText) }
+                        ) { Text(stringResource(R.string.link_cable_trade), color = NexoraText) }
 
                         TextButton(
                             onClick = {
@@ -1255,14 +1255,14 @@ private fun PlayerScreen(
                                 onExit()
                             },
                             enabled = !functionsBusy
-                        ) { Text("Sair do jogo", color = NexoraPink) }
+                        ) { Text(stringResource(R.string.exit_game), color = NexoraPink) }
 
                         functionsMessage?.let {
                             Text(it, color = NexoraMuted, fontSize = 11.sp)
                         }
                         if (isLinkConnected) {
                             Text(
-                                "Save States ficam bloqueados enquanto o Link Cable estiver conectado para evitar dessincronização.",
+                                context.getString(R.string.save_states_disabled_link),
                                 color = NexoraMuted,
                                 fontSize = 10.sp
                             )
