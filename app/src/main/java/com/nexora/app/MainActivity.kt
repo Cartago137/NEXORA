@@ -62,6 +62,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
@@ -1156,95 +1163,24 @@ private fun PlayerScreen(
     ) {
         val isLandscape = maxWidth > maxHeight
 
-        if (isLandscape) {
-            // Landscape: D-pad on the left, A/B on the right,
-            // shoulder buttons at the upper outer corners, and
-            // SELECT/START centered beneath the game image.
-            Row(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Box(modifier = Modifier.width(160.dp).fillMaxSize()) {
-                    if (!isGbFamily) {
-                        Box(Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 2.dp)) {
-                            GbaControl("L", 1 shl 9, compact = true)
-                        }
-                    }
-                    Box(Modifier.align(Alignment.CenterStart)) {
-                        GbaDPad()
-                    }
-                }
-
-                Column(
-                    modifier = Modifier.weight(1f).fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio)
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        GbaControl("SELECT", 1 shl 2, compact = true)
-                        Spacer(Modifier.width(18.dp))
-                        GbaControl("START", 1 shl 3, compact = true)
-                    }
-                }
-
-                Box(modifier = Modifier.width(160.dp).fillMaxSize()) {
-                    if (!isGbFamily) {
-                        Box(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 2.dp)) {
-                            GbaControl("R", 1 shl 8, compact = true)
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.align(Alignment.CenterEnd),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        GbaControl("B", 1 shl 1, controlSize = 56)
-                        GbaControl("A", 1 shl 0, controlSize = 56)
-                    }
-                }
-            }
-        } else {
-            // Portrait: keep the game above a dedicated control deck.
-            Column(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio)
-                }
-
-                GbaPortraitControlDeck(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                    showShoulderButtons = !isGbFamily
-                )
-            }
-        }
-
-        Row(
+        Column(
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 8.dp)
-                .background(NexoraPanel.copy(alpha = 0.94f), RoundedCornerShape(14.dp))
-                .padding(horizontal = 5.dp, vertical = 1.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .background(Color.Black)
+                .padding(horizontal = if (isLandscape) 8.dp else 10.dp, vertical = 6.dp)
         ) {
-            TextButton(onClick = { showFunctionsMenu = true }) {
-                Text("☰", color = NexoraPink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio)
             }
+            NexoraGameplayControlDeck(
+                modifier = Modifier.fillMaxWidth(),
+                compact = isLandscape,
+                showShoulderButtons = !isGbFamily,
+                onMenu = { showFunctionsMenu = true }
+            )
         }
 
         if (showFunctionsMenu) {
@@ -1408,40 +1344,126 @@ private fun GameFrame(
 }
 
 
+private const val NEXORA_ATLAS_CELL_WIDTH = 128
+private const val NEXORA_ATLAS_CELL_HEIGHT = 110
+
 @Composable
-private fun GbaDPad() {
-    Column(
-        modifier = Modifier
+private fun NexoraAtlasSprite(
+    cell: Int,
+    modifier: Modifier = Modifier,
+    pressed: Boolean = false,
+    pressedCell: Int = cell
+) {
+    val atlas = remember { ImageBitmap.imageResource(R.drawable.nexora_controls_atlas) }
+    Canvas(modifier = modifier) {
+        val selectedCell = if (pressed) pressedCell else cell
+        drawImage(
+            image = atlas,
+            srcOffset = IntOffset(
+                (selectedCell % 4) * NEXORA_ATLAS_CELL_WIDTH,
+                (selectedCell / 4) * NEXORA_ATLAS_CELL_HEIGHT
+            ),
+            srcSize = IntSize(NEXORA_ATLAS_CELL_WIDTH, NEXORA_ATLAS_CELL_HEIGHT),
+            dstSize = IntSize(size.width.toInt().coerceAtLeast(1), size.height.toInt().coerceAtLeast(1)),
+            colorFilter = null
+        )
+    }
+}
+
+@Composable
+private fun NexoraTouchButton(
+    modifier: Modifier,
+    normalCell: Int,
+    pressedCell: Int = normalCell,
+    keyMask: Int? = null,
+    onClick: (() -> Unit)? = null,
+    overlayLabel: String? = null,
+    labelAtEnd: Boolean = false
+) {
+    var pressed by remember { mutableStateOf(false) }
+    Box(
+        modifier = modifier.pointerInput(keyMask, onClick) {
+            detectTapGestures(
+                onPress = {
+                    pressed = true
+                    if (keyMask != null) NativeBridge.nativeAddKeys(keyMask)
+                    try {
+                        tryAwaitRelease()
+                    } finally {
+                        if (keyMask != null) NativeBridge.nativeClearKeys(keyMask)
+                        pressed = false
+                    }
+                },
+                onTap = {
+                    if (keyMask == null) onClick?.invoke()
+                }
+            )
+        },
+        contentAlignment = Alignment.Center
+    ) {
+        NexoraAtlasSprite(
+            cell = normalCell,
+            pressed = pressed,
+            pressedCell = pressedCell,
+            modifier = Modifier.fillMaxSize()
+        )
+        if (overlayLabel != null) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                contentAlignment = if (labelAtEnd) Alignment.CenterEnd else Alignment.CenterStart
+            ) {
+                Text(
+                    overlayLabel,
+                    color = if (pressed) Color(0xFF68458F) else Color(0xFF9B82B9),
+                    fontSize = if (overlayLabel.length == 1) 22.sp else 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        if (pressed && keyMask == null && onClick != null) {
+            Box(Modifier.fillMaxSize().background(Color(0x223D205F)))
+        }
+    }
+}
+
+@Composable
+private fun NexoraDPad(size: androidx.compose.ui.unit.Dp) {
+    var visualCell by remember { mutableIntStateOf(0) }
+    NexoraAtlasSprite(
+        cell = visualCell,
+        modifier = Modifier.size(size)
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     var activeDirectionMask = 0
 
-                    fun directionAt(position: androidx.compose.ui.geometry.Offset): Int {
+                    fun directionAt(position: Offset): Int {
                         val halfWidth = size.width / 2f
                         val halfHeight = size.height / 2f
                         if (halfWidth <= 0f || halfHeight <= 0f) return 0
-
-                        val normalizedX = (position.x - halfWidth) / halfWidth
-                        val normalizedY = (position.y - halfHeight) / halfHeight
-                        val horizontal = if (abs(normalizedX) >= 0.28f) {
-                            if (normalizedX < 0f) (1 shl 5) else (1 shl 4)
+                        val nx = (position.x - halfWidth) / halfWidth
+                        val ny = (position.y - halfHeight) / halfHeight
+                        val horizontal = if (abs(nx) >= 0.28f) {
+                            if (nx < 0f) (1 shl 5) else (1 shl 4)
                         } else 0
-                        val vertical = if (abs(normalizedY) >= 0.28f) {
-                            if (normalizedY < 0f) (1 shl 6) else (1 shl 7)
+                        val vertical = if (abs(ny) >= 0.28f) {
+                            if (ny < 0f) (1 shl 6) else (1 shl 7)
                         } else 0
                         return horizontal or vertical
                     }
 
                     fun updateDirection(nextMask: Int) {
                         if (nextMask == activeDirectionMask) return
-                        if (activeDirectionMask != 0) {
-                            NativeBridge.nativeClearKeys(activeDirectionMask)
-                        }
-                        if (nextMask != 0) {
-                            NativeBridge.nativeAddKeys(nextMask)
-                        }
+                        if (activeDirectionMask != 0) NativeBridge.nativeClearKeys(activeDirectionMask)
+                        if (nextMask != 0) NativeBridge.nativeAddKeys(nextMask)
                         activeDirectionMask = nextMask
+                        visualCell = when (nextMask) {
+                            (1 shl 6) -> 2 // UP
+                            (1 shl 7) -> 1 // DOWN
+                            (1 shl 5) -> 3 // LEFT
+                            (1 shl 4) -> 4 // RIGHT
+                            else -> 0 // neutral or diagonal
+                        }
                     }
 
                     try {
@@ -1454,118 +1476,138 @@ private fun GbaDPad() {
                             pointer.consume()
                         }
                     } finally {
-                        if (activeDirectionMask != 0) {
-                            NativeBridge.nativeClearKeys(activeDirectionMask)
-                        }
+                        if (activeDirectionMask != 0) NativeBridge.nativeClearKeys(activeDirectionMask)
+                        visualCell = 0
                     }
                 }
             }
-            .background(NexoraPanel, RoundedCornerShape(22.dp))
-            .padding(7.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Spacer(Modifier.size(46.dp))
-            DPadDirectionVisual("↑")
-            Spacer(Modifier.size(46.dp))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            DPadDirectionVisual("←")
-            Box(Modifier.size(46.dp).background(NexoraPanelLight, RoundedCornerShape(12.dp)))
-            DPadDirectionVisual("→")
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Spacer(Modifier.size(46.dp))
-            DPadDirectionVisual("↓")
-            Spacer(Modifier.size(46.dp))
-        }
-    }
+    )
 }
 
 @Composable
-private fun DPadDirectionVisual(label: String) {
-    Box(
-        modifier = Modifier
-            .size(46.dp)
-            .background(NexoraPanelLight, RoundedCornerShape(12.dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(label, color = NexoraText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun GbaPortraitControlDeck(
-    modifier: Modifier = Modifier,
-    showShoulderButtons: Boolean = true
-) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        if (showShoulderButtons) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                GbaControl("L", 1 shl 9, compact = true)
-                GbaControl("R", 1 shl 8, compact = true)
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            GbaDPad()
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                GbaControl("B", 1 shl 1, controlSize = 58)
-                GbaControl("A", 1 shl 0, controlSize = 58)
-            }
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            GbaControl("SELECT", 1 shl 2, compact = true)
-            GbaControl("START", 1 shl 3, compact = true)
-        }
-    }
-}
-
-@Composable
-private fun GbaControl(
+private fun NexoraRoundAction(
     label: String,
-    keyMask: Int,
-    compact: Boolean = false,
-    controlSize: Int = 52
+    compact: Boolean,
+    keyMask: Int? = null,
+    onClick: (() -> Unit)? = null
 ) {
-    Box(
-        modifier = Modifier
-            .size(
-                width = if (compact) 54.dp else controlSize.dp,
-                height = if (compact) 36.dp else controlSize.dp
-            )
-            .background(NexoraPanelLight, RoundedCornerShape(if (compact) 11.dp else 16.dp))
-            .pointerInput(keyMask) {
-                detectTapGestures(onPress = {
-                    NativeBridge.nativeAddKeys(keyMask)
-                    try {
-                        tryAwaitRelease()
-                    } finally {
-                        NativeBridge.nativeClearKeys(keyMask)
-                    }
-                })
-            },
-        contentAlignment = Alignment.Center
-    ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        NexoraTouchButton(
+            modifier = Modifier.size(if (compact) 27.dp else 39.dp),
+            normalCell = 5,
+            pressedCell = 6,
+            keyMask = keyMask,
+            onClick = onClick
+        )
         Text(
             label,
-            color = NexoraText,
-            fontSize = if (compact) 9.sp else 16.sp,
-            fontWeight = FontWeight.Bold
+            color = Color(0xFFE9DDF8),
+            fontSize = if (compact) 7.sp else 9.sp,
+            fontWeight = FontWeight.SemiBold
         )
+    }
+}
+
+@Composable
+private fun NexoraGameplayControlDeck(
+    modifier: Modifier = Modifier,
+    compact: Boolean,
+    showShoulderButtons: Boolean,
+    onMenu: () -> Unit
+) {
+    val deckHeight = if (compact) 146.dp else 252.dp
+    Box(
+        modifier = modifier
+            .height(deckHeight)
+            .clip(RoundedCornerShape(if (compact) 20.dp else 28.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF24133D), Color(0xFF392052), Color(0xFF1A102C))
+                )
+            )
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val stars = listOf(
+                Offset(size.width * .07f, size.height * .22f),
+                Offset(size.width * .19f, size.height * .78f),
+                Offset(size.width * .34f, size.height * .16f),
+                Offset(size.width * .49f, size.height * .86f),
+                Offset(size.width * .64f, size.height * .23f),
+                Offset(size.width * .79f, size.height * .74f),
+                Offset(size.width * .93f, size.height * .19f)
+            )
+            stars.forEachIndexed { index, point ->
+                drawCircle(Color(0xFFB78CFF).copy(alpha = if (index % 2 == 0) .72f else .42f), radius = if (index % 2 == 0) 2.2.dp.toPx() else 1.3.dp.toPx(), center = point)
+                if (index % 2 == 0) {
+                    drawLine(Color(0xFFD9C2FF).copy(alpha = .38f), Offset(point.x - 5.dp.toPx(), point.y), Offset(point.x + 5.dp.toPx(), point.y), strokeWidth = 1.dp.toPx())
+                    drawLine(Color(0xFFD9C2FF).copy(alpha = .38f), Offset(point.x, point.y - 5.dp.toPx()), Offset(point.x, point.y + 5.dp.toPx()), strokeWidth = 1.dp.toPx())
+                }
+            }
+        }
+
+        Column(
+            modifier = Modifier.fillMaxSize().padding(
+                horizontal = if (compact) 12.dp else 18.dp,
+                vertical = if (compact) 5.dp else 9.dp
+            ),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            if (showShoulderButtons) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    NexoraTouchButton(
+                        modifier = Modifier.size(width = if (compact) 102.dp else 150.dp, height = if (compact) 28.dp else 42.dp),
+                        normalCell = 12,
+                        overlayLabel = "R",
+                        labelAtEnd = false,
+                        keyMask = 1 shl 9
+                    )
+                    NexoraTouchButton(
+                        modifier = Modifier.size(width = if (compact) 102.dp else 150.dp, height = if (compact) 28.dp else 42.dp),
+                        normalCell = 11,
+                        overlayLabel = "L",
+                        labelAtEnd = true,
+                        keyMask = 1 shl 8
+                    )
+                }
+            } else {
+                Spacer(Modifier.height(if (compact) 3.dp else 6.dp))
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                NexoraDPad(if (compact) 94.dp else 144.dp)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 5.dp)
+                ) {
+                    NexoraTouchButton(
+                        modifier = Modifier.size(if (compact) 43.dp else 61.dp),
+                        normalCell = 7,
+                        pressedCell = 8,
+                        keyMask = 1 shl 0
+                    )
+                    NexoraTouchButton(
+                        modifier = Modifier.size(if (compact) 43.dp else 61.dp),
+                        normalCell = 9,
+                        pressedCell = 10,
+                        keyMask = 1 shl 1
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                NexoraRoundAction("MENU", compact, onClick = onMenu)
+                NexoraRoundAction("SELECT", compact, keyMask = 1 shl 2)
+                NexoraRoundAction("START", compact, keyMask = 1 shl 3)
+            }
+        }
     }
 }
 
