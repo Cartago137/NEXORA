@@ -2,6 +2,9 @@ package com.nexora.app
 
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
@@ -68,6 +71,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.abs
 import androidx.compose.ui.text.font.FontWeight
@@ -77,7 +82,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import android.content.res.Configuration
@@ -1409,15 +1413,72 @@ private fun GameFrame(
 
 @Composable
 private fun NexoraAtlasSprite(cell: Int, modifier: Modifier = Modifier) {
-    val atlas = ImageBitmap.imageResource(R.drawable.nexora_controls_atlas)
+    val context = LocalContext.current
+    // Decode the raster resource directly. Compose's imageResource path can throw
+    // when Android returns a non-BitmapDrawable for this packaged asset.
+    val atlas = remember(context) {
+        runCatching {
+            BitmapFactory.decodeResource(context.resources, R.drawable.nexora_controls_atlas)
+                ?.asImageBitmap()
+        }.getOrNull()
+    }
+
     Canvas(modifier) {
         val cellSize = 96
-        drawImage(
-            image = atlas,
-            srcOffset = IntOffset((cell % 5) * cellSize, (cell / 5) * cellSize),
-            srcSize = IntSize(cellSize, cellSize),
-            dstSize = IntSize(size.width.toInt().coerceAtLeast(1), size.height.toInt().coerceAtLeast(1))
-        )
+        if (atlas != null &&
+            atlas.width >= 5 * cellSize &&
+            atlas.height >= 3 * cellSize &&
+            cell in 0..14
+        ) {
+            drawImage(
+                image = atlas,
+                srcOffset = IntOffset((cell % 5) * cellSize, (cell / 5) * cellSize),
+                srcSize = IntSize(cellSize, cellSize),
+                dstSize = IntSize(
+                    size.width.toInt().coerceAtLeast(1),
+                    size.height.toInt().coerceAtLeast(1)
+                )
+            )
+        } else {
+            // Keep the game usable if the optional atlas cannot be decoded.
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val unit = minOf(size.width, size.height).coerceAtLeast(1f)
+            val fill = Color(0xFF442A66)
+            val edge = Color(0xFFB99AFF)
+            if (cell in 0..4) {
+                drawLine(fill, Offset(center.x - unit * 0.31f, center.y), Offset(center.x + unit * 0.31f, center.y), unit * 0.23f)
+                drawLine(fill, Offset(center.x, center.y - unit * 0.31f), Offset(center.x, center.y + unit * 0.31f), unit * 0.23f)
+                drawCircle(edge, unit * 0.12f, center)
+            } else {
+                drawCircle(fill, unit * 0.42f, center)
+                drawCircle(edge, unit * 0.42f, center, style = Stroke(width = unit * 0.045f))
+            }
+
+            val glyph = when (cell) {
+                0 -> "✣"
+                1 -> "↑"
+                2 -> "↓"
+                3 -> "←"
+                4 -> "→"
+                5, 6 -> "M"
+                7, 8 -> "A"
+                9, 10 -> "B"
+                11, 12 -> "L"
+                else -> "R"
+            }
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.WHITE
+                textAlign = Paint.Align.CENTER
+                textSize = unit * 0.34f
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            }
+            drawContext.canvas.nativeCanvas.drawText(
+                glyph,
+                center.x,
+                center.y - (paint.ascent() + paint.descent()) / 2f,
+                paint
+            )
+        }
     }
 }
 
