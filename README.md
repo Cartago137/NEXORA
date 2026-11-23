@@ -1,6 +1,6 @@
 # NEXORA
 
-NEXORA is an Android-first handheld emulator project targeting **Game Boy Advance (GBA), Game Boy (GB), and Game Boy Color (GBC)** through mGBA. The current integrated development milestone is **Android version 0.4.0**. It combines a custom Kotlin/Jetpack Compose interface, a native C/C++ emulation layer, and a modular foundation for future systems.
+NEXORA is an Android-first handheld emulator project targeting **Game Boy Advance (GBA), Game Boy (GB), and Game Boy Color (GBC)** through mGBA. The current integrated development milestone is **Android version 0.4.1**. It combines a custom Kotlin/Jetpack Compose interface, a native C/C++ emulation layer, and a modular foundation for future systems.
 
 > **Development status:** the latest unified work lives on `feature/nexora-unified-next-release` and draft PR [#33](https://github.com/Cartago137/NEXORA/pull/33). It combines the latest Home/Library/player work, Wi-Fi GBA Link Cable integration, Save States, and GB/GBC core support. This is a development build, not a released or physically validated version.
 
