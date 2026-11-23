@@ -1409,7 +1409,7 @@ private fun GameFrame(
 
 @Composable
 private fun NexoraAtlasSprite(cell: Int, modifier: Modifier = Modifier) {
-    val atlas = remember { ImageBitmap.imageResource(R.drawable.nexora_controls_atlas) }
+    val atlas = ImageBitmap.imageResource(R.drawable.nexora_controls_atlas)
     Canvas(modifier) {
         val cellSize = 96
         drawImage(
