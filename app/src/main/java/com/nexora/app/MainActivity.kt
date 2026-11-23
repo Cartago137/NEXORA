@@ -13,6 +13,7 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.view.View
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -36,9 +37,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.OutlinedTextField
@@ -1174,7 +1178,7 @@ private fun PlayerScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                NexoraControlShell(Modifier.width(148.dp).fillMaxHeight()) {
+                NexoraControlShell(Modifier.width(164.dp).fillMaxHeight()) {
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         if (!isGbFamily) {
                             Box(Modifier.align(Alignment.TopStart)) {
@@ -1182,7 +1186,7 @@ private fun PlayerScreen(
                             }
                         }
                         Box(Modifier.align(Alignment.CenterStart)) {
-                            GbaDPad()
+                            GbaDPad(sizeDp = 136)
                         }
                     }
                 }
@@ -1210,7 +1214,7 @@ private fun PlayerScreen(
                     }
                 }
 
-                NexoraControlShell(Modifier.width(148.dp).fillMaxHeight()) {
+                NexoraControlShell(Modifier.width(164.dp).fillMaxHeight()) {
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         if (!isGbFamily) {
                             Box(Modifier.align(Alignment.TopEnd)) {
@@ -1257,7 +1261,21 @@ private fun PlayerScreen(
                     Text(stringResource(R.string.functions_menu_title), color = NexoraText, fontSize = 17.sp)
                 },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = maxHeight * 0.72f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        TextButton(
+                            onClick = {
+                                NativeBridge.nativeSetKeys(0)
+                                showFunctionsMenu = false
+                                onExit()
+                            },
+                            enabled = !functionsBusy
+                        ) { Text(stringResource(R.string.exit_game), color = NexoraPink) }
+
                         TextButton(
                             onClick = {
                                 functionsBusy = true
@@ -1343,15 +1361,6 @@ private fun PlayerScreen(
                             )
                         }
 
-                        TextButton(
-                            onClick = {
-                                NativeBridge.nativeSetKeys(0)
-                                showFunctionsMenu = false
-                                onExit()
-                            },
-                            enabled = !functionsBusy
-                        ) { Text(stringResource(R.string.exit_game), color = NexoraPink) }
-
                         if (isLinkConnected) {
                             Text(
                                 context.getString(R.string.save_states_disabled_link),
@@ -1417,10 +1426,25 @@ private fun NexoraAtlasSprite(cell: Int, modifier: Modifier = Modifier) {
     // Decode the raster resource directly. Compose's imageResource path can throw
     // when Android returns a non-BitmapDrawable for this packaged asset.
     val atlas = remember(context) {
-        runCatching {
-            BitmapFactory.decodeResource(context.resources, R.drawable.nexora_controls_atlas)
-                ?.asImageBitmap()
+        val decoded = runCatching {
+            BitmapFactory.decodeResource(
+                context.resources,
+                R.drawable.nexora_controls_atlas,
+                BitmapFactory.Options().apply {
+                    inScaled = false
+                    inPreferredConfig = Bitmap.Config.ARGB_8888
+                }
+            )
+        }.onFailure {
+            Log.e("NEXORA", "Failed to decode the official controls atlas.", it)
         }.getOrNull()
+
+        if (decoded == null) {
+            Log.e("NEXORA", "Official controls atlas is unavailable; vector fallback is active.")
+        } else {
+            Log.i("NEXORA", "Official controls atlas decoded: ${decoded.width}x${decoded.height}.")
+        }
+        decoded?.asImageBitmap()
     }
 
     Canvas(modifier) {
@@ -1559,11 +1583,11 @@ private fun NexoraTouchButton(
 }
 
 @Composable
-private fun GbaDPad() {
+private fun GbaDPad(sizeDp: Int = 128) {
     var visualCell by remember { mutableIntStateOf(0) }
     Box(
         modifier = Modifier
-            .size(104.dp)
+            .size(sizeDp.dp)
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)

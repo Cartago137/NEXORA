@@ -16,8 +16,8 @@ android {
         applicationId = "com.nexora.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.4.3"
+        versionCode = 8
+        versionName = "0.4.4"
         ndkVersion = "27.2.12479018"
 
         ndk {
