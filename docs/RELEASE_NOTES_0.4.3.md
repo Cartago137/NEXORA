@@ -12,3 +12,5 @@
 - CI build and tests: pending.
 - Physical-device validation on the Motorola G54: pending.
 - The 0.4.2 crash log showed the mGBA core and per-game battery save loading successfully before a Compose `NullPointerException` in `NexoraAtlasSprite`; this release addresses that UI failure path. It does not claim device-level resolution until retested.
+
+- CI trigger commit: build verification for the 0.4.3 candidate.
