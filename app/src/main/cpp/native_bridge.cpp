@@ -589,24 +589,22 @@ Java_com_nexora_app_NativeBridge_nativeRunFrame(
         logInfo("Frame stage 2: first mGBA runFrame call returned.");
     }
 
-    // Write converted pixels directly into the Java-owned frame array. This
-    // removes the extra native framebuffer and SetIntArrayRegion copy.
-    jint* outputPixels = static_cast<jint*>(
-        env->GetPrimitiveArrayCritical(output, nullptr)
-    );
-    if (outputPixels == nullptr) {
-        return JNI_FALSE;
-    }
+    // Convert into a native staging buffer, then copy with JNI's bounded
+    // array-region API. Avoid holding a Critical array pin while doing pixel
+    // conversion: some Android runtimes may need to pin or copy the Java array,
+    // and the emulator frame loop must not keep the GC blocked during that work.
+    static std::array<jint, kMaxVideoWidth * kMaxVideoHeight> androidPixelBuffer{};
     // mGBA renders into a max-width backing buffer. Pack the active
     // console dimensions tightly into Android's IntArray.
     for (int y = 0; y < gVideoHeight; ++y) {
         for (int x = 0; x < gVideoWidth; ++x) {
             const size_t sourceIndex = static_cast<size_t>(y) * kMaxVideoWidth + x;
             const size_t targetIndex = static_cast<size_t>(y) * gVideoWidth + x;
-            outputPixels[targetIndex] = toAndroidArgb(gVideoBuffer[sourceIndex]);
+            androidPixelBuffer[targetIndex] = toAndroidArgb(gVideoBuffer[sourceIndex]);
         }
     }
-    env->ReleasePrimitiveArrayCritical(output, outputPixels, 0);
+    const jsize pixelCount = static_cast<jsize>(gVideoWidth * gVideoHeight);
+    env->SetIntArrayRegion(output, 0, pixelCount, androidPixelBuffer.data());
     const auto transferFinished = std::chrono::steady_clock::now();
     if (env->ExceptionCheck()) {
         return JNI_FALSE;
