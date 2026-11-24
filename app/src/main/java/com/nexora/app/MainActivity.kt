@@ -437,12 +437,27 @@ private fun NexoraApp(
     var gamePendingRemoval by remember { mutableStateOf<GameEntry?>(null) }
     var removalFailed by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    var touchControlSettings by remember { mutableStateOf(TouchControlSettingsStore.load(context)) }
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    var portraitTouchSettings by remember { mutableStateOf(TouchControlSettingsStore.load(context, false)) }
+    var landscapeTouchSettings by remember { mutableStateOf(TouchControlSettingsStore.load(context, true)) }
+    val touchControlSettings = if (isLandscape) landscapeTouchSettings else portraitTouchSettings
     var showTouchEditor by remember { mutableStateOf(false) }
     androidx.activity.compose.BackHandler(enabled = showTouchEditor) { showTouchEditor = false }
     fun updateTouchControlSettings(updated: TouchControlSettings) {
-        touchControlSettings = updated
-        TouchControlSettingsStore.save(context, updated)
+        if (isLandscape) {
+            landscapeTouchSettings = updated
+            portraitTouchSettings = portraitTouchSettings.copy(
+                defaultSpeed = updated.defaultSpeed,
+                audioVolumePercent = updated.audioVolumePercent
+            )
+        } else {
+            portraitTouchSettings = updated
+            landscapeTouchSettings = landscapeTouchSettings.copy(
+                defaultSpeed = updated.defaultSpeed,
+                audioVolumePercent = updated.audioVolumePercent
+            )
+        }
+        TouchControlSettingsStore.save(context, updated, isLandscape)
     }
     var showLinkDialog by remember { mutableStateOf(false) }
     var linkTransport by remember { mutableStateOf<WifiLinkTransport?>(null) }
@@ -667,8 +682,6 @@ private fun NexoraApp(
             }
         }
     }
-
-    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     Surface(modifier = Modifier.fillMaxSize(), color = NexoraBackground) {
         Row(modifier = Modifier.fillMaxSize()) {
