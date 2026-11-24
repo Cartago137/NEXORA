@@ -1487,14 +1487,22 @@ private fun NexoraAtlasSprite(cell: Int, modifier: Modifier = Modifier) {
 
     Canvas(modifier) {
         if (sprite != null && sprite.width > 0 && sprite.height > 0) {
-            // The supplied artwork uses transparent PNGs; draw into the control's
-            // visual bounds while keeping the hit target and input logic unchanged.
+            // Fit the PNG inside the visual bounds without changing its aspect ratio.
+            // The Canvas and touch target keep their original size and position.
+            val scale = minOf(
+                size.width / sprite.width.toFloat(),
+                size.height / sprite.height.toFloat()
+            )
+            val destinationWidth = (sprite.width * scale).toInt().coerceAtLeast(1)
+            val destinationHeight = (sprite.height * scale).toInt().coerceAtLeast(1)
+            val destinationOffset = IntOffset(
+                (size.width - destinationWidth) / 2f .toInt(),
+                (size.height - destinationHeight) / 2f .toInt()
+            )
             drawImage(
                 image = sprite,
-                dstSize = IntSize(
-                    size.width.toInt().coerceAtLeast(1),
-                    size.height.toInt().coerceAtLeast(1)
-                )
+                dstOffset = destinationOffset,
+                dstSize = IntSize(destinationWidth, destinationHeight)
             )
         } else {
             val center = Offset(size.width / 2f, size.height / 2f)
