@@ -85,3 +85,16 @@ Keep PR #33 as a draft until all applicable automated and physical acceptance te
 - [ ] Physical acceptance on Motorola G54: verify D-pad size, touch hit area, layout bounds and saved preferences after app restart.
 - [ ] Extend grouped positioning into free per-button drag placement and multiple named layouts.
 - [ ] Validate Library, History and Settings navigation/scrolling in short landscape viewports.
+
+## Phase 3B — Visual touch-layout editor and settings organization (0.4.6)
+
+- [x] Add independent size and position preferences for D-pad, A, B, L, R, MENU, SELECT and START.
+- [x] Add a visual editor that reuses the approved control atlas.
+- [x] Support one-finger drag and two-finger pinch resizing in the editor.
+- [x] Keep touch preferences isolated from ROM metadata, battery saves and Save States.
+- [x] Split Settings into focused category screens and move touch customization into its own editor screen.
+- [x] Add vertical scrolling to Library and History for compact landscape layouts.
+- [ ] Validate every control's editor-to-game position and size on the Motorola G54 in portrait and landscape.
+- [ ] Validate Library and History scrolling with empty, filtered and populated content in landscape.
+- [ ] Add named profiles and separate portrait/landscape layouts.
+- [ ] Run automated Android build and regression tests before release.
