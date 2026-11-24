@@ -2119,12 +2119,14 @@ private fun LibraryScreen(
         }
 
         if (games.isEmpty()) {
-            EmptyScreen(
-                eyebrow = stringResource(R.string.library_label),
-                title = stringResource(R.string.no_games_yet),
-                description = stringResource(R.string.library_empty_description),
-                symbol = "▦"
-            )
+            Box(modifier = Modifier.fillMaxWidth().heightIn(min = 320.dp), contentAlignment = Alignment.Center) {
+                EmptyScreen(
+                    eyebrow = stringResource(R.string.library_label),
+                    title = stringResource(R.string.no_games_yet),
+                    description = stringResource(R.string.library_empty_description),
+                    symbol = "▦"
+                )
+            }
         } else if (visibleGames.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp),
@@ -2446,6 +2448,7 @@ private fun EditorControl(label: String, cell: Int, sizeDp: Int, offsetXDp: Int,
     val latestSelect by rememberUpdatedState(onSelect)
     Column(
         modifier = modifier.offset(x = offsetXDp.dp, y = offsetYDp.dp)
+            .clickable { latestSelect() }
             .pointerInput(label) { detectTransformGestures { _, pan, zoom, _ -> latestSelect(); latestTransform(pan.x / density, pan.y / density, zoom) } }
             .background(if (selected) NexoraPurple.copy(alpha = 0.18f) else Color.Transparent, RoundedCornerShape(12.dp))
             .border(if (selected) 1.dp else 0.dp, if (selected) NexoraPink else Color.Transparent, RoundedCornerShape(12.dp))
