@@ -1514,6 +1514,47 @@ private fun NexoraAtlasSprite(cell: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
+private fun NexoraControlShell(
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(22.dp))
+            .background(Color(0xFF160D23))
+            .border(1.dp, Color(0xFF51366F), RoundedCornerShape(22.dp))
+    ) {
+        Canvas(Modifier.matchParentSize()) {
+            val points = listOf(
+                0.10f to 0.15f, 0.24f to 0.78f, 0.43f to 0.20f,
+                0.61f to 0.84f, 0.78f to 0.18f, 0.91f to 0.62f
+            )
+            points.forEachIndexed { index, point ->
+                val center = Offset(size.width * point.first, size.height * point.second)
+                val radius = if (index % 2 == 0) 2.2f else 1.4f
+                drawCircle(Color(0xFFB99AFF).copy(alpha = 0.72f), radius, center)
+                if (index % 2 == 0) {
+                    drawLine(
+                        Color(0xFFB99AFF).copy(alpha = 0.55f),
+                        Offset(center.x - 4f, center.y),
+                        Offset(center.x + 4f, center.y),
+                        strokeWidth = 1f
+                    )
+                    drawLine(
+                        Color(0xFFB99AFF).copy(alpha = 0.55f),
+                        Offset(center.x, center.y - 4f),
+                        Offset(center.x, center.y + 4f),
+                        strokeWidth = 1f
+                    )
+                }
+            }
+        }
+        content()
+    }
+}
+
+
+@Composable
 private fun NexoraTouchButton(
     normalCell: Int,
     pressedCell: Int,
