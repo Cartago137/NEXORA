@@ -2416,19 +2416,19 @@ private fun TouchLayoutEditorScreen(settings: TouchControlSettings, onSettingsCh
                 EditorControl("R", 13, settings.rSizeDp, settings.rOffsetXDp, settings.rOffsetYDp, Modifier.align(Alignment.TopEnd).offset(x = (-14).dp, y = 14.dp), selectedControl == "R", density, { selectedControl = "R" }) { dx, dy, scale ->
                     onSettingsChange(settings.copy(rOffsetXDp = (settings.rOffsetXDp + dx).roundToInt().coerceIn(-180, 180), rOffsetYDp = (settings.rOffsetYDp + dy).roundToInt().coerceIn(-180, 180), rSizeDp = (settings.rSizeDp * scale).roundToInt().coerceIn(36, 120)))
                 }
-                EditorControl("B", 9, settings.bSizeDp, settings.bOffsetXDp, settings.bOffsetYDp, Modifier.align(if (isLandscape) Alignment.CenterEnd else Alignment.BottomEnd).offset(x = (-94).dp, y = if (isLandscape) 0.dp else (-18).dp), selectedControl == "B", density, { selectedControl = "B" }) { dx, dy, scale ->
+                EditorControl("B", 9, settings.bSizeDp, settings.bOffsetXDp, settings.bOffsetYDp, Modifier.align(if (isLandscape) Alignment.CenterEnd else Alignment.BottomEnd).offset(x = (-78).dp, y = 0.dp), selectedControl == "B", density, { selectedControl = "B" }) { dx, dy, scale ->
                     onSettingsChange(settings.copy(bOffsetXDp = (settings.bOffsetXDp + dx).roundToInt().coerceIn(-180, 180), bOffsetYDp = (settings.bOffsetYDp + dy).roundToInt().coerceIn(-180, 180), bSizeDp = (settings.bSizeDp * scale).roundToInt().coerceIn(36, 120)))
                 }
-                EditorControl("A", 7, settings.aSizeDp, settings.aOffsetXDp, settings.aOffsetYDp, Modifier.align(if (isLandscape) Alignment.CenterEnd else Alignment.BottomEnd).offset(x = (-18).dp, y = if (isLandscape) 0.dp else (-82).dp), selectedControl == "A", density, { selectedControl = "A" }) { dx, dy, scale ->
+                EditorControl("A", 7, settings.aSizeDp, settings.aOffsetXDp, settings.aOffsetYDp, Modifier.align(if (isLandscape) Alignment.CenterEnd else Alignment.BottomEnd).offset(x = 0.dp, y = 0.dp), selectedControl == "A", density, { selectedControl = "A" }) { dx, dy, scale ->
                     onSettingsChange(settings.copy(aOffsetXDp = (settings.aOffsetXDp + dx).roundToInt().coerceIn(-180, 180), aOffsetYDp = (settings.aOffsetYDp + dy).roundToInt().coerceIn(-180, 180), aSizeDp = (settings.aSizeDp * scale).roundToInt().coerceIn(36, 120)))
                 }
-                EditorControl("MENU", 5, settings.menuSizeDp, settings.menuOffsetXDp, settings.menuOffsetYDp, Modifier.align(Alignment.BottomCenter).offset(x = (-78).dp, y = (-12).dp), selectedControl == "MENU", density, { selectedControl = "MENU" }) { dx, dy, scale ->
+                EditorControl("MENU", 5, settings.menuSizeDp, settings.menuOffsetXDp, settings.menuOffsetYDp, Modifier.align(Alignment.BottomCenter).offset(x = (-60).dp, y = (-12).dp), selectedControl == "MENU", density, { selectedControl = "MENU" }) { dx, dy, scale ->
                     onSettingsChange(settings.copy(menuOffsetXDp = (settings.menuOffsetXDp + dx).roundToInt().coerceIn(-180, 180), menuOffsetYDp = (settings.menuOffsetYDp + dy).roundToInt().coerceIn(-180, 180), menuSizeDp = (settings.menuSizeDp * scale).roundToInt().coerceIn(28, 96)))
                 }
                 EditorControl("SELECT", 5, settings.selectSizeDp, settings.selectOffsetXDp, settings.selectOffsetYDp, Modifier.align(Alignment.BottomCenter).offset(y = (-12).dp), selectedControl == "SELECT", density, { selectedControl = "SELECT" }) { dx, dy, scale ->
                     onSettingsChange(settings.copy(selectOffsetXDp = (settings.selectOffsetXDp + dx).roundToInt().coerceIn(-180, 180), selectOffsetYDp = (settings.selectOffsetYDp + dy).roundToInt().coerceIn(-180, 180), selectSizeDp = (settings.selectSizeDp * scale).roundToInt().coerceIn(28, 96)))
                 }
-                EditorControl("START", 5, settings.startSizeDp, settings.startOffsetXDp, settings.startOffsetYDp, Modifier.align(Alignment.BottomCenter).offset(x = 78.dp, y = (-12).dp), selectedControl == "START", density, { selectedControl = "START" }) { dx, dy, scale ->
+                EditorControl("START", 5, settings.startSizeDp, settings.startOffsetXDp, settings.startOffsetYDp, Modifier.align(Alignment.BottomCenter).offset(x = 60.dp, y = (-12).dp), selectedControl == "START", density, { selectedControl = "START" }) { dx, dy, scale ->
                     onSettingsChange(settings.copy(startOffsetXDp = (settings.startOffsetXDp + dx).roundToInt().coerceIn(-180, 180), startOffsetYDp = (settings.startOffsetYDp + dy).roundToInt().coerceIn(-180, 180), startSizeDp = (settings.startSizeDp * scale).roundToInt().coerceIn(28, 96)))
                 }
             }
