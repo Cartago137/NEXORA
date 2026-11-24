@@ -439,6 +439,7 @@ private fun NexoraApp(
     val context = LocalContext.current
     var touchControlSettings by remember { mutableStateOf(TouchControlSettingsStore.load(context)) }
     var showTouchEditor by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = showTouchEditor) { showTouchEditor = false }
     fun updateTouchControlSettings(updated: TouchControlSettings) {
         touchControlSettings = updated
         TouchControlSettingsStore.save(context, updated)
@@ -2461,15 +2462,16 @@ private fun EditorControl(label: String, cell: Int, sizeDp: Int, offsetXDp: Int,
 private fun HistoryScreen() {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        EmptyScreen(
-            eyebrow = stringResource(R.string.history_label),
-            title = stringResource(R.string.no_history_yet),
-            description = stringResource(R.string.history_empty_description),
-            symbol = "◷"
-        )
+        Box(modifier = Modifier.fillMaxWidth().heightIn(min = 360.dp), contentAlignment = Alignment.Center) {
+            EmptyScreen(
+                eyebrow = stringResource(R.string.history_label),
+                title = stringResource(R.string.no_history_yet),
+                description = stringResource(R.string.history_empty_description),
+                symbol = "◷"
+            )
+        }
         Spacer(Modifier.height(24.dp))
     }
 }
