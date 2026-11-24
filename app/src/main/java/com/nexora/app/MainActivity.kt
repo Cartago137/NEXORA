@@ -1028,7 +1028,7 @@ private fun PlayerScreen(
     var frameReady by remember { mutableStateOf(false) }
     var frameError by remember { mutableStateOf(false) }
     var frameVersion by remember { mutableIntStateOf(0) }
-    var emulationSpeed by remember { mutableFloatStateOf(1.0f) }
+    var emulationSpeed by remember { mutableFloatStateOf(controlSettings.defaultSpeed) }
     var showFunctionsMenu by remember { mutableStateOf(false) }
     var functionsBusy by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -1082,7 +1082,7 @@ private fun PlayerScreen(
                         check(it.state == AudioTrack.STATE_INITIALIZED)
                         // Keep the device output well below clipping while the
                         // core mixer is also attenuated.
-                        it.setVolume(0.60f)
+                        it.setVolume((controlSettings.audioVolumePercent / 100f).coerceIn(0f, 1f))
                         it.play()
                     }
             }
@@ -2570,9 +2570,42 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
                 }
                 Text("As alterações são salvas automaticamente e não modificam ROMs ou saves.", color = NexoraMuted, fontSize = 12.sp)
             }
-            "appearance" -> SettingsRow(stringResource(R.string.appearance_setting), stringResource(R.string.appearance_description))
-            "emulation" -> SettingsRow("Velocidade", "As opções de velocidade ficam disponíveis durante o jogo.")
-            "audio" -> SettingsRow("Áudio", "As opções sonoras serão organizadas aqui.")
+            "appearance" -> {
+                SettingsRow("Identidade visual", "O NEXORA mantém sua interface roxa com brilho. Mais opções visuais serão adicionadas sem alterar os controles.")
+            }
+            "emulation" -> {
+                Column(Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Velocidade padrão", color = NexoraText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Define a velocidade inicial dos jogos. Você também pode alterá-la durante a partida pelo menu MENU.", color = NexoraMuted, fontSize = 11.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        listOf(1.0f, 1.5f, 2.0f, 3.0f).forEach { speed ->
+                            TextButton(onClick = { onTouchSettingsChange(touchSettings.copy(defaultSpeed = speed)) }) {
+                                Text(
+                                    "${speed}x",
+                                    color = if (touchSettings.defaultSpeed == speed) NexoraPink else NexoraMuted,
+                                    fontWeight = if (touchSettings.defaultSpeed == speed) FontWeight.Bold else FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                    Text("Velocidade selecionada: ${touchSettings.defaultSpeed}x", color = NexoraPurple, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            "audio" -> {
+                Column(Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Volume do jogo", color = NexoraText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Slider(
+                            modifier = Modifier.weight(1f),
+                            value = touchSettings.audioVolumePercent.toFloat(),
+                            onValueChange = { onTouchSettingsChange(touchSettings.copy(audioVolumePercent = it.roundToInt().coerceIn(0, 100))) },
+                            valueRange = 0f..100f
+                        )
+                        Text("${touchSettings.audioVolumePercent}%", color = NexoraMuted, fontSize = 11.sp)
+                    }
+                    Text("O ajuste é aplicado ao áudio dos jogos e salvo automaticamente.", color = NexoraMuted, fontSize = 11.sp)
+                }
+            }
             else -> {
                 SettingsRow(stringResource(R.string.language_setting), stringResource(R.string.language_description))
                 SettingsRow(stringResource(R.string.about_setting), stringResource(R.string.about_description))
