@@ -2531,6 +2531,7 @@ private fun EmptyScreen(eyebrow: String, title: String, description: String, sym
 @Composable
 private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSettings, onTouchSettingsChange: (TouchControlSettings) -> Unit, onOpenTouchEditor: () -> Unit) {
     var selectedCategory by remember { mutableStateOf("main") }
+    var showResetControlsConfirmation by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -2567,7 +2568,14 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
                         Text(touchSettings.opacityPercent.toString() + "%", color = NexoraMuted, fontSize = 11.sp)
                     }
                     Text("A opacidade é independente do tamanho e da posição dos botões.", color = NexoraMuted, fontSize = 11.sp)
+                    Button(
+                        onClick = { showResetControlsConfirmation = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Restaurar padrão dos botões")
+                    }
                 }
+                Text("Restaura posição, tamanho e opacidade dos botões somente nesta orientação.", color = NexoraMuted, fontSize = 12.sp)
                 Text("As alterações são salvas automaticamente e não modificam ROMs ou saves.", color = NexoraMuted, fontSize = 12.sp)
             }
             "appearance" -> {
@@ -2612,6 +2620,39 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
             }
         }
         Spacer(Modifier.height(8.dp))
+    }
+
+    if (showResetControlsConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showResetControlsConfirmation = false },
+            title = { Text("Restaurar botões ao padrão?") },
+            text = {
+                Text("A posição, o tamanho e a opacidade dos controles desta orientação voltarão aos valores originais. A configuração da outra orientação, a velocidade e o áudio não serão alterados.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onTouchSettingsChange(
+                            TouchControlSettings(
+                                defaultSpeed = touchSettings.defaultSpeed,
+                                audioVolumePercent = touchSettings.audioVolumePercent
+                            )
+                        )
+                        showResetControlsConfirmation = false
+                    }
+                ) {
+                    Text("Restaurar", color = NexoraPink)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetControlsConfirmation = false }) {
+                    Text("Cancelar", color = NexoraMuted)
+                }
+            },
+            containerColor = NexoraPanel,
+            titleContentColor = NexoraText,
+            textContentColor = NexoraMuted
+        )
     }
 }
 
