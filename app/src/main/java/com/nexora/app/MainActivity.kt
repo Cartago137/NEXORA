@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -56,6 +57,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import com.nexora.app.link.LinkProtocol
@@ -67,6 +69,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
 import androidx.compose.ui.Modifier
@@ -82,6 +85,7 @@ import kotlin.math.abs
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
@@ -431,6 +435,11 @@ private fun NexoraApp(
     var gamePendingRemoval by remember { mutableStateOf<GameEntry?>(null) }
     var removalFailed by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    var touchControlSettings by remember { mutableStateOf(TouchControlSettingsStore.load(context)) }
+    fun updateTouchControlSettings(updated: TouchControlSettings) {
+        touchControlSettings = updated
+        TouchControlSettingsStore.save(context, updated)
+    }
     var showLinkDialog by remember { mutableStateOf(false) }
     var linkTransport by remember { mutableStateOf<WifiLinkTransport?>(null) }
     var linkMessage by remember { mutableStateOf<String?>(null) }
@@ -704,6 +713,7 @@ private fun NexoraApp(
                     PlayerScreen(
                         gameName = activeGameName!!,
                         saveStateKey = activeGameSaveKey ?: gameStateKey(activeGameName!!),
+                        controlSettings = touchControlSettings,
                         isAppInForeground = isAppInForeground,
                         isLinkConnected = linkTransport != null || linkBusy,
                         onOpenLink = {
@@ -904,7 +914,11 @@ private fun NexoraApp(
                         }
                     )
                     NexoraTab.HISTORY -> HistoryScreen()
-                    NexoraTab.SETTINGS -> SettingsScreen(nativeStatus)
+                    NexoraTab.SETTINGS -> SettingsScreen(
+                        nativeStatus = nativeStatus,
+                        controlSettings = touchControlSettings,
+                        onControlSettingsChange = ::updateTouchControlSettings
+                    )
                 }
             }
 
@@ -979,6 +993,7 @@ private fun NexoraApp(
 private fun PlayerScreen(
     gameName: String,
     saveStateKey: String,
+    controlSettings: TouchControlSettings,
     isAppInForeground: Boolean,
     isLinkConnected: Boolean,
     onOpenLink: () -> Unit,
@@ -1178,15 +1193,15 @@ private fun PlayerScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                NexoraControlShell(Modifier.width(164.dp).fillMaxHeight()) {
+                NexoraControlShell(Modifier.width(224.dp).fillMaxHeight()) {
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         if (!isGbFamily) {
                             Box(Modifier.align(Alignment.TopStart)) {
-                                GbaControl("L", 1 shl 9)
+                                GbaControl("L", 1 shl 9, shoulderSize = controlSettings.shoulderButtonSizeDp, opacity = controlSettings.opacityPercent / 100f)
                             }
                         }
                         Box(Modifier.align(Alignment.CenterStart)) {
-                            GbaDPad(sizeDp = 136)
+                            GbaDPad(sizeDp = controlSettings.dpadSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.dpadOffsetXDp, offsetYDp = controlSettings.dpadOffsetYDp)
                         }
                     }
                 }
@@ -1206,7 +1221,7 @@ private fun PlayerScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        GbaMenuControl(onClick = { showFunctionsMenu = true })
+                        GbaMenuControl(onClick = { showFunctionsMenu = true }, opacity = controlSettings.opacityPercent / 100f)
                         Spacer(Modifier.width(8.dp))
                         GbaControl("SELECT", 1 shl 2)
                         Spacer(Modifier.width(8.dp))
@@ -1214,20 +1229,20 @@ private fun PlayerScreen(
                     }
                 }
 
-                NexoraControlShell(Modifier.width(164.dp).fillMaxHeight()) {
+                NexoraControlShell(Modifier.width(220.dp).fillMaxHeight()) {
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         if (!isGbFamily) {
                             Box(Modifier.align(Alignment.TopEnd)) {
-                                GbaControl("R", 1 shl 8)
+                                GbaControl("R", 1 shl 8, shoulderSize = controlSettings.shoulderButtonSizeDp, opacity = controlSettings.opacityPercent / 100f)
                             }
                         }
                         Row(
-                            modifier = Modifier.align(Alignment.CenterEnd),
+                            modifier = Modifier.align(Alignment.CenterEnd).offset(x = controlSettings.actionOffsetXDp.dp, y = controlSettings.actionOffsetYDp.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            GbaControl("B", 1 shl 1, controlSize = 58)
-                            GbaControl("A", 1 shl 0, controlSize = 58)
+                            GbaControl("B", 1 shl 1, controlSize = controlSettings.actionButtonSizeDp, opacity = controlSettings.opacityPercent / 100f)
+                            GbaControl("A", 1 shl 0, controlSize = controlSettings.actionButtonSizeDp, opacity = controlSettings.opacityPercent / 100f)
                         }
                     }
                 }
@@ -1249,6 +1264,7 @@ private fun PlayerScreen(
                 GbaPortraitControlDeck(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                     showShoulderButtons = !isGbFamily,
+                    settings = controlSettings,
                     onMenu = { showFunctionsMenu = true }
                 )
             }
@@ -1583,11 +1599,13 @@ private fun NexoraTouchButton(
 }
 
 @Composable
-private fun GbaDPad(sizeDp: Int = 128) {
+private fun GbaDPad(sizeDp: Int = 184, opacity: Float = 1f, offsetXDp: Int = 0, offsetYDp: Int = 0) {
     var visualCell by remember { mutableIntStateOf(0) }
     Box(
         modifier = Modifier
             .size(sizeDp.dp)
+            .offset(x = offsetXDp.dp, y = offsetYDp.dp)
+            .alpha(opacity.coerceIn(0.35f, 1f))
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -1648,7 +1666,9 @@ private fun GbaControl(
     label: String,
     keyMask: Int,
     compact: Boolean = false,
-    controlSize: Int = 52
+    controlSize: Int = 52,
+    shoulderSize: Int = 68,
+    opacity: Float = 1f
 ) {
     val normalCell = when (label) {
         "A" -> 7
@@ -1660,7 +1680,7 @@ private fun GbaControl(
     val pressedCell = normalCell + 1
     val isRoundLabel = label == "SELECT" || label == "START"
     val visualSize = when (label) {
-        "L", "R" -> 68.dp
+        "L", "R" -> shoulderSize.dp
         "A", "B" -> controlSize.dp
         else -> 48.dp
     }
@@ -1672,7 +1692,7 @@ private fun GbaControl(
         NexoraTouchButton(
             normalCell = normalCell,
             pressedCell = pressedCell,
-            modifier = Modifier.size(visualSize),
+            modifier = Modifier.size(visualSize).alpha(opacity.coerceIn(0.35f, 1f)),
             keyMask = keyMask
         )
         if (isRoundLabel) {
@@ -1687,7 +1707,7 @@ private fun GbaControl(
 }
 
 @Composable
-private fun GbaMenuControl(onClick: () -> Unit) {
+private fun GbaMenuControl(onClick: () -> Unit, opacity: Float = 1f) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(0.dp)
@@ -1695,7 +1715,7 @@ private fun GbaMenuControl(onClick: () -> Unit) {
         NexoraTouchButton(
             normalCell = 5,
             pressedCell = 6,
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(48.dp).alpha(opacity.coerceIn(0.35f, 1f)),
             onClick = onClick
         )
         Text("MENU", color = Color(0xFFE9DDF8), fontSize = 9.sp, fontWeight = FontWeight.Bold)
@@ -1706,6 +1726,7 @@ private fun GbaMenuControl(onClick: () -> Unit) {
 private fun GbaPortraitControlDeck(
     modifier: Modifier = Modifier,
     showShoulderButtons: Boolean = true,
+    settings: TouchControlSettings = TouchControlSettings(),
     onMenu: () -> Unit
 ) {
     NexoraControlShell(modifier) {
@@ -1720,8 +1741,8 @@ private fun GbaPortraitControlDeck(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    GbaControl("L", 1 shl 9)
-                    GbaControl("R", 1 shl 8)
+                    GbaControl("L", 1 shl 9, shoulderSize = settings.shoulderButtonSizeDp, opacity = settings.opacityPercent / 100f)
+                    GbaControl("R", 1 shl 8, shoulderSize = settings.shoulderButtonSizeDp, opacity = settings.opacityPercent / 100f)
                 }
             }
 
@@ -1730,10 +1751,10 @@ private fun GbaPortraitControlDeck(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                GbaDPad()
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GbaControl("B", 1 shl 1, controlSize = 58)
-                    GbaControl("A", 1 shl 0, controlSize = 58)
+                GbaDPad(sizeDp = settings.dpadSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.dpadOffsetXDp, offsetYDp = settings.dpadOffsetYDp)
+                Row(modifier = Modifier.offset(x = settings.actionOffsetXDp.dp, y = settings.actionOffsetYDp.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GbaControl("B", 1 shl 1, controlSize = settings.actionButtonSizeDp, opacity = settings.opacityPercent / 100f)
+                    GbaControl("A", 1 shl 0, controlSize = settings.actionButtonSizeDp, opacity = settings.opacityPercent / 100f)
                 }
             }
 
@@ -1741,9 +1762,9 @@ private fun GbaPortraitControlDeck(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                GbaMenuControl(onClick = onMenu)
-                GbaControl("SELECT", 1 shl 2)
-                GbaControl("START", 1 shl 3)
+                GbaMenuControl(onClick = onMenu, opacity = settings.opacityPercent / 100f)
+                GbaControl("SELECT", 1 shl 2, opacity = settings.opacityPercent / 100f)
+                GbaControl("START", 1 shl 3, opacity = settings.opacityPercent / 100f)
             }
         }
     }
@@ -1881,8 +1902,9 @@ private fun LibraryScreen(
                 .thenBy { it.name.lowercase(Locale.ROOT) }
         )
 
+    val pageNeedsScroll = games.isEmpty() || visibleGames.isEmpty()
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxSize().then(if (pageNeedsScroll) Modifier.verticalScroll(rememberScrollState()) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
@@ -2089,7 +2111,7 @@ private fun LibraryScreen(
             )
         } else if (visibleGames.isEmpty()) {
             Box(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(stringResource(R.string.no_games_in_view), color = NexoraMuted)
@@ -2376,15 +2398,32 @@ private fun EmptyScreen(eyebrow: String, title: String, description: String, sym
 }
 
 @Composable
-private fun SettingsScreen(nativeStatus: Int) {
+private fun SettingsScreen(nativeStatus: Int, controlSettings: TouchControlSettings, onControlSettingsChange: (TouchControlSettings) -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(stringResource(R.string.settings_label), color = NexoraText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.settings_intro), color = NexoraMuted, fontSize = 12.sp)
         SettingsRow(stringResource(R.string.appearance_setting), stringResource(R.string.appearance_description))
         SettingsRow(stringResource(R.string.language_setting), stringResource(R.string.language_description))
-        SettingsRow(stringResource(R.string.controls_setting), stringResource(R.string.controls_description))
+        Column(modifier = Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(stringResource(R.string.controls_setting), color = NexoraText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.controls_editor_description), color = NexoraMuted, fontSize = 11.sp)
+            ControlSettingSlider(stringResource(R.string.dpad_size_setting), controlSettings.dpadSizeDp, 144..200, " dp") { onControlSettingsChange(controlSettings.copy(dpadSizeDp = it)) }
+            ControlSettingSlider(stringResource(R.string.action_size_setting), controlSettings.actionButtonSizeDp, 48..92, " dp") { onControlSettingsChange(controlSettings.copy(actionButtonSizeDp = it)) }
+            ControlSettingSlider(stringResource(R.string.shoulder_size_setting), controlSettings.shoulderButtonSizeDp, 48..92, " dp") { onControlSettingsChange(controlSettings.copy(shoulderButtonSizeDp = it)) }
+            ControlSettingSlider(stringResource(R.string.controls_opacity_setting), controlSettings.opacityPercent, 35..100, "%") { onControlSettingsChange(controlSettings.copy(opacityPercent = it)) }
+            Text(stringResource(R.string.dpad_position_setting), color = NexoraText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            ControlSettingSlider(stringResource(R.string.horizontal_position_setting), controlSettings.dpadOffsetXDp, -36..36, " dp") { onControlSettingsChange(controlSettings.copy(dpadOffsetXDp = it)) }
+            ControlSettingSlider(stringResource(R.string.vertical_position_setting), controlSettings.dpadOffsetYDp, -36..36, " dp") { onControlSettingsChange(controlSettings.copy(dpadOffsetYDp = it)) }
+            Text(stringResource(R.string.action_position_setting), color = NexoraText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            ControlSettingSlider(stringResource(R.string.horizontal_position_setting), controlSettings.actionOffsetXDp, -36..36, " dp") { onControlSettingsChange(controlSettings.copy(actionOffsetXDp = it)) }
+            ControlSettingSlider(stringResource(R.string.vertical_position_setting), controlSettings.actionOffsetYDp, -36..36, " dp") { onControlSettingsChange(controlSettings.copy(actionOffsetYDp = it)) }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { onControlSettingsChange(TouchControlSettings()) }) { Text(stringResource(R.string.reset_controls), color = NexoraPink) }
+            }
+        }
         SettingsRow(stringResource(R.string.about_setting), stringResource(R.string.about_description))
         Spacer(Modifier.height(4.dp))
         Text(stringResource(R.string.technical_status), color = NexoraPink, fontSize = 10.sp, letterSpacing = 1.5.sp)
@@ -2395,6 +2434,17 @@ private fun SettingsScreen(nativeStatus: Int) {
             else -> stringResource(R.string.native_bridge_unavailable)
         }
         Text(statusText, color = NexoraMuted, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun ControlSettingSlider(label: String, value: Int, range: IntRange, unit: String, onValueChange: (Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, color = NexoraMuted, fontSize = 11.sp)
+            Text("$value$unit", color = NexoraText, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Slider(value = value.toFloat(), onValueChange = { onValueChange(it.roundToInt().coerceIn(range)) }, valueRange = range.first.toFloat()..range.last.toFloat())
     }
 }
 
@@ -2432,6 +2482,7 @@ private fun SideNavigation(selectedTab: NexoraTab, onSelect: (NexoraTab) -> Unit
             .width(76.dp)
             .fillMaxHeight()
             .background(NexoraPanel.copy(alpha = 0.82f))
+            .verticalScroll(rememberScrollState())
             .padding(vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(18.dp)

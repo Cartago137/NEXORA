@@ -72,3 +72,15 @@ A phase is complete only after implementation, review, automated tests and the r
 ## Release discipline
 
 Keep PR #33 as a draft until all applicable automated and physical acceptance tests are complete. Never merge into `main` without the user's explicit approval.
+
+
+## Phase 3A — Personalizable touch controls and settings (0.4.5)
+
+- [x] Persist touch-control preferences independently from ROM and save data.
+- [x] Expose D-pad, A/B, L/R size controls.
+- [x] Expose D-pad and A/B-group position controls.
+- [x] Expose overall control opacity and reset-to-default.
+- [x] Apply the same preferences in portrait and landscape.
+- [ ] Physical acceptance on Motorola G54: verify D-pad size, touch hit area, layout bounds and saved preferences after app restart.
+- [ ] Extend grouped positioning into free per-button drag placement and multiple named layouts.
+- [ ] Validate Library, History and Settings navigation/scrolling in short landscape viewports.

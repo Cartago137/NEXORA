@@ -1,4 +1,16 @@
 <resources>
+    <string name="settings_intro">Configura tu experiencia NEXORA y ajusta los controles a tu manera.</string>
+    <string name="controls_description">Personaliza el tamaño, la posición y la transparencia de los controles en pantalla.</string>
+    <string name="controls_editor_description">Ajusta la cruceta y los botones. Los cambios se guardan en este dispositivo y se aplican en vertical y horizontal.</string>
+    <string name="dpad_size_setting">Tamaño de la cruceta</string>
+    <string name="action_size_setting">Tamaño de los botones A y B</string>
+    <string name="shoulder_size_setting">Tamaño de los botones L y R</string>
+    <string name="controls_opacity_setting">Transparencia de los controles</string>
+    <string name="dpad_position_setting">Posición de la cruceta</string>
+    <string name="action_position_setting">Posición de los botones A y B</string>
+    <string name="horizontal_position_setting">Posición horizontal</string>
+    <string name="vertical_position_setting">Posición vertical</string>
+    <string name="reset_controls">Restaurar controles predeterminados</string>
     <string name="home_welcome">BIENVENIDO DE NUEVO</string>
     <string name="home_continue">Continúa tu aventura</string>
     <string name="home_subtitle_new">Tu universo de juegos te está esperando.</string>
