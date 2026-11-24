@@ -673,7 +673,7 @@ private fun NexoraApp(
     Surface(modifier = Modifier.fillMaxSize(), color = NexoraBackground) {
         Row(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-            if (activeGameName == null) {
+            if (activeGameName == null && !showTouchEditor) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2409,8 +2409,8 @@ private fun TouchLayoutEditorScreen(settings: TouchControlSettings, onSettingsCh
         }
         onSettingsChange(next)
     }
-    Column(Modifier.fillMaxSize().background(NexoraBackground).padding(10.dp)) {
-        BoxWithConstraints(Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)).background(Color(0xFF160D23)).border(1.dp,Color(0xFF51366F),RoundedCornerShape(20.dp))) {
+    Column(Modifier.fillMaxSize().background(NexoraBackground)) {
+        BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF160D23))) {
             if(maxWidth>maxHeight) {
                 Row(Modifier.fillMaxSize().padding(8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
                     NexoraControlShell(Modifier.width(224.dp).fillMaxHeight()) {
