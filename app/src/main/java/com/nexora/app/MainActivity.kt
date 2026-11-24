@@ -2420,8 +2420,8 @@ private fun TouchLayoutEditorScreen(settings: TouchControlSettings, onSettingsCh
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF160D23)).border(1.dp,Color(0xFF51366F),RoundedCornerShape(20.dp))) {
             if(maxWidth>maxHeight) {
-                Row(Modifier.fillMaxSize().padding(6.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
-                    NexoraControlShell(Modifier.width(164.dp).fillMaxHeight()) {
+                Row(Modifier.fillMaxSize().padding(8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
+                    NexoraControlShell(Modifier.width(224.dp).fillMaxHeight()) {
                         Box(Modifier.fillMaxSize().padding(6.dp)) {
                             EditorControl("L",11,settings.lSizeDp,settings.lOffsetXDp,settings.lOffsetYDp,Modifier.align(Alignment.TopStart).offset(4.dp,4.dp),selected=="L",density,opacity,{selected="L"}) {dx,dy,z->transform("L",dx,dy,z)}
                             EditorControl("D-pad",0,settings.dpadSizeDp,settings.dpadOffsetXDp,settings.dpadOffsetYDp,Modifier.align(Alignment.CenterStart),selected=="D-pad",density,opacity,{selected="D-pad"}) {dx,dy,z->transform("D-pad",dx,dy,z)}
@@ -2441,7 +2441,7 @@ private fun TouchLayoutEditorScreen(settings: TouchControlSettings, onSettingsCh
                             EditorControl("START",5,settings.startSizeDp,settings.startOffsetXDp,settings.startOffsetYDp,Modifier,selected=="START",density,opacity,{selected="START"}) {dx,dy,z->transform("START",dx,dy,z)}
                         }
                     }
-                    NexoraControlShell(Modifier.width(164.dp).fillMaxHeight()) {
+                    NexoraControlShell(Modifier.width(224.dp).fillMaxHeight()) {
                         Box(Modifier.fillMaxSize().padding(6.dp)) {
                             EditorControl("R",13,settings.rSizeDp,settings.rOffsetXDp,settings.rOffsetYDp,Modifier.align(Alignment.TopEnd).offset((-4).dp,4.dp),selected=="R",density,opacity,{selected="R"}) {dx,dy,z->transform("R",dx,dy,z)}
                             Row(Modifier.align(Alignment.CenterEnd),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically) {
