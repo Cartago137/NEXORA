@@ -23,7 +23,9 @@ data class TouchControlSettings(
     val rSizeDp: Int = 72, val rOffsetXDp: Int = 0, val rOffsetYDp: Int = 0,
     val menuSizeDp: Int = 48, val menuOffsetXDp: Int = 0, val menuOffsetYDp: Int = 0,
     val selectSizeDp: Int = 48, val selectOffsetXDp: Int = 0, val selectOffsetYDp: Int = 0,
-    val startSizeDp: Int = 48, val startOffsetXDp: Int = 0, val startOffsetYDp: Int = 0
+    val startSizeDp: Int = 48, val startOffsetXDp: Int = 0, val startOffsetYDp: Int = 0,
+    val defaultSpeed: Float = 1.0f,
+    val audioVolumePercent: Int = 100
 )
 
 object TouchControlSettingsStore {
@@ -51,7 +53,9 @@ object TouchControlSettingsStore {
             rSizeDp = p.getInt("r_size", p.getInt("shoulder_size", 72)).coerceIn(36, 120), rOffsetXDp = p.getInt("r_x", p.getInt("shoulder_x", 0)).coerceIn(-180, 180), rOffsetYDp = p.getInt("r_y", p.getInt("shoulder_y", 0)).coerceIn(-180, 180),
             menuSizeDp = p.getInt("menu_size", p.getInt("system_size", 48)).coerceIn(28, 96), menuOffsetXDp = p.getInt("menu_x", p.getInt("system_x", 0)).coerceIn(-180, 180), menuOffsetYDp = p.getInt("menu_y", p.getInt("system_y", 0)).coerceIn(-180, 180),
             selectSizeDp = p.getInt("select_size", p.getInt("system_size", 48)).coerceIn(28, 96), selectOffsetXDp = p.getInt("select_x", p.getInt("system_x", 0)).coerceIn(-180, 180), selectOffsetYDp = p.getInt("select_y", p.getInt("system_y", 0)).coerceIn(-180, 180),
-            startSizeDp = p.getInt("start_size", p.getInt("system_size", 48)).coerceIn(28, 96), startOffsetXDp = p.getInt("start_x", p.getInt("system_x", 0)).coerceIn(-180, 180), startOffsetYDp = p.getInt("start_y", p.getInt("system_y", 0)).coerceIn(-180, 180)
+            startSizeDp = p.getInt("start_size", p.getInt("system_size", 48)).coerceIn(28, 96), startOffsetXDp = p.getInt("start_x", p.getInt("system_x", 0)).coerceIn(-180, 180), startOffsetYDp = p.getInt("start_y", p.getInt("system_y", 0)).coerceIn(-180, 180),
+            defaultSpeed = p.getFloat("default_speed", 1.0f).takeIf { it in listOf(1.0f, 1.5f, 2.0f, 3.0f) } ?: 1.0f,
+            audioVolumePercent = p.getInt("audio_volume", 100).coerceIn(0, 100)
         )
     }
 
@@ -77,6 +81,8 @@ object TouchControlSettingsStore {
             .putInt("menu_size", s.menuSizeDp.coerceIn(28, 96)).putInt("menu_x", s.menuOffsetXDp.coerceIn(-180, 180)).putInt("menu_y", s.menuOffsetYDp.coerceIn(-180, 180))
             .putInt("select_size", s.selectSizeDp.coerceIn(28, 96)).putInt("select_x", s.selectOffsetXDp.coerceIn(-180, 180)).putInt("select_y", s.selectOffsetYDp.coerceIn(-180, 180))
             .putInt("start_size", s.startSizeDp.coerceIn(28, 96)).putInt("start_x", s.startOffsetXDp.coerceIn(-180, 180)).putInt("start_y", s.startOffsetYDp.coerceIn(-180, 180))
+            .putFloat("default_speed", s.defaultSpeed.takeIf { it in listOf(1.0f, 1.5f, 2.0f, 3.0f) } ?: 1.0f)
+            .putInt("audio_volume", s.audioVolumePercent.coerceIn(0, 100))
             .apply()
     }
 }
