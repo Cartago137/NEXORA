@@ -118,3 +118,8 @@ The current direct remote SIO implementation uses non-blocking polling at the ho
 - Overall opacity is configured separately in Settings > Controls.
 - The approved control atlas and isolated touch-preferences store remain unchanged; ROMs and saves are not modified.
 - Physical-device acceptance on the Motorola G54 remains required in both orientations.
+
+
+## 12. Minimal gameplay-like control editor (0.4.8)
+
+The control editor is a full-screen gameplay-like surface. It omits the editor title, in-preview NEXORA branding, reset action, and selection/instruction captions. The central game viewport is plain black. System back navigation exits the editor; touch layout preferences continue to save automatically.

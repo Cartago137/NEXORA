@@ -2409,16 +2409,8 @@ private fun TouchLayoutEditorScreen(settings: TouchControlSettings, onSettingsCh
         }
         onSettingsChange(next)
     }
-    Column(Modifier.fillMaxSize().background(NexoraBackground).padding(10.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-            TextButton(onClick=onBack) { Text("‹ Voltar",color=NexoraPurple) }
-            Column(Modifier.weight(1f)) {
-                Text("Personalizar botões",color=NexoraText,fontSize=18.sp,fontWeight=FontWeight.Bold)
-                Text("Arraste para mover • pinça para redimensionar",color=NexoraMuted,fontSize=10.sp)
-            }
-            TextButton(onClick={onSettingsChange(TouchControlSettings(opacityPercent=settings.opacityPercent))}) { Text("Redefinir",color=NexoraPink,fontSize=11.sp) }
-        }
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF160D23)).border(1.dp,Color(0xFF51366F),RoundedCornerShape(20.dp))) {
+    Column(Modifier.fillMaxSize().background(NexoraBackground).padding(10.dp)) {
+        BoxWithConstraints(Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)).background(Color(0xFF160D23)).border(1.dp,Color(0xFF51366F),RoundedCornerShape(20.dp))) {
             if(maxWidth>maxHeight) {
                 Row(Modifier.fillMaxSize().padding(8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
                     NexoraControlShell(Modifier.width(224.dp).fillMaxHeight()) {
@@ -2429,9 +2421,7 @@ private fun TouchLayoutEditorScreen(settings: TouchControlSettings, onSettingsCh
                     }
                     Column(Modifier.weight(1f).fillMaxHeight(),horizontalAlignment=Alignment.CenterHorizontally) {
                         Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
-                            Box(Modifier.fillMaxWidth(.82f).aspectRatio(1.5f).clip(RoundedCornerShape(9.dp)).background(Color(0xFF08070B)).border(1.dp,NexoraPurple.copy(alpha=.55f),RoundedCornerShape(9.dp)),contentAlignment=Alignment.Center) {
-                                Text("NEXORA",color=NexoraPurple.copy(alpha=.45f),fontSize=12.sp,fontWeight=FontWeight.Black,letterSpacing=2.sp)
-                            }
+                            Box(Modifier.fillMaxWidth(.82f).aspectRatio(1.5f).clip(RoundedCornerShape(9.dp)).background(Color.Black))
                         }
                         Row(Modifier.fillMaxWidth().padding(bottom=4.dp),horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically) {
                             EditorControl("MENU",5,settings.menuSizeDp,settings.menuOffsetXDp,settings.menuOffsetYDp,Modifier,selected=="MENU",density,opacity,{selected="MENU"}) {dx,dy,z->transform("MENU",dx,dy,z)}
@@ -2454,9 +2444,7 @@ private fun TouchLayoutEditorScreen(settings: TouchControlSettings, onSettingsCh
             } else {
                 Column(Modifier.fillMaxSize().padding(6.dp),verticalArrangement=Arrangement.SpaceBetween,horizontalAlignment=Alignment.CenterHorizontally) {
                     Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
-                        Box(Modifier.fillMaxWidth(.62f).aspectRatio(1.5f).clip(RoundedCornerShape(9.dp)).background(Color(0xFF08070B)).border(1.dp,NexoraPurple.copy(alpha=.55f),RoundedCornerShape(9.dp)),contentAlignment=Alignment.Center) {
-                            Text("NEXORA",color=NexoraPurple.copy(alpha=.45f),fontSize=12.sp,fontWeight=FontWeight.Black,letterSpacing=2.sp)
-                        }
+                        Box(Modifier.fillMaxWidth(.62f).aspectRatio(1.5f).clip(RoundedCornerShape(9.dp)).background(Color.Black))
                     }
                     NexoraControlShell(Modifier.fillMaxWidth()) {
                         Column(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=8.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(6.dp)) {
@@ -2481,8 +2469,6 @@ private fun TouchLayoutEditorScreen(settings: TouchControlSettings, onSettingsCh
                 }
             }
         }
-        Text("Selecionado: $selected",color=NexoraPurple,fontSize=12.sp,fontWeight=FontWeight.SemiBold)
-        Text("As alterações são aplicadas e salvas automaticamente.",color=NexoraMuted,fontSize=10.sp)
     }
 }
 

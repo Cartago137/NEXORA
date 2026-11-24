@@ -95,6 +95,7 @@ Keep PR #33 as a draft until all applicable automated and physical acceptance te
 - [x] Split Settings into focused category screens and move touch customization into its own editor screen.
 - [x] Add vertical scrolling to Library and History for compact landscape layouts.
 - [x] Rebuild the editor preview using the same portrait/landscape control grouping as the player screen.
+- [x] Make the control editor a clean, full-screen gameplay-like surface without a title, brand mark, reset action, or instructional/status captions.
 - [x] Move opacity into Settings > Controls, separate from position and size.
 - [ ] Validate every control's editor-to-game position and size on the Motorola G54 in portrait and landscape.
 - [ ] Validate Library and History scrolling with empty, filtered and populated content in landscape.
