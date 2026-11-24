@@ -32,3 +32,47 @@ Total: **15 PNG files**.
 2. Map each asset to its intended control and pressed state.
 3. Integrate the approved assets on the development branch only.
 4. Build and test the controls on the target Android device, including touch feedback and continuous D-pad gestures.
+
+
+## Existing control-rendering architecture reviewed
+
+The current Android player renders controls from the packaged resource
+`app/src/main/res/drawable-nodpi/nexora_controls_atlas.webp` through
+`NexoraAtlasSprite` in `MainActivity.kt`. The atlas is currently read as a
+5-column by 3-row grid of 96×96 cells:
+
+| Cell | Existing use |
+|---:|---|
+| 0 | D-pad neutral |
+| 1–4 | D-pad up, down, left and right |
+| 5–6 | MENU normal / pressed |
+| 7–8 | A normal / pressed |
+| 9–10 | B normal / pressed |
+| 11–12 | L normal / pressed |
+| 13–14 | R normal / pressed |
+
+The live D-pad updates its visual state while the pointer moves and retains
+continuous direction changes/diagonals. The button component switches between
+normal and pressed cells while maintaining the native key-down/key-up calls.
+The visual editor currently previews the same atlas cells.
+
+## Integration approach
+
+The uploaded standalone PNGs should be integrated only after inspection. The
+eventual implementation should preserve the existing touch hit areas, key masks,
+pointer lifecycle, drag-to-change-direction behavior, diagonals, editor sizing,
+position/opacity preferences, and portrait/landscape layouts. Only the visual
+asset source and its state mapping should change unless a separately reviewed
+technical need is found.
+
+Do not flatten the individual PNGs into a new atlas or alter their proportions
+until their actual dimensions, transparent padding and visual alignment have
+been inspected. Keep the current WebP atlas as a safe fallback during
+development until the replacement is verified.
+
+## Current review limitation
+
+Repository metadata confirms the 15 PNG paths and their byte sizes, but the
+available GitHub file reader cannot decode or return binary PNG contents.
+Therefore image dimensions, alpha channels and visual appearance remain
+**unverified**. No sprite has been changed in the Android app.
