@@ -1207,7 +1207,7 @@ private fun PlayerScreen(
                 NexoraControlShell(Modifier.width(224.dp).fillMaxHeight()) {
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         if (!isGbFamily) {
-                            Box(Modifier.align(Alignment.TopStart).offset(x = controlSettings.shoulderOffsetXDp.dp, y = controlSettings.shoulderOffsetYDp.dp)) {
+                            Box(Modifier.align(Alignment.TopStart)) {
                                 GbaControl("L", 1 shl 9, shoulderSize = controlSettings.lSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.lOffsetXDp, offsetYDp = controlSettings.lOffsetYDp)
                             }
                         }
@@ -1228,7 +1228,7 @@ private fun PlayerScreen(
                         GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio)
                     }
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp).offset(x = controlSettings.systemOffsetXDp.dp, y = controlSettings.systemOffsetYDp.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1243,12 +1243,12 @@ private fun PlayerScreen(
                 NexoraControlShell(Modifier.width(224.dp).fillMaxHeight()) {
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         if (!isGbFamily) {
-                            Box(Modifier.align(Alignment.TopEnd).offset(x = controlSettings.shoulderOffsetXDp.dp, y = controlSettings.shoulderOffsetYDp.dp)) {
+                            Box(Modifier.align(Alignment.TopEnd)) {
                                 GbaControl("R", 1 shl 8, shoulderSize = controlSettings.rSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.rOffsetXDp, offsetYDp = controlSettings.rOffsetYDp)
                             }
                         }
                         Row(
-                            modifier = Modifier.align(Alignment.CenterEnd).offset(x = controlSettings.actionOffsetXDp.dp, y = controlSettings.actionOffsetYDp.dp),
+                            modifier = Modifier.align(Alignment.CenterEnd),
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -1753,7 +1753,7 @@ private fun GbaPortraitControlDeck(
         ) {
             if (showShoulderButtons) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).offset(x = settings.shoulderOffsetXDp.dp, y = settings.shoulderOffsetYDp.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1768,14 +1768,14 @@ private fun GbaPortraitControlDeck(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 GbaDPad(sizeDp = settings.dpadSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.dpadOffsetXDp, offsetYDp = settings.dpadOffsetYDp)
-                Row(modifier = Modifier.offset(x = settings.actionOffsetXDp.dp, y = settings.actionOffsetYDp.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GbaControl("B", 1 shl 1, controlSize = settings.bSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.bOffsetXDp, offsetYDp = settings.bOffsetYDp)
                     GbaControl("A", 1 shl 0, controlSize = settings.aSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.aOffsetXDp, offsetYDp = settings.aOffsetYDp)
                 }
             }
 
             Row(
-                modifier = Modifier.offset(x = settings.systemOffsetXDp.dp, y = settings.systemOffsetYDp.dp),
+                modifier = Modifier,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
