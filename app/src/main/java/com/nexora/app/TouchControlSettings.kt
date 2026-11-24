@@ -2,7 +2,7 @@ package com.nexora.app
 
 import android.content.Context
 
-/** User-adjustable touch layout preferences, stored separately from game data. */
+/** Touch layout preferences are isolated from ROM metadata and all game save data. */
 data class TouchControlSettings(
     val dpadSizeDp: Int = 184,
     val actionButtonSizeDp: Int = 70,
@@ -16,7 +16,14 @@ data class TouchControlSettings(
     val shoulderOffsetXDp: Int = 0,
     val shoulderOffsetYDp: Int = 0,
     val systemOffsetXDp: Int = 0,
-    val systemOffsetYDp: Int = 0
+    val systemOffsetYDp: Int = 0,
+    val aSizeDp: Int = 70, val aOffsetXDp: Int = 0, val aOffsetYDp: Int = 0,
+    val bSizeDp: Int = 70, val bOffsetXDp: Int = 0, val bOffsetYDp: Int = 0,
+    val lSizeDp: Int = 72, val lOffsetXDp: Int = 0, val lOffsetYDp: Int = 0,
+    val rSizeDp: Int = 72, val rOffsetXDp: Int = 0, val rOffsetYDp: Int = 0,
+    val menuSizeDp: Int = 48, val menuOffsetXDp: Int = 0, val menuOffsetYDp: Int = 0,
+    val selectSizeDp: Int = 48, val selectOffsetXDp: Int = 0, val selectOffsetYDp: Int = 0,
+    val startSizeDp: Int = 48, val startOffsetXDp: Int = 0, val startOffsetYDp: Int = 0
 )
 
 object TouchControlSettingsStore {
@@ -25,37 +32,51 @@ object TouchControlSettingsStore {
     fun load(context: Context): TouchControlSettings {
         val p = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return TouchControlSettings(
-            dpadSizeDp = p.getInt("dpad_size", 184).coerceIn(144, 200),
-            actionButtonSizeDp = p.getInt("action_size", 70).coerceIn(48, 92),
-            shoulderButtonSizeDp = p.getInt("shoulder_size", 72).coerceIn(48, 92),
-            systemButtonSizeDp = p.getInt("system_size", 48).coerceIn(36, 72),
-            opacityPercent = p.getInt("opacity", 100).coerceIn(35, 100),
-            dpadOffsetXDp = p.getInt("dpad_x", 0).coerceIn(-36, 36),
-            dpadOffsetYDp = p.getInt("dpad_y", 0).coerceIn(-36, 36),
-            actionOffsetXDp = p.getInt("action_x", 0).coerceIn(-36, 36),
-            actionOffsetYDp = p.getInt("action_y", 0).coerceIn(-36, 36),
-            shoulderOffsetXDp = p.getInt("shoulder_x", 0).coerceIn(-36, 36),
-            shoulderOffsetYDp = p.getInt("shoulder_y", 0).coerceIn(-36, 36),
-            systemOffsetXDp = p.getInt("system_x", 0).coerceIn(-36, 36),
-            systemOffsetYDp = p.getInt("system_y", 0).coerceIn(-36, 36)
+            dpadSizeDp = p.getInt("dpad_size", 184).coerceIn(100, 240),
+            actionButtonSizeDp = p.getInt("action_size", 70).coerceIn(36, 120),
+            shoulderButtonSizeDp = p.getInt("shoulder_size", 72).coerceIn(36, 120),
+            systemButtonSizeDp = p.getInt("system_size", 48).coerceIn(28, 96),
+            opacityPercent = p.getInt("opacity", 100).coerceIn(20, 100),
+            dpadOffsetXDp = p.getInt("dpad_x", 0).coerceIn(-180, 180),
+            dpadOffsetYDp = p.getInt("dpad_y", 0).coerceIn(-180, 180),
+            actionOffsetXDp = p.getInt("action_x", 0).coerceIn(-180, 180),
+            actionOffsetYDp = p.getInt("action_y", 0).coerceIn(-180, 180),
+            shoulderOffsetXDp = p.getInt("shoulder_x", 0).coerceIn(-180, 180),
+            shoulderOffsetYDp = p.getInt("shoulder_y", 0).coerceIn(-180, 180),
+            systemOffsetXDp = p.getInt("system_x", 0).coerceIn(-180, 180),
+            systemOffsetYDp = p.getInt("system_y", 0).coerceIn(-180, 180),
+            aSizeDp = p.getInt("a_size", 70).coerceIn(36, 120), aOffsetXDp = p.getInt("a_x", 0).coerceIn(-180, 180), aOffsetYDp = p.getInt("a_y", 0).coerceIn(-180, 180),
+            bSizeDp = p.getInt("b_size", 70).coerceIn(36, 120), bOffsetXDp = p.getInt("b_x", 0).coerceIn(-180, 180), bOffsetYDp = p.getInt("b_y", 0).coerceIn(-180, 180),
+            lSizeDp = p.getInt("l_size", 72).coerceIn(36, 120), lOffsetXDp = p.getInt("l_x", 0).coerceIn(-180, 180), lOffsetYDp = p.getInt("l_y", 0).coerceIn(-180, 180),
+            rSizeDp = p.getInt("r_size", 72).coerceIn(36, 120), rOffsetXDp = p.getInt("r_x", 0).coerceIn(-180, 180), rOffsetYDp = p.getInt("r_y", 0).coerceIn(-180, 180),
+            menuSizeDp = p.getInt("menu_size", 48).coerceIn(28, 96), menuOffsetXDp = p.getInt("menu_x", 0).coerceIn(-180, 180), menuOffsetYDp = p.getInt("menu_y", 0).coerceIn(-180, 180),
+            selectSizeDp = p.getInt("select_size", 48).coerceIn(28, 96), selectOffsetXDp = p.getInt("select_x", 0).coerceIn(-180, 180), selectOffsetYDp = p.getInt("select_y", 0).coerceIn(-180, 180),
+            startSizeDp = p.getInt("start_size", 48).coerceIn(28, 96), startOffsetXDp = p.getInt("start_x", 0).coerceIn(-180, 180), startOffsetYDp = p.getInt("start_y", 0).coerceIn(-180, 180)
         )
     }
 
     fun save(context: Context, s: TouchControlSettings) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putInt("dpad_size", s.dpadSizeDp.coerceIn(144, 200))
-            .putInt("action_size", s.actionButtonSizeDp.coerceIn(48, 92))
-            .putInt("shoulder_size", s.shoulderButtonSizeDp.coerceIn(48, 92))
-            .putInt("system_size", s.systemButtonSizeDp.coerceIn(36, 72))
-            .putInt("opacity", s.opacityPercent.coerceIn(35, 100))
-            .putInt("dpad_x", s.dpadOffsetXDp.coerceIn(-36, 36))
-            .putInt("dpad_y", s.dpadOffsetYDp.coerceIn(-36, 36))
-            .putInt("action_x", s.actionOffsetXDp.coerceIn(-36, 36))
-            .putInt("action_y", s.actionOffsetYDp.coerceIn(-36, 36))
-            .putInt("shoulder_x", s.shoulderOffsetXDp.coerceIn(-36, 36))
-            .putInt("shoulder_y", s.shoulderOffsetYDp.coerceIn(-36, 36))
-            .putInt("system_x", s.systemOffsetXDp.coerceIn(-36, 36))
-            .putInt("system_y", s.systemOffsetYDp.coerceIn(-36, 36))
+            .putInt("dpad_size", s.dpadSizeDp.coerceIn(100, 240))
+            .putInt("action_size", s.actionButtonSizeDp.coerceIn(36, 120))
+            .putInt("shoulder_size", s.shoulderButtonSizeDp.coerceIn(36, 120))
+            .putInt("system_size", s.systemButtonSizeDp.coerceIn(28, 96))
+            .putInt("opacity", s.opacityPercent.coerceIn(20, 100))
+            .putInt("dpad_x", s.dpadOffsetXDp.coerceIn(-180, 180))
+            .putInt("dpad_y", s.dpadOffsetYDp.coerceIn(-180, 180))
+            .putInt("action_x", s.actionOffsetXDp.coerceIn(-180, 180))
+            .putInt("action_y", s.actionOffsetYDp.coerceIn(-180, 180))
+            .putInt("shoulder_x", s.shoulderOffsetXDp.coerceIn(-180, 180))
+            .putInt("shoulder_y", s.shoulderOffsetYDp.coerceIn(-180, 180))
+            .putInt("system_x", s.systemOffsetXDp.coerceIn(-180, 180))
+            .putInt("system_y", s.systemOffsetYDp.coerceIn(-180, 180))
+            .putInt("a_size", s.aSizeDp.coerceIn(36, 120)).putInt("a_x", s.aOffsetXDp.coerceIn(-180, 180)).putInt("a_y", s.aOffsetYDp.coerceIn(-180, 180))
+            .putInt("b_size", s.bSizeDp.coerceIn(36, 120)).putInt("b_x", s.bOffsetXDp.coerceIn(-180, 180)).putInt("b_y", s.bOffsetYDp.coerceIn(-180, 180))
+            .putInt("l_size", s.lSizeDp.coerceIn(36, 120)).putInt("l_x", s.lOffsetXDp.coerceIn(-180, 180)).putInt("l_y", s.lOffsetYDp.coerceIn(-180, 180))
+            .putInt("r_size", s.rSizeDp.coerceIn(36, 120)).putInt("r_x", s.rOffsetXDp.coerceIn(-180, 180)).putInt("r_y", s.rOffsetYDp.coerceIn(-180, 180))
+            .putInt("menu_size", s.menuSizeDp.coerceIn(28, 96)).putInt("menu_x", s.menuOffsetXDp.coerceIn(-180, 180)).putInt("menu_y", s.menuOffsetYDp.coerceIn(-180, 180))
+            .putInt("select_size", s.selectSizeDp.coerceIn(28, 96)).putInt("select_x", s.selectOffsetXDp.coerceIn(-180, 180)).putInt("select_y", s.selectOffsetYDp.coerceIn(-180, 180))
+            .putInt("start_size", s.startSizeDp.coerceIn(28, 96)).putInt("start_x", s.startOffsetXDp.coerceIn(-180, 180)).putInt("start_y", s.startOffsetYDp.coerceIn(-180, 180))
             .apply()
     }
 }
