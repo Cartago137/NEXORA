@@ -2577,7 +2577,7 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
                 Column(Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Opacidade dos controles", color = NexoraText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Slider(Modifier.weight(1f), value = touchSettings.opacityPercent.toFloat(), onValueChange = { onTouchSettingsChange(touchSettings.copy(opacityPercent = it.roundToInt().coerceIn(20, 100))) }, valueRange = 20f..100f)
+                        Slider(modifier = Modifier.weight(1f), value = touchSettings.opacityPercent.toFloat(), onValueChange = { onTouchSettingsChange(touchSettings.copy(opacityPercent = it.roundToInt().coerceIn(20, 100))) }, valueRange = 20f..100f)
                         Text(touchSettings.opacityPercent.toString() + "%", color = NexoraMuted, fontSize = 11.sp)
                     }
                     Text("A opacidade é independente do tamanho e da posição dos botões.", color = NexoraMuted, fontSize = 11.sp)
