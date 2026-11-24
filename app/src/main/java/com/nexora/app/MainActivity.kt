@@ -2390,6 +2390,7 @@ private fun formatFileSize(bytes: Long): String {
 
 @Composable
 private fun TouchLayoutEditorScreen(settings: TouchControlSettings, onSettingsChange: (TouchControlSettings) -> Unit, onBack: () -> Unit) {
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     var selectedControl by remember { mutableStateOf("D-pad") }
     Column(modifier = Modifier.fillMaxSize().background(NexoraBackground).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -2406,7 +2407,7 @@ private fun TouchLayoutEditorScreen(settings: TouchControlSettings, onSettingsCh
                 Box(modifier = Modifier.align(Alignment.Center).fillMaxWidth(0.42f).aspectRatio(1.5f).clip(RoundedCornerShape(8.dp)).background(Color(0xFF08070B)).border(1.dp, NexoraPurple.copy(alpha = 0.55f), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
                     Text("NEXORA", color = NexoraPurple.copy(alpha = 0.45f), fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
                 }
-                EditorControl("D-pad", 0, settings.dpadSizeDp, settings.dpadOffsetXDp, settings.dpadOffsetYDp, Modifier.align(Alignment.BottomStart).offset(x = 14.dp, y = (-14).dp), selectedControl == "D-pad", density, { selectedControl = "D-pad" }) { dx, dy, scale ->
+                EditorControl("D-pad", 0, settings.dpadSizeDp, settings.dpadOffsetXDp, settings.dpadOffsetYDp, Modifier.align(if (isLandscape) Alignment.CenterStart else Alignment.BottomStart).offset(x = 14.dp, y = if (isLandscape) 0.dp else (-14).dp), selectedControl == "D-pad", density, { selectedControl = "D-pad" }) { dx, dy, scale ->
                     onSettingsChange(settings.copy(dpadOffsetXDp = (settings.dpadOffsetXDp + dx).roundToInt().coerceIn(-180, 180), dpadOffsetYDp = (settings.dpadOffsetYDp + dy).roundToInt().coerceIn(-180, 180), dpadSizeDp = (settings.dpadSizeDp * scale).roundToInt().coerceIn(100, 240)))
                 }
                 EditorControl("L", 11, settings.lSizeDp, settings.lOffsetXDp, settings.lOffsetYDp, Modifier.align(Alignment.TopStart).offset(x = 14.dp, y = 14.dp), selectedControl == "L", density, { selectedControl = "L" }) { dx, dy, scale ->
@@ -2415,10 +2416,10 @@ private fun TouchLayoutEditorScreen(settings: TouchControlSettings, onSettingsCh
                 EditorControl("R", 13, settings.rSizeDp, settings.rOffsetXDp, settings.rOffsetYDp, Modifier.align(Alignment.TopEnd).offset(x = (-14).dp, y = 14.dp), selectedControl == "R", density, { selectedControl = "R" }) { dx, dy, scale ->
                     onSettingsChange(settings.copy(rOffsetXDp = (settings.rOffsetXDp + dx).roundToInt().coerceIn(-180, 180), rOffsetYDp = (settings.rOffsetYDp + dy).roundToInt().coerceIn(-180, 180), rSizeDp = (settings.rSizeDp * scale).roundToInt().coerceIn(36, 120)))
                 }
-                EditorControl("B", 9, settings.bSizeDp, settings.bOffsetXDp, settings.bOffsetYDp, Modifier.align(Alignment.BottomEnd).offset(x = (-94).dp, y = (-18).dp), selectedControl == "B", density, { selectedControl = "B" }) { dx, dy, scale ->
+                EditorControl("B", 9, settings.bSizeDp, settings.bOffsetXDp, settings.bOffsetYDp, Modifier.align(if (isLandscape) Alignment.CenterEnd else Alignment.BottomEnd).offset(x = (-94).dp, y = if (isLandscape) 0.dp else (-18).dp), selectedControl == "B", density, { selectedControl = "B" }) { dx, dy, scale ->
                     onSettingsChange(settings.copy(bOffsetXDp = (settings.bOffsetXDp + dx).roundToInt().coerceIn(-180, 180), bOffsetYDp = (settings.bOffsetYDp + dy).roundToInt().coerceIn(-180, 180), bSizeDp = (settings.bSizeDp * scale).roundToInt().coerceIn(36, 120)))
                 }
-                EditorControl("A", 7, settings.aSizeDp, settings.aOffsetXDp, settings.aOffsetYDp, Modifier.align(Alignment.BottomEnd).offset(x = (-18).dp, y = (-82).dp), selectedControl == "A", density, { selectedControl = "A" }) { dx, dy, scale ->
+                EditorControl("A", 7, settings.aSizeDp, settings.aOffsetXDp, settings.aOffsetYDp, Modifier.align(if (isLandscape) Alignment.CenterEnd else Alignment.BottomEnd).offset(x = (-18).dp, y = if (isLandscape) 82.dp else (-82).dp), selectedControl == "A", density, { selectedControl = "A" }) { dx, dy, scale ->
                     onSettingsChange(settings.copy(aOffsetXDp = (settings.aOffsetXDp + dx).roundToInt().coerceIn(-180, 180), aOffsetYDp = (settings.aOffsetYDp + dy).roundToInt().coerceIn(-180, 180), aSizeDp = (settings.aSizeDp * scale).roundToInt().coerceIn(36, 120)))
                 }
                 EditorControl("MENU", 5, settings.menuSizeDp, settings.menuOffsetXDp, settings.menuOffsetYDp, Modifier.align(Alignment.BottomCenter).offset(x = (-78).dp, y = (-12).dp), selectedControl == "MENU", density, { selectedControl = "MENU" }) { dx, dy, scale ->
