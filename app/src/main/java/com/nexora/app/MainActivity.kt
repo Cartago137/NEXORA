@@ -1496,8 +1496,8 @@ private fun NexoraAtlasSprite(cell: Int, modifier: Modifier = Modifier) {
             val destinationWidth = (sprite.width * scale).toInt().coerceAtLeast(1)
             val destinationHeight = (sprite.height * scale).toInt().coerceAtLeast(1)
             val destinationOffset = IntOffset(
-                (size.width - destinationWidth) / 2f .toInt(),
-                (size.height - destinationHeight) / 2f .toInt()
+                ((size.width - destinationWidth) / 2f).toInt(),
+                ((size.height - destinationHeight) / 2f).toInt()
             )
             drawImage(
                 image = sprite,
