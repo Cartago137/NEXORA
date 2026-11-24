@@ -2512,7 +2512,7 @@ private fun SettingsScreen(nativeStatus: Int, onOpenTouchEditor: () -> Unit) {
         }
         when (selectedCategory) {
             "main" -> {
-                SettingsCategoryCard("🎮", "Controles", "Editor visual, posição, tamanho e perfis", NexoraPurple) { selectedCategory = "controls" }
+                SettingsCategoryCard("🎮", "Controles", "Editor visual, posição e tamanho", NexoraPurple) { selectedCategory = "controls" }
                 SettingsCategoryCard("✦", "Aparência", "Temas e elementos visuais", NexoraPink) { selectedCategory = "appearance" }
                 SettingsCategoryCard("⚡", "Emulação", "Velocidade e desempenho", NexoraPurple) { selectedCategory = "emulation" }
                 SettingsCategoryCard("♫", "Áudio", "Volume e configurações sonoras", NexoraPink) { selectedCategory = "audio" }
