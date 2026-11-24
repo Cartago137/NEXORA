@@ -100,3 +100,12 @@ The current direct remote SIO implementation uses non-blocking polling at the ho
 - The same saved values are consumed by portrait and landscape player layouts.
 - Keep the approved control atlas and sprite mapping unchanged; visual assets are independent from layout geometry.
 - The editor is an incremental foundation: future iterations can move from grouped position controls to per-button drag placement and user-defined layouts/profiles.
+
+## 10. Visual touch-layout editor (0.4.6)
+
+- The editor reuses the approved NEXORA control atlas; it does not generate or replace artwork.
+- D-pad, A, B, L, R, MENU, SELECT and START each have independent size and X/Y offset preferences.
+- One-finger drag changes the selected control position; two-finger pinch changes its size.
+- Touch-layout preferences remain in the dedicated `nexora_touch_controls` SharedPreferences store and are isolated from ROM files, battery saves and Save States.
+- The current editor writes changes immediately and offers a reset-to-default action. Named profiles and independent portrait/landscape profiles remain future work.
+- Library and History use explicit bounded/scrollable content in compact landscape layouts; physical-device acceptance remains required.
