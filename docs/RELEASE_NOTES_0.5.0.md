@@ -1,26 +1,20 @@
-# NEXORA Android 0.5.0
+# NEXORA Android 0.5.1
 
 ## Changes in this test build
 
-- Added a persistent default emulation speed preference: 1.0x, 1.5x, 2.0x or 3.0x.
-- The selected default speed is applied when a game starts; the in-game MENU still allows changing speed during play.
-- Added a persistent game-audio volume control (0–100%) in Settings > Audio.
-- Replaced placeholder content in Settings > Emulation and Settings > Audio with working controls.
-- Bumped Android version to 0.5.0 (versionCode 14).
+- Integrated all 15 original user-provided PNG sprites as Android drawable resources.
+- Replaced the old atlas artwork in gameplay and the touch-layout editor with the original D-pad, A/B, L/R and neutral system-button artwork, including pressed states.
+- The five D-pad visual states are mapped to neutral, up, down, left and right; directional visuals update while the existing touch input is held.
+- Kept existing hit targets, native key masks, continuous D-pad direction changes, diagonal input, drag/pinch layout editing and independent opacity settings.
+- Retained persistent default emulation speed options (1.0x, 1.5x, 2.0x, 3.0x) and audio volume control (0–100%).
+- Bumped Android version to 0.5.1 (versionCode 15).
 
-## Existing behavior retained for testing
+## Validation still required
 
-- Touch-control editor keeps per-control drag and pinch resizing.
-- Touch-control opacity remains independent and is saved automatically.
-- The live D-pad retains continuous direction changes and diagonal input.
-- Existing native game saves and per-game save-state files are not intentionally modified by these settings.
+- GitHub Actions must complete the Android tests and APK packaging successfully before distributing this build.
+- Physical-device validation on the Motorola G54 is still required, especially checking sprite proportions, pressed visuals, button hit areas and editor gestures.
+- CI success does not replace gameplay validation on a physical device.
 
-## Not included in this build
+## Data safety
 
-- The 15 user-contributed PNG control sprites are recorded in the repository but are not yet integrated into the in-app atlas.
-- Appearance settings remain informational; no theme selector is exposed yet.
-- Physical-device validation on the Motorola G54 is still pending.
-
-## Validation
-
-The GitHub Actions Android build for the final source commit must complete successfully before distributing this APK. CI success verifies automated tests and packaging only; it does not replace gameplay validation on a physical device.
+The changes are limited to touch-control artwork and app settings/version metadata. ROM files and existing game save data are not intentionally modified.
