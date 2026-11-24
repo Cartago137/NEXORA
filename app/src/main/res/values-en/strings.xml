@@ -37,6 +37,9 @@
     <string name="dpad_size_setting">D-pad size</string>
     <string name="action_size_setting">A and B button size</string>
     <string name="shoulder_size_setting">L and R button size</string>
+    <string name="system_button_size_setting">MENU, SELECT and START button size</string>
+    <string name="shoulder_position_setting">L and R button position</string>
+    <string name="system_position_setting">MENU, SELECT and START button position</string>
     <string name="controls_opacity_setting">Control opacity</string>
     <string name="dpad_position_setting">D-pad position</string>
     <string name="action_position_setting">A and B button position</string>

@@ -5,6 +5,9 @@
     <string name="dpad_size_setting">Tamaño de la cruceta</string>
     <string name="action_size_setting">Tamaño de los botones A y B</string>
     <string name="shoulder_size_setting">Tamaño de los botones L y R</string>
+    <string name="system_button_size_setting">Tamaño de los botones MENU, SELECT y START</string>
+    <string name="shoulder_position_setting">Posición de los botones L y R</string>
+    <string name="system_position_setting">Posición de los botones MENU, SELECT y START</string>
     <string name="controls_opacity_setting">Transparencia de los controles</string>
     <string name="dpad_position_setting">Posición de la cruceta</string>
     <string name="action_position_setting">Posición de los botones A y B</string>

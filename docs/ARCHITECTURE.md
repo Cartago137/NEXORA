@@ -96,7 +96,7 @@ The current direct remote SIO implementation uses non-blocking polling at the ho
 ## 9. Touch-control customization
 
 - Touch layout values are stored separately in app preferences and do not touch ROM metadata, battery saves or save states.
-- The settings editor exposes D-pad size and position, A/B cluster size and position, L/R size and overall control opacity.
+- The settings editor exposes D-pad, A/B, L/R and system-button sizes; grouped position controls for D-pad, A/B, L/R and MENU/SELECT/START; and overall control opacity.
 - The same saved values are consumed by portrait and landscape player layouts.
 - Keep the approved control atlas and sprite mapping unchanged; visual assets are independent from layout geometry.
 - The editor is an incremental foundation: future iterations can move from grouped position controls to per-button drag placement and user-defined layouts/profiles.

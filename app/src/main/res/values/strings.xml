@@ -37,6 +37,9 @@
     <string name="dpad_size_setting">Tamanho do direcional</string>
     <string name="action_size_setting">Tamanho dos botões A e B</string>
     <string name="shoulder_size_setting">Tamanho dos botões L e R</string>
+    <string name="system_button_size_setting">Tamanho dos botões MENU, SELECT e START</string>
+    <string name="shoulder_position_setting">Posição dos botões L e R</string>
+    <string name="system_position_setting">Posição dos botões MENU, SELECT e START</string>
     <string name="controls_opacity_setting">Transparência dos controles</string>
     <string name="dpad_position_setting">Posição do direcional</string>
     <string name="action_position_setting">Posição dos botões A e B</string>

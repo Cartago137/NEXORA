@@ -78,7 +78,8 @@ Keep PR #33 as a draft until all applicable automated and physical acceptance te
 
 - [x] Persist touch-control preferences independently from ROM and save data.
 - [x] Expose D-pad, A/B, L/R size controls.
-- [x] Expose D-pad and A/B-group position controls.
+- [x] Expose grouped position controls for D-pad, A/B, L/R and MENU/SELECT/START.
+- [x] Expose MENU/SELECT/START button sizing.
 - [x] Expose overall control opacity and reset-to-default.
 - [x] Apply the same preferences in portrait and landscape.
 - [ ] Physical acceptance on Motorola G54: verify D-pad size, touch hit area, layout bounds and saved preferences after app restart.

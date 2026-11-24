@@ -4,8 +4,8 @@
 - Added persistent touch-control settings, stored separately from game and save data.
 - Increased the default D-pad size to 184 dp.
 - Added D-pad size and position controls.
-- Added A/B and L/R size controls.
-- Added A/B-group position controls and global touch-control opacity.
+- Added A/B, L/R and MENU/SELECT/START size controls.
+- Added grouped position controls for D-pad, A/B, L/R and MENU/SELECT/START, plus global touch-control opacity.
 - Added reset-to-default for touch settings.
 - Applied the same preferences to portrait and landscape player layouts.
 - Made the Settings page vertically scrollable and the landscape navigation rail scrollable.
