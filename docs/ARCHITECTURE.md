@@ -109,3 +109,12 @@ The current direct remote SIO implementation uses non-blocking polling at the ho
 - Touch-layout preferences remain in the dedicated `nexora_touch_controls` SharedPreferences store and are isolated from ROM files, battery saves and Save States.
 - The current editor writes changes immediately and offers a reset-to-default action. Named profiles and independent portrait/landscape profiles remain future work.
 - Library and History use explicit bounded/scrollable content in compact landscape layouts; physical-device acceptance remains required.
+
+
+## 11. Gameplay-style touch editor (0.4.7)
+
+- The editor preview uses the same portrait/landscape control grouping and anchor arrangement as the player screen.
+- D-pad, A, B, L, R, MENU, SELECT and START remain individually draggable and resizable.
+- Overall opacity is configured separately in Settings > Controls.
+- The approved control atlas and isolated touch-preferences store remain unchanged; ROMs and saves are not modified.
+- Physical-device acceptance on the Motorola G54 remains required in both orientations.

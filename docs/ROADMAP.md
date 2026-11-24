@@ -86,7 +86,7 @@ Keep PR #33 as a draft until all applicable automated and physical acceptance te
 - [ ] Extend grouped positioning into free per-button drag placement and multiple named layouts.
 - [ ] Validate Library, History and Settings navigation/scrolling in short landscape viewports.
 
-## Phase 3B — Visual touch-layout editor and settings organization (0.4.6)
+## Phase 3B — Visual touch-layout editor and settings organization (0.4.6–0.4.7)
 
 - [x] Add independent size and position preferences for D-pad, A, B, L, R, MENU, SELECT and START.
 - [x] Add a visual editor that reuses the approved control atlas.
@@ -94,6 +94,8 @@ Keep PR #33 as a draft until all applicable automated and physical acceptance te
 - [x] Keep touch preferences isolated from ROM metadata, battery saves and Save States.
 - [x] Split Settings into focused category screens and move touch customization into its own editor screen.
 - [x] Add vertical scrolling to Library and History for compact landscape layouts.
+- [x] Rebuild the editor preview using the same portrait/landscape control grouping as the player screen.
+- [x] Move opacity into Settings > Controls, separate from position and size.
 - [ ] Validate every control's editor-to-game position and size on the Motorola G54 in portrait and landscape.
 - [ ] Validate Library and History scrolling with empty, filtered and populated content in landscape.
 - [ ] Add named profiles and separate portrait/landscape layouts.

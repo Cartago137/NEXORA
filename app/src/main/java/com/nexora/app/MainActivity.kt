@@ -927,6 +927,8 @@ private fun NexoraApp(
                     } else {
                         SettingsScreen(
                             nativeStatus = nativeStatus,
+                            touchSettings = touchControlSettings,
+                            onTouchSettingsChange = ::updateTouchControlSettings,
                             onOpenTouchEditor = { showTouchEditor = true }
                         )
                     }
@@ -2390,75 +2392,118 @@ private fun formatFileSize(bytes: Long): String {
 
 @Composable
 private fun TouchLayoutEditorScreen(settings: TouchControlSettings, onSettingsChange: (TouchControlSettings) -> Unit, onBack: () -> Unit) {
-    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    var selectedControl by remember { mutableStateOf("D-pad") }
-    Column(modifier = Modifier.fillMaxSize().background(NexoraBackground).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("‹ Voltar", color = NexoraPurple) }
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Editor de controles", color = NexoraText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Arraste para mover • pinça para redimensionar", color = NexoraMuted, fontSize = 10.sp)
+    var selected by remember { mutableStateOf("D-pad") }
+    val opacity = settings.opacityPercent / 100f
+    val density = LocalDensity.current.density
+    val transform: (String, Float, Float, Float) -> Unit = { name, dx, dy, scale ->
+        val x=dx.roundToInt(); val y=dy.roundToInt()
+        val next=when(name) {
+            "D-pad" -> settings.copy(dpadOffsetXDp=(settings.dpadOffsetXDp+x).coerceIn(-180,180),dpadOffsetYDp=(settings.dpadOffsetYDp+y).coerceIn(-180,180),dpadSizeDp=(settings.dpadSizeDp*scale).roundToInt().coerceIn(100,240))
+            "A" -> settings.copy(aOffsetXDp=(settings.aOffsetXDp+x).coerceIn(-180,180),aOffsetYDp=(settings.aOffsetYDp+y).coerceIn(-180,180),aSizeDp=(settings.aSizeDp*scale).roundToInt().coerceIn(36,120))
+            "B" -> settings.copy(bOffsetXDp=(settings.bOffsetXDp+x).coerceIn(-180,180),bOffsetYDp=(settings.bOffsetYDp+y).coerceIn(-180,180),bSizeDp=(settings.bSizeDp*scale).roundToInt().coerceIn(36,120))
+            "L" -> settings.copy(lOffsetXDp=(settings.lOffsetXDp+x).coerceIn(-180,180),lOffsetYDp=(settings.lOffsetYDp+y).coerceIn(-180,180),lSizeDp=(settings.lSizeDp*scale).roundToInt().coerceIn(36,120))
+            "R" -> settings.copy(rOffsetXDp=(settings.rOffsetXDp+x).coerceIn(-180,180),rOffsetYDp=(settings.rOffsetYDp+y).coerceIn(-180,180),rSizeDp=(settings.rSizeDp*scale).roundToInt().coerceIn(36,120))
+            "MENU" -> settings.copy(menuOffsetXDp=(settings.menuOffsetXDp+x).coerceIn(-180,180),menuOffsetYDp=(settings.menuOffsetYDp+y).coerceIn(-180,180),menuSizeDp=(settings.menuSizeDp*scale).roundToInt().coerceIn(28,96))
+            "SELECT" -> settings.copy(selectOffsetXDp=(settings.selectOffsetXDp+x).coerceIn(-180,180),selectOffsetYDp=(settings.selectOffsetYDp+y).coerceIn(-180,180),selectSizeDp=(settings.selectSizeDp*scale).roundToInt().coerceIn(28,96))
+            else -> settings.copy(startOffsetXDp=(settings.startOffsetXDp+x).coerceIn(-180,180),startOffsetYDp=(settings.startOffsetYDp+y).coerceIn(-180,180),startSizeDp=(settings.startSizeDp*scale).roundToInt().coerceIn(28,96))
+        }
+        onSettingsChange(next)
+    }
+    Column(Modifier.fillMaxSize().background(NexoraBackground).padding(10.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+            TextButton(onClick=onBack) { Text("‹ Voltar",color=NexoraPurple) }
+            Column(Modifier.weight(1f)) {
+                Text("Personalizar botões",color=NexoraText,fontSize=18.sp,fontWeight=FontWeight.Bold)
+                Text("Arraste para mover • pinça para redimensionar",color=NexoraMuted,fontSize=10.sp)
             }
-            TextButton(onClick = { onSettingsChange(TouchControlSettings()) }) { Text("Redefinir", color = NexoraPink, fontSize = 11.sp) }
+            TextButton(onClick={onSettingsChange(TouchControlSettings(opacityPercent=settings.opacityPercent))}) { Text("Redefinir",color=NexoraPink,fontSize=11.sp) }
         }
-        BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF160D23)).border(1.dp, Color(0xFF51366F), RoundedCornerShape(20.dp))) {
-            val density = LocalDensity.current.density
-            Box(Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.align(Alignment.Center).fillMaxWidth(0.42f).aspectRatio(1.5f).clip(RoundedCornerShape(8.dp)).background(Color(0xFF08070B)).border(1.dp, NexoraPurple.copy(alpha = 0.55f), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                    Text("NEXORA", color = NexoraPurple.copy(alpha = 0.45f), fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF160D23)).border(1.dp,Color(0xFF51366F),RoundedCornerShape(20.dp))) {
+            if(maxWidth>maxHeight) {
+                Row(Modifier.fillMaxSize().padding(6.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
+                    NexoraControlShell(Modifier.width(164.dp).fillMaxHeight()) {
+                        Box(Modifier.fillMaxSize().padding(6.dp)) {
+                            EditorControl("L",11,settings.lSizeDp,settings.lOffsetXDp,settings.lOffsetYDp,Modifier.align(Alignment.TopStart).offset(4.dp,4.dp),selected=="L",density,opacity,{selected="L"}) {dx,dy,z->transform("L",dx,dy,z)}
+                            EditorControl("D-pad",0,settings.dpadSizeDp,settings.dpadOffsetXDp,settings.dpadOffsetYDp,Modifier.align(Alignment.CenterStart),selected=="D-pad",density,opacity,{selected="D-pad"}) {dx,dy,z->transform("D-pad",dx,dy,z)}
+                        }
+                    }
+                    Column(Modifier.weight(1f).fillMaxHeight(),horizontalAlignment=Alignment.CenterHorizontally) {
+                        Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
+                            Box(Modifier.fillMaxWidth(.82f).aspectRatio(1.5f).clip(RoundedCornerShape(9.dp)).background(Color(0xFF08070B)).border(1.dp,NexoraPurple.copy(alpha=.55f),RoundedCornerShape(9.dp)),contentAlignment=Alignment.Center) {
+                                Text("NEXORA",color=NexoraPurple.copy(alpha=.45f),fontSize=12.sp,fontWeight=FontWeight.Black,letterSpacing=2.sp)
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth().padding(bottom=4.dp),horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically) {
+                            EditorControl("MENU",5,settings.menuSizeDp,settings.menuOffsetXDp,settings.menuOffsetYDp,Modifier,selected=="MENU",density,opacity,{selected="MENU"}) {dx,dy,z->transform("MENU",dx,dy,z)}
+                            Spacer(Modifier.width(8.dp))
+                            EditorControl("SELECT",5,settings.selectSizeDp,settings.selectOffsetXDp,settings.selectOffsetYDp,Modifier,selected=="SELECT",density,opacity,{selected="SELECT"}) {dx,dy,z->transform("SELECT",dx,dy,z)}
+                            Spacer(Modifier.width(8.dp))
+                            EditorControl("START",5,settings.startSizeDp,settings.startOffsetXDp,settings.startOffsetYDp,Modifier,selected=="START",density,opacity,{selected="START"}) {dx,dy,z->transform("START",dx,dy,z)}
+                        }
+                    }
+                    NexoraControlShell(Modifier.width(164.dp).fillMaxHeight()) {
+                        Box(Modifier.fillMaxSize().padding(6.dp)) {
+                            EditorControl("R",13,settings.rSizeDp,settings.rOffsetXDp,settings.rOffsetYDp,Modifier.align(Alignment.TopEnd).offset((-4).dp,4.dp),selected=="R",density,opacity,{selected="R"}) {dx,dy,z->transform("R",dx,dy,z)}
+                            Row(Modifier.align(Alignment.CenterEnd),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically) {
+                                EditorControl("B",9,settings.bSizeDp,settings.bOffsetXDp,settings.bOffsetYDp,Modifier,selected=="B",density,opacity,{selected="B"}) {dx,dy,z->transform("B",dx,dy,z)}
+                                EditorControl("A",7,settings.aSizeDp,settings.aOffsetXDp,settings.aOffsetYDp,Modifier,selected=="A",density,opacity,{selected="A"}) {dx,dy,z->transform("A",dx,dy,z)}
+                            }
+                        }
+                    }
                 }
-                EditorControl("D-pad", 0, settings.dpadSizeDp, settings.dpadOffsetXDp, settings.dpadOffsetYDp, Modifier.align(if (isLandscape) Alignment.CenterStart else Alignment.BottomStart).offset(x = 14.dp, y = if (isLandscape) 0.dp else (-14).dp), selectedControl == "D-pad", density, { selectedControl = "D-pad" }) { dx, dy, scale ->
-                    onSettingsChange(settings.copy(dpadOffsetXDp = (settings.dpadOffsetXDp + dx).roundToInt().coerceIn(-180, 180), dpadOffsetYDp = (settings.dpadOffsetYDp + dy).roundToInt().coerceIn(-180, 180), dpadSizeDp = (settings.dpadSizeDp * scale).roundToInt().coerceIn(100, 240)))
-                }
-                EditorControl("L", 11, settings.lSizeDp, settings.lOffsetXDp, settings.lOffsetYDp, Modifier.align(Alignment.TopStart).offset(x = 14.dp, y = 14.dp), selectedControl == "L", density, { selectedControl = "L" }) { dx, dy, scale ->
-                    onSettingsChange(settings.copy(lOffsetXDp = (settings.lOffsetXDp + dx).roundToInt().coerceIn(-180, 180), lOffsetYDp = (settings.lOffsetYDp + dy).roundToInt().coerceIn(-180, 180), lSizeDp = (settings.lSizeDp * scale).roundToInt().coerceIn(36, 120)))
-                }
-                EditorControl("R", 13, settings.rSizeDp, settings.rOffsetXDp, settings.rOffsetYDp, Modifier.align(Alignment.TopEnd).offset(x = (-14).dp, y = 14.dp), selectedControl == "R", density, { selectedControl = "R" }) { dx, dy, scale ->
-                    onSettingsChange(settings.copy(rOffsetXDp = (settings.rOffsetXDp + dx).roundToInt().coerceIn(-180, 180), rOffsetYDp = (settings.rOffsetYDp + dy).roundToInt().coerceIn(-180, 180), rSizeDp = (settings.rSizeDp * scale).roundToInt().coerceIn(36, 120)))
-                }
-                EditorControl("B", 9, settings.bSizeDp, settings.bOffsetXDp, settings.bOffsetYDp, Modifier.align(if (isLandscape) Alignment.CenterEnd else Alignment.BottomEnd).offset(x = (-78).dp, y = 0.dp), selectedControl == "B", density, { selectedControl = "B" }) { dx, dy, scale ->
-                    onSettingsChange(settings.copy(bOffsetXDp = (settings.bOffsetXDp + dx).roundToInt().coerceIn(-180, 180), bOffsetYDp = (settings.bOffsetYDp + dy).roundToInt().coerceIn(-180, 180), bSizeDp = (settings.bSizeDp * scale).roundToInt().coerceIn(36, 120)))
-                }
-                EditorControl("A", 7, settings.aSizeDp, settings.aOffsetXDp, settings.aOffsetYDp, Modifier.align(if (isLandscape) Alignment.CenterEnd else Alignment.BottomEnd).offset(x = 0.dp, y = 0.dp), selectedControl == "A", density, { selectedControl = "A" }) { dx, dy, scale ->
-                    onSettingsChange(settings.copy(aOffsetXDp = (settings.aOffsetXDp + dx).roundToInt().coerceIn(-180, 180), aOffsetYDp = (settings.aOffsetYDp + dy).roundToInt().coerceIn(-180, 180), aSizeDp = (settings.aSizeDp * scale).roundToInt().coerceIn(36, 120)))
-                }
-                EditorControl("MENU", 5, settings.menuSizeDp, settings.menuOffsetXDp, settings.menuOffsetYDp, Modifier.align(Alignment.BottomCenter).offset(x = (-60).dp, y = (-12).dp), selectedControl == "MENU", density, { selectedControl = "MENU" }) { dx, dy, scale ->
-                    onSettingsChange(settings.copy(menuOffsetXDp = (settings.menuOffsetXDp + dx).roundToInt().coerceIn(-180, 180), menuOffsetYDp = (settings.menuOffsetYDp + dy).roundToInt().coerceIn(-180, 180), menuSizeDp = (settings.menuSizeDp * scale).roundToInt().coerceIn(28, 96)))
-                }
-                EditorControl("SELECT", 5, settings.selectSizeDp, settings.selectOffsetXDp, settings.selectOffsetYDp, Modifier.align(Alignment.BottomCenter).offset(y = (-12).dp), selectedControl == "SELECT", density, { selectedControl = "SELECT" }) { dx, dy, scale ->
-                    onSettingsChange(settings.copy(selectOffsetXDp = (settings.selectOffsetXDp + dx).roundToInt().coerceIn(-180, 180), selectOffsetYDp = (settings.selectOffsetYDp + dy).roundToInt().coerceIn(-180, 180), selectSizeDp = (settings.selectSizeDp * scale).roundToInt().coerceIn(28, 96)))
-                }
-                EditorControl("START", 5, settings.startSizeDp, settings.startOffsetXDp, settings.startOffsetYDp, Modifier.align(Alignment.BottomCenter).offset(x = 60.dp, y = (-12).dp), selectedControl == "START", density, { selectedControl = "START" }) { dx, dy, scale ->
-                    onSettingsChange(settings.copy(startOffsetXDp = (settings.startOffsetXDp + dx).roundToInt().coerceIn(-180, 180), startOffsetYDp = (settings.startOffsetYDp + dy).roundToInt().coerceIn(-180, 180), startSizeDp = (settings.startSizeDp * scale).roundToInt().coerceIn(28, 96)))
+            } else {
+                Column(Modifier.fillMaxSize().padding(6.dp),verticalArrangement=Arrangement.SpaceBetween,horizontalAlignment=Alignment.CenterHorizontally) {
+                    Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
+                        Box(Modifier.fillMaxWidth(.62f).aspectRatio(1.5f).clip(RoundedCornerShape(9.dp)).background(Color(0xFF08070B)).border(1.dp,NexoraPurple.copy(alpha=.55f),RoundedCornerShape(9.dp)),contentAlignment=Alignment.Center) {
+                            Text("NEXORA",color=NexoraPurple.copy(alpha=.45f),fontSize=12.sp,fontWeight=FontWeight.Black,letterSpacing=2.sp)
+                        }
+                    }
+                    NexoraControlShell(Modifier.fillMaxWidth()) {
+                        Column(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=8.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                            Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+                                EditorControl("L",11,settings.lSizeDp,settings.lOffsetXDp,settings.lOffsetYDp,Modifier,selected=="L",density,opacity,{selected="L"}) {dx,dy,z->transform("L",dx,dy,z)}
+                                EditorControl("R",13,settings.rSizeDp,settings.rOffsetXDp,settings.rOffsetYDp,Modifier,selected=="R",density,opacity,{selected="R"}) {dx,dy,z->transform("R",dx,dy,z)}
+                            }
+                            Row(Modifier.fillMaxWidth().padding(horizontal=4.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+                                EditorControl("D-pad",0,settings.dpadSizeDp,settings.dpadOffsetXDp,settings.dpadOffsetYDp,Modifier,selected=="D-pad",density,opacity,{selected="D-pad"}) {dx,dy,z->transform("D-pad",dx,dy,z)}
+                                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                    EditorControl("B",9,settings.bSizeDp,settings.bOffsetXDp,settings.bOffsetYDp,Modifier,selected=="B",density,opacity,{selected="B"}) {dx,dy,z->transform("B",dx,dy,z)}
+                                    EditorControl("A",7,settings.aSizeDp,settings.aOffsetXDp,settings.aOffsetYDp,Modifier,selected=="A",density,opacity,{selected="A"}) {dx,dy,z->transform("A",dx,dy,z)}
+                                }
+                            }
+                            Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                                EditorControl("MENU",5,settings.menuSizeDp,settings.menuOffsetXDp,settings.menuOffsetYDp,Modifier,selected=="MENU",density,opacity,{selected="MENU"}) {dx,dy,z->transform("MENU",dx,dy,z)}
+                                EditorControl("SELECT",5,settings.selectSizeDp,settings.selectOffsetXDp,settings.selectOffsetYDp,Modifier,selected=="SELECT",density,opacity,{selected="SELECT"}) {dx,dy,z->transform("SELECT",dx,dy,z)}
+                                EditorControl("START",5,settings.startSizeDp,settings.startOffsetXDp,settings.startOffsetYDp,Modifier,selected=="START",density,opacity,{selected="START"}) {dx,dy,z->transform("START",dx,dy,z)}
+                            }
+                        }
+                    }
                 }
             }
         }
-        Text("Selecionado: $selectedControl", color = NexoraPurple, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Opacidade", color = NexoraMuted, fontSize = 11.sp)
-            Slider(modifier = Modifier.weight(1f), value = settings.opacityPercent.toFloat(), onValueChange = { onSettingsChange(settings.copy(opacityPercent = it.roundToInt().coerceIn(20, 100))) }, valueRange = 20f..100f)
-            Text("${settings.opacityPercent}%", color = NexoraText, fontSize = 11.sp)
-        }
-        Text("As alterações são salvas automaticamente.", color = NexoraMuted, fontSize = 10.sp)
+        Text("Selecionado: $selected",color=NexoraPurple,fontSize=12.sp,fontWeight=FontWeight.SemiBold)
+        Text("As alterações são aplicadas e salvas automaticamente.",color=NexoraMuted,fontSize=10.sp)
     }
 }
 
 @Composable
-private fun EditorControl(label: String, cell: Int, sizeDp: Int, offsetXDp: Int, offsetYDp: Int, modifier: Modifier, selected: Boolean, density: Float, onSelect: () -> Unit, onTransform: (Float, Float, Float) -> Unit) {
+private fun EditorControl(label:String,cell:Int,sizeDp:Int,offsetXDp:Int,offsetYDp:Int,modifier:Modifier,selected:Boolean,density:Float,opacity:Float,onSelect:()->Unit,onTransform:(Float,Float,Float)->Unit) {
     val latestTransform by rememberUpdatedState(onTransform)
     val latestSelect by rememberUpdatedState(onSelect)
-    Column(
-        modifier = modifier.offset(x = offsetXDp.dp, y = offsetYDp.dp)
-            .clickable { latestSelect() }
-            .pointerInput(label) { detectTransformGestures { _, pan, zoom, _ -> latestSelect(); latestTransform(pan.x / density, pan.y / density, zoom) } }
-            .background(if (selected) NexoraPurple.copy(alpha = 0.18f) else Color.Transparent, RoundedCornerShape(12.dp))
-            .border(if (selected) 1.dp else 0.dp, if (selected) NexoraPink else Color.Transparent, RoundedCornerShape(12.dp))
-            .padding(3.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(0.dp)
-    ) {
-        NexoraAtlasSprite(cell = cell, modifier = Modifier.size(sizeDp.dp).alpha(0.94f))
-        Text(label, color = if (selected) NexoraPink else NexoraMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+    val gesture=Modifier.offset(x=offsetXDp.dp,y=offsetYDp.dp)
+        .pointerInput(label) { detectTransformGestures { _,pan,zoom,_ -> latestSelect(); latestTransform(pan.x/density,pan.y/density,zoom) } }
+        .clickable { latestSelect() }
+        .background(if(selected) NexoraPurple.copy(alpha=.20f) else Color.Transparent,RoundedCornerShape(12.dp))
+        .border(if(selected) 1.dp else 0.dp,if(selected) NexoraPink else Color.Transparent,RoundedCornerShape(12.dp)).padding(3.dp)
+    if(label=="MENU"||label=="SELECT"||label=="START") {
+        Column(modifier.then(gesture),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(0.dp)) {
+            NexoraAtlasSprite(cell=cell,modifier=Modifier.size(sizeDp.dp).alpha(opacity.coerceIn(.20f,1f)))
+            Text(label,color=if(selected) NexoraPink else NexoraMuted,fontSize=8.sp,fontWeight=FontWeight.Bold)
+        }
+    } else {
+        Box(modifier.then(gesture).size(sizeDp.dp),contentAlignment=Alignment.Center) {
+            NexoraAtlasSprite(cell=cell,modifier=Modifier.fillMaxSize().alpha(opacity.coerceIn(.20f,1f)))
+        }
     }
 }
 
@@ -2498,7 +2543,7 @@ private fun EmptyScreen(eyebrow: String, title: String, description: String, sym
 }
 
 @Composable
-private fun SettingsScreen(nativeStatus: Int, onOpenTouchEditor: () -> Unit) {
+private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSettings, onTouchSettingsChange: (TouchControlSettings) -> Unit, onOpenTouchEditor: () -> Unit) {
     var selectedCategory by remember { mutableStateOf("main") }
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 12.dp),
@@ -2528,7 +2573,15 @@ private fun SettingsScreen(nativeStatus: Int, onOpenTouchEditor: () -> Unit) {
                 Text(statusText, color = NexoraMuted, fontSize = 11.sp)
             }
             "controls" -> {
-                SettingsCategoryCard("✥", "Editor de layout", "Arraste os controles e use a pinça para redimensionar", NexoraPurple, onOpenTouchEditor)
+                SettingsCategoryCard("🎮", "Botões e personalizar", "Abra a tela de jogo para mover e redimensionar cada botão", NexoraPurple, onOpenTouchEditor)
+                Column(Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Opacidade dos controles", color = NexoraText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Slider(Modifier.weight(1f), value = touchSettings.opacityPercent.toFloat(), onValueChange = { onTouchSettingsChange(touchSettings.copy(opacityPercent = it.roundToInt().coerceIn(20, 100))) }, valueRange = 20f..100f)
+                        Text(touchSettings.opacityPercent.toString() + "%", color = NexoraMuted, fontSize = 11.sp)
+                    }
+                    Text("A opacidade é independente do tamanho e da posição dos botões.", color = NexoraMuted, fontSize = 11.sp)
+                }
                 Text("As alterações são salvas automaticamente e não modificam ROMs ou saves.", color = NexoraMuted, fontSize = 12.sp)
             }
             "appearance" -> SettingsRow(stringResource(R.string.appearance_setting), stringResource(R.string.appearance_description))
