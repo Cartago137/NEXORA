@@ -31,8 +31,23 @@ data class TouchControlSettings(
 object TouchControlSettingsStore {
     private const val PREFS_NAME = "nexora_touch_controls"
 
-    fun load(context: Context): TouchControlSettings {
-        val p = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    fun load(context: Context, isLandscape: Boolean): TouchControlSettings {
+        val legacy = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val profileName = if (isLandscape) PREFS_NAME + "_landscape" else PREFS_NAME + "_portrait"
+        val p = context.getSharedPreferences(profileName, Context.MODE_PRIVATE)
+        if (!p.contains("dpad_size")) {
+            // Copy the previous shared layout into each orientation profile once.
+            val editor = p.edit()
+            legacy.all.forEach { (key, value) ->
+                when (value) {
+                    is Int -> editor.putInt(key, value)
+                    is Float -> editor.putFloat(key, value)
+                    is Boolean -> editor.putBoolean(key, value)
+                    is String -> editor.putString(key, value)
+                }
+            }
+            editor.apply()
+        }
         return TouchControlSettings(
             dpadSizeDp = p.getInt("dpad_size", 184).coerceIn(100, 240),
             actionButtonSizeDp = p.getInt("action_size", 70).coerceIn(36, 120),
@@ -59,8 +74,9 @@ object TouchControlSettingsStore {
         )
     }
 
-    fun save(context: Context, s: TouchControlSettings) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+    fun save(context: Context, s: TouchControlSettings, isLandscape: Boolean) {
+        val profileName = if (isLandscape) PREFS_NAME + "_landscape" else PREFS_NAME + "_portrait"
+        context.getSharedPreferences(profileName, Context.MODE_PRIVATE).edit()
             .putInt("dpad_size", s.dpadSizeDp.coerceIn(100, 240))
             .putInt("action_size", s.actionButtonSizeDp.coerceIn(36, 120))
             .putInt("shoulder_size", s.shoulderButtonSizeDp.coerceIn(36, 120))
@@ -81,6 +97,8 @@ object TouchControlSettingsStore {
             .putInt("menu_size", s.menuSizeDp.coerceIn(28, 96)).putInt("menu_x", s.menuOffsetXDp.coerceIn(-180, 180)).putInt("menu_y", s.menuOffsetYDp.coerceIn(-180, 180))
             .putInt("select_size", s.selectSizeDp.coerceIn(28, 96)).putInt("select_x", s.selectOffsetXDp.coerceIn(-180, 180)).putInt("select_y", s.selectOffsetYDp.coerceIn(-180, 180))
             .putInt("start_size", s.startSizeDp.coerceIn(28, 96)).putInt("start_x", s.startOffsetXDp.coerceIn(-180, 180)).putInt("start_y", s.startOffsetYDp.coerceIn(-180, 180))
+            .apply()
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putFloat("default_speed", s.defaultSpeed.takeIf { it in listOf(1.0f, 1.5f, 2.0f, 3.0f) } ?: 1.0f)
             .putInt("audio_volume", s.audioVolumePercent.coerceIn(0, 100))
             .apply()
