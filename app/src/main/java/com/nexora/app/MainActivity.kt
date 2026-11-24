@@ -935,12 +935,12 @@ private fun NexoraApp(
                 }
             }
 
-            if (activeGameName == null && !isLandscape) {
+            if (activeGameName == null && !isLandscape && !showTouchEditor) {
                 BottomNavigation(selectedTab = selectedTab, onSelect = { selectedTab = it })
             }
             }
 
-            if (activeGameName == null && isLandscape) {
+            if (activeGameName == null && isLandscape && !showTouchEditor) {
                 SideNavigation(selectedTab = selectedTab, onSelect = { selectedTab = it })
             }
         }
