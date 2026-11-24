@@ -1452,48 +1452,51 @@ private fun GameFrame(
 @Composable
 private fun NexoraAtlasSprite(cell: Int, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    // Decode the raster resource directly. Compose's imageResource path can throw
-    // when Android returns a non-BitmapDrawable for this packaged asset.
-    val atlas = remember(context) {
-        val decoded = runCatching {
+    val resourceId = when (cell) {
+        0 -> R.drawable.dpad_normal
+        1 -> R.drawable.dpad_cima_pressionado
+        2 -> R.drawable.dpad_baixo_pressionado
+        3 -> R.drawable.dpad_esquerda_pressionado
+        4 -> R.drawable.dpad_direita_pressionado
+        5 -> R.drawable.botao_liso
+        6 -> R.drawable.botao_liso_pressionado
+        7 -> R.drawable.botao_a
+        8 -> R.drawable.botao_a_pressionado
+        9 -> R.drawable.botao_b
+        10 -> R.drawable.botao_b_pressionado
+        11 -> R.drawable.botao_l
+        12 -> R.drawable.botao_l_pressionado
+        13 -> R.drawable.botao_r
+        14 -> R.drawable.botao_r_pressionado
+        else -> 0
+    }
+    val sprite = remember(context, resourceId) {
+        if (resourceId == 0) null else runCatching {
             BitmapFactory.decodeResource(
                 context.resources,
-                R.drawable.nexora_controls_atlas,
+                resourceId,
                 BitmapFactory.Options().apply {
                     inScaled = false
                     inPreferredConfig = Bitmap.Config.ARGB_8888
                 }
-            )
+            )?.asImageBitmap()
         }.onFailure {
-            Log.e("NEXORA", "Failed to decode the official controls atlas.", it)
+            Log.e("NEXORA", "Failed to decode touch-control sprite for cell $cell.", it)
         }.getOrNull()
-
-        if (decoded == null) {
-            Log.e("NEXORA", "Official controls atlas is unavailable; vector fallback is active.")
-        } else {
-            Log.i("NEXORA", "Official controls atlas decoded: ${decoded.width}x${decoded.height}.")
-        }
-        decoded?.asImageBitmap()
     }
 
     Canvas(modifier) {
-        val cellSize = 96
-        if (atlas != null &&
-            atlas.width >= 5 * cellSize &&
-            atlas.height >= 3 * cellSize &&
-            cell in 0..14
-        ) {
+        if (sprite != null && sprite.width > 0 && sprite.height > 0) {
+            // The supplied artwork uses transparent PNGs; draw into the control's
+            // visual bounds while keeping the hit target and input logic unchanged.
             drawImage(
-                image = atlas,
-                srcOffset = IntOffset((cell % 5) * cellSize, (cell / 5) * cellSize),
-                srcSize = IntSize(cellSize, cellSize),
+                image = sprite,
                 dstSize = IntSize(
                     size.width.toInt().coerceAtLeast(1),
                     size.height.toInt().coerceAtLeast(1)
                 )
             )
         } else {
-            // Keep the game usable if the optional atlas cannot be decoded.
             val center = Offset(size.width / 2f, size.height / 2f)
             val unit = minOf(size.width, size.height).coerceAtLeast(1f)
             val fill = Color(0xFF442A66)
@@ -1506,72 +1509,7 @@ private fun NexoraAtlasSprite(cell: Int, modifier: Modifier = Modifier) {
                 drawCircle(fill, unit * 0.42f, center)
                 drawCircle(edge, unit * 0.42f, center, style = Stroke(width = unit * 0.045f))
             }
-
-            val glyph = when (cell) {
-                0 -> "✣"
-                1 -> "↑"
-                2 -> "↓"
-                3 -> "←"
-                4 -> "→"
-                5, 6 -> "M"
-                7, 8 -> "A"
-                9, 10 -> "B"
-                11, 12 -> "L"
-                else -> "R"
-            }
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = android.graphics.Color.WHITE
-                textAlign = Paint.Align.CENTER
-                textSize = unit * 0.34f
-                typeface = Typeface.create("sans-serif", Typeface.BOLD)
-            }
-            drawContext.canvas.nativeCanvas.drawText(
-                glyph,
-                center.x,
-                center.y - (paint.ascent() + paint.descent()) / 2f,
-                paint
-            )
         }
-    }
-}
-
-@Composable
-private fun NexoraControlShell(
-    modifier: Modifier = Modifier,
-    content: @Composable BoxScope.() -> Unit
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
-            .background(Color(0xFF160D23))
-            .border(1.dp, Color(0xFF51366F), RoundedCornerShape(22.dp))
-    ) {
-        Canvas(Modifier.matchParentSize()) {
-            val points = listOf(
-                0.10f to 0.15f, 0.24f to 0.78f, 0.43f to 0.20f,
-                0.61f to 0.84f, 0.78f to 0.18f, 0.91f to 0.62f
-            )
-            points.forEachIndexed { index, point ->
-                val center = Offset(size.width * point.first, size.height * point.second)
-                val radius = if (index % 2 == 0) 2.2f else 1.4f
-                drawCircle(Color(0xFFB99AFF).copy(alpha = 0.72f), radius, center)
-                if (index % 2 == 0) {
-                    drawLine(
-                        Color(0xFFB99AFF).copy(alpha = 0.55f),
-                        Offset(center.x - 4f, center.y),
-                        Offset(center.x + 4f, center.y),
-                        strokeWidth = 1f
-                    )
-                    drawLine(
-                        Color(0xFFB99AFF).copy(alpha = 0.55f),
-                        Offset(center.x, center.y - 4f),
-                        Offset(center.x, center.y + 4f),
-                        strokeWidth = 1f
-                    )
-                }
-            }
-        }
-        content()
     }
 }
 
