@@ -1207,7 +1207,7 @@ private fun PlayerScreen(
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         if (!isGbFamily) {
                             Box(Modifier.align(Alignment.TopStart).offset(x = controlSettings.shoulderOffsetXDp.dp, y = controlSettings.shoulderOffsetYDp.dp)) {
-                                GbaControl("L", 1 shl 9, shoulderSize = controlSettings.shoulderButtonSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f)
+                                GbaControl("L", 1 shl 9, shoulderSize = controlSettings.lSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.lOffsetXDp, offsetYDp = controlSettings.lOffsetYDp)
                             }
                         }
                         Box(Modifier.align(Alignment.CenterStart)) {
@@ -1231,11 +1231,11 @@ private fun PlayerScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        GbaMenuControl(onClick = { showFunctionsMenu = true }, sizeDp = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f)
+                        GbaMenuControl(onClick = { showFunctionsMenu = true }, sizeDp = controlSettings.menuSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.menuOffsetXDp, offsetYDp = controlSettings.menuOffsetYDp)
                         Spacer(Modifier.width(8.dp))
-                        GbaControl("SELECT", 1 shl 2, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f)
+                        GbaControl("SELECT", 1 shl 2, systemButtonSize = controlSettings.selectSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.selectOffsetXDp, offsetYDp = controlSettings.selectOffsetYDp)
                         Spacer(Modifier.width(8.dp))
-                        GbaControl("START", 1 shl 3, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f)
+                        GbaControl("START", 1 shl 3, systemButtonSize = controlSettings.startSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.startOffsetXDp, offsetYDp = controlSettings.startOffsetYDp)
                     }
                 }
 
@@ -1243,7 +1243,7 @@ private fun PlayerScreen(
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         if (!isGbFamily) {
                             Box(Modifier.align(Alignment.TopEnd).offset(x = controlSettings.shoulderOffsetXDp.dp, y = controlSettings.shoulderOffsetYDp.dp)) {
-                                GbaControl("R", 1 shl 8, shoulderSize = controlSettings.shoulderButtonSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f)
+                                GbaControl("R", 1 shl 8, shoulderSize = controlSettings.rSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.rOffsetXDp, offsetYDp = controlSettings.rOffsetYDp)
                             }
                         }
                         Row(
@@ -1251,8 +1251,8 @@ private fun PlayerScreen(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            GbaControl("B", 1 shl 1, controlSize = controlSettings.actionButtonSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f)
-                            GbaControl("A", 1 shl 0, controlSize = controlSettings.actionButtonSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f)
+                            GbaControl("B", 1 shl 1, controlSize = controlSettings.bSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.bOffsetXDp, offsetYDp = controlSettings.bOffsetYDp)
+                            GbaControl("A", 1 shl 0, controlSize = controlSettings.aSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.aOffsetXDp, offsetYDp = controlSettings.aOffsetYDp)
                         }
                     }
                 }
@@ -1679,7 +1679,9 @@ private fun GbaControl(
     controlSize: Int = 52,
     shoulderSize: Int = 68,
     systemButtonSize: Int = 48,
-    opacity: Float = 1f
+    opacity: Float = 1f,
+    offsetXDp: Int = 0,
+    offsetYDp: Int = 0
 ) {
     val normalCell = when (label) {
         "A" -> 7
@@ -1697,6 +1699,7 @@ private fun GbaControl(
     }
 
     Column(
+        modifier = Modifier.offset(x = offsetXDp.dp, y = offsetYDp.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
@@ -1718,8 +1721,9 @@ private fun GbaControl(
 }
 
 @Composable
-private fun GbaMenuControl(onClick: () -> Unit, sizeDp: Int = 48, opacity: Float = 1f) {
+private fun GbaMenuControl(onClick: () -> Unit, sizeDp: Int = 48, opacity: Float = 1f, offsetXDp: Int = 0, offsetYDp: Int = 0) {
     Column(
+        modifier = Modifier.offset(x = offsetXDp.dp, y = offsetYDp.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
@@ -1752,8 +1756,8 @@ private fun GbaPortraitControlDeck(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    GbaControl("L", 1 shl 9, shoulderSize = settings.shoulderButtonSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f)
-                    GbaControl("R", 1 shl 8, shoulderSize = settings.shoulderButtonSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f)
+                    GbaControl("L", 1 shl 9, shoulderSize = settings.lSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.lOffsetXDp, offsetYDp = settings.lOffsetYDp)
+                    GbaControl("R", 1 shl 8, shoulderSize = settings.rSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.rOffsetXDp, offsetYDp = settings.rOffsetYDp)
                 }
             }
 
@@ -1764,8 +1768,8 @@ private fun GbaPortraitControlDeck(
             ) {
                 GbaDPad(sizeDp = settings.dpadSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.dpadOffsetXDp, offsetYDp = settings.dpadOffsetYDp)
                 Row(modifier = Modifier.offset(x = settings.actionOffsetXDp.dp, y = settings.actionOffsetYDp.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GbaControl("B", 1 shl 1, controlSize = settings.actionButtonSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f)
-                    GbaControl("A", 1 shl 0, controlSize = settings.actionButtonSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f)
+                    GbaControl("B", 1 shl 1, controlSize = settings.bSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.bOffsetXDp, offsetYDp = settings.bOffsetYDp)
+                    GbaControl("A", 1 shl 0, controlSize = settings.aSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.aOffsetXDp, offsetYDp = settings.aOffsetYDp)
                 }
             }
 
@@ -1774,9 +1778,9 @@ private fun GbaPortraitControlDeck(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                GbaMenuControl(onClick = onMenu, sizeDp = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f)
-                GbaControl("SELECT", 1 shl 2, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f)
-                GbaControl("START", 1 shl 3, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f)
+                GbaMenuControl(onClick = onMenu, sizeDp = settings.menuSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.menuOffsetXDp, offsetYDp = settings.menuOffsetYDp)
+                GbaControl("SELECT", 1 shl 2, systemButtonSize = settings.selectSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.selectOffsetXDp, offsetYDp = settings.selectOffsetYDp)
+                GbaControl("START", 1 shl 3, systemButtonSize = settings.startSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.startOffsetXDp, offsetYDp = settings.startOffsetYDp)
             }
         }
     }
