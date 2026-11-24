@@ -24,6 +24,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
@@ -91,6 +92,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import android.content.res.Configuration
 import java.io.File
@@ -436,6 +438,7 @@ private fun NexoraApp(
     var removalFailed by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var touchControlSettings by remember { mutableStateOf(TouchControlSettingsStore.load(context)) }
+    var showTouchEditor by remember { mutableStateOf(false) }
     fun updateTouchControlSettings(updated: TouchControlSettings) {
         touchControlSettings = updated
         TouchControlSettingsStore.save(context, updated)
@@ -914,11 +917,18 @@ private fun NexoraApp(
                         }
                     )
                     NexoraTab.HISTORY -> HistoryScreen()
-                    NexoraTab.SETTINGS -> SettingsScreen(
-                        nativeStatus = nativeStatus,
-                        controlSettings = touchControlSettings,
-                        onControlSettingsChange = ::updateTouchControlSettings
-                    )
+                    NexoraTab.SETTINGS -> if (showTouchEditor) {
+                        TouchLayoutEditorScreen(
+                            settings = touchControlSettings,
+                            onSettingsChange = ::updateTouchControlSettings,
+                            onBack = { showTouchEditor = false }
+                        )
+                    } else {
+                        SettingsScreen(
+                            nativeStatus = nativeStatus,
+                            onOpenTouchEditor = { showTouchEditor = true }
+                        )
+                    }
                 }
             }
 
@@ -1904,9 +1914,8 @@ private fun LibraryScreen(
                 .thenBy { it.name.lowercase(Locale.ROOT) }
         )
 
-    val pageNeedsScroll = games.isEmpty() || visibleGames.isEmpty()
     Column(
-        modifier = Modifier.fillMaxSize().then(if (pageNeedsScroll) Modifier.verticalScroll(rememberScrollState()) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
@@ -2119,7 +2128,7 @@ private fun LibraryScreen(
                 Text(stringResource(R.string.no_games_in_view), color = NexoraMuted)
             }
         } else {
-            BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp, max = 460.dp)) {
                 val columns = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 5 else 3
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(columns),
@@ -2373,13 +2382,92 @@ private fun formatFileSize(bytes: Long): String {
 }
 
 @Composable
+private fun TouchLayoutEditorScreen(settings: TouchControlSettings, onSettingsChange: (TouchControlSettings) -> Unit, onBack: () -> Unit) {
+    var selectedControl by remember { mutableStateOf("D-pad") }
+    Column(modifier = Modifier.fillMaxSize().background(NexoraBackground).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("‹ Voltar", color = NexoraPurple) }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Editor de controles", color = NexoraText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Arraste para mover • pinça para redimensionar", color = NexoraMuted, fontSize = 10.sp)
+            }
+            TextButton(onClick = { onSettingsChange(TouchControlSettings()) }) { Text("Redefinir", color = NexoraPink, fontSize = 11.sp) }
+        }
+        BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF160D23)).border(1.dp, Color(0xFF51366F), RoundedCornerShape(20.dp))) {
+            val density = LocalDensity.current.density
+            Box(Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.align(Alignment.Center).fillMaxWidth(0.42f).aspectRatio(1.5f).clip(RoundedCornerShape(8.dp)).background(Color(0xFF08070B)).border(1.dp, NexoraPurple.copy(alpha = 0.55f), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                    Text("NEXORA", color = NexoraPurple.copy(alpha = 0.45f), fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                }
+                EditorControl("D-pad", 0, settings.dpadSizeDp, settings.dpadOffsetXDp, settings.dpadOffsetYDp, Modifier.align(Alignment.BottomStart).offset(x = 14.dp, y = (-14).dp), selectedControl == "D-pad", density, { selectedControl = "D-pad" }) { dx, dy, scale ->
+                    onSettingsChange(settings.copy(dpadOffsetXDp = (settings.dpadOffsetXDp + dx).roundToInt().coerceIn(-180, 180), dpadOffsetYDp = (settings.dpadOffsetYDp + dy).roundToInt().coerceIn(-180, 180), dpadSizeDp = (settings.dpadSizeDp * scale).roundToInt().coerceIn(100, 240)))
+                }
+                EditorControl("L", 11, settings.lSizeDp, settings.lOffsetXDp, settings.lOffsetYDp, Modifier.align(Alignment.TopStart).offset(x = 14.dp, y = 14.dp), selectedControl == "L", density, { selectedControl = "L" }) { dx, dy, scale ->
+                    onSettingsChange(settings.copy(lOffsetXDp = (settings.lOffsetXDp + dx).roundToInt().coerceIn(-180, 180), lOffsetYDp = (settings.lOffsetYDp + dy).roundToInt().coerceIn(-180, 180), lSizeDp = (settings.lSizeDp * scale).roundToInt().coerceIn(36, 120)))
+                }
+                EditorControl("R", 13, settings.rSizeDp, settings.rOffsetXDp, settings.rOffsetYDp, Modifier.align(Alignment.TopEnd).offset(x = (-14).dp, y = 14.dp), selectedControl == "R", density, { selectedControl = "R" }) { dx, dy, scale ->
+                    onSettingsChange(settings.copy(rOffsetXDp = (settings.rOffsetXDp + dx).roundToInt().coerceIn(-180, 180), rOffsetYDp = (settings.rOffsetYDp + dy).roundToInt().coerceIn(-180, 180), rSizeDp = (settings.rSizeDp * scale).roundToInt().coerceIn(36, 120)))
+                }
+                EditorControl("B", 9, settings.bSizeDp, settings.bOffsetXDp, settings.bOffsetYDp, Modifier.align(Alignment.BottomEnd).offset(x = (-94).dp, y = (-18).dp), selectedControl == "B", density, { selectedControl = "B" }) { dx, dy, scale ->
+                    onSettingsChange(settings.copy(bOffsetXDp = (settings.bOffsetXDp + dx).roundToInt().coerceIn(-180, 180), bOffsetYDp = (settings.bOffsetYDp + dy).roundToInt().coerceIn(-180, 180), bSizeDp = (settings.bSizeDp * scale).roundToInt().coerceIn(36, 120)))
+                }
+                EditorControl("A", 7, settings.aSizeDp, settings.aOffsetXDp, settings.aOffsetYDp, Modifier.align(Alignment.BottomEnd).offset(x = (-18).dp, y = (-82).dp), selectedControl == "A", density, { selectedControl = "A" }) { dx, dy, scale ->
+                    onSettingsChange(settings.copy(aOffsetXDp = (settings.aOffsetXDp + dx).roundToInt().coerceIn(-180, 180), aOffsetYDp = (settings.aOffsetYDp + dy).roundToInt().coerceIn(-180, 180), aSizeDp = (settings.aSizeDp * scale).roundToInt().coerceIn(36, 120)))
+                }
+                EditorControl("MENU", 5, settings.menuSizeDp, settings.menuOffsetXDp, settings.menuOffsetYDp, Modifier.align(Alignment.BottomCenter).offset(x = (-78).dp, y = (-12).dp), selectedControl == "MENU", density, { selectedControl = "MENU" }) { dx, dy, scale ->
+                    onSettingsChange(settings.copy(menuOffsetXDp = (settings.menuOffsetXDp + dx).roundToInt().coerceIn(-180, 180), menuOffsetYDp = (settings.menuOffsetYDp + dy).roundToInt().coerceIn(-180, 180), menuSizeDp = (settings.menuSizeDp * scale).roundToInt().coerceIn(28, 96)))
+                }
+                EditorControl("SELECT", 5, settings.selectSizeDp, settings.selectOffsetXDp, settings.selectOffsetYDp, Modifier.align(Alignment.BottomCenter).offset(y = (-12).dp), selectedControl == "SELECT", density, { selectedControl = "SELECT" }) { dx, dy, scale ->
+                    onSettingsChange(settings.copy(selectOffsetXDp = (settings.selectOffsetXDp + dx).roundToInt().coerceIn(-180, 180), selectOffsetYDp = (settings.selectOffsetYDp + dy).roundToInt().coerceIn(-180, 180), selectSizeDp = (settings.selectSizeDp * scale).roundToInt().coerceIn(28, 96)))
+                }
+                EditorControl("START", 5, settings.startSizeDp, settings.startOffsetXDp, settings.startOffsetYDp, Modifier.align(Alignment.BottomCenter).offset(x = 78.dp, y = (-12).dp), selectedControl == "START", density, { selectedControl = "START" }) { dx, dy, scale ->
+                    onSettingsChange(settings.copy(startOffsetXDp = (settings.startOffsetXDp + dx).roundToInt().coerceIn(-180, 180), startOffsetYDp = (settings.startOffsetYDp + dy).roundToInt().coerceIn(-180, 180), startSizeDp = (settings.startSizeDp * scale).roundToInt().coerceIn(28, 96)))
+                }
+            }
+        }
+        Text("Selecionado: $selectedControl", color = NexoraPurple, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Opacidade", color = NexoraMuted, fontSize = 11.sp)
+            Slider(modifier = Modifier.weight(1f), value = settings.opacityPercent.toFloat(), onValueChange = { onSettingsChange(settings.copy(opacityPercent = it.roundToInt().coerceIn(20, 100))) }, valueRange = 20f..100f)
+            Text("${settings.opacityPercent}%", color = NexoraText, fontSize = 11.sp)
+        }
+        Text("As alterações são salvas automaticamente.", color = NexoraMuted, fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun EditorControl(label: String, cell: Int, sizeDp: Int, offsetXDp: Int, offsetYDp: Int, modifier: Modifier, selected: Boolean, density: Float, onSelect: () -> Unit, onTransform: (Float, Float, Float) -> Unit) {
+    val latestTransform by rememberUpdatedState(onTransform)
+    val latestSelect by rememberUpdatedState(onSelect)
+    Column(
+        modifier = modifier.offset(x = offsetXDp.dp, y = offsetYDp.dp)
+            .pointerInput(label) { detectTransformGestures { _, pan, zoom, _ -> latestSelect(); latestTransform(pan.x / density, pan.y / density, zoom) } }
+            .background(if (selected) NexoraPurple.copy(alpha = 0.18f) else Color.Transparent, RoundedCornerShape(12.dp))
+            .border(if (selected) 1.dp else 0.dp, if (selected) NexoraPink else Color.Transparent, RoundedCornerShape(12.dp))
+            .padding(3.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+        NexoraAtlasSprite(cell = cell, modifier = Modifier.size(sizeDp.dp).alpha(0.94f))
+        Text(label, color = if (selected) NexoraPink else NexoraMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
 private fun HistoryScreen() {
-    EmptyScreen(
-        eyebrow = stringResource(R.string.history_label),
-        title = stringResource(R.string.no_history_yet),
-        description = stringResource(R.string.history_empty_description),
-        symbol = "◷"
-    )
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        EmptyScreen(
+            eyebrow = stringResource(R.string.history_label),
+            title = stringResource(R.string.no_history_yet),
+            description = stringResource(R.string.history_empty_description),
+            symbol = "◷"
+        )
+        Spacer(Modifier.height(24.dp))
+    }
 }
 
 @Composable
@@ -2400,49 +2488,66 @@ private fun EmptyScreen(eyebrow: String, title: String, description: String, sym
 }
 
 @Composable
-private fun SettingsScreen(nativeStatus: Int, controlSettings: TouchControlSettings, onControlSettingsChange: (TouchControlSettings) -> Unit) {
+private fun SettingsScreen(nativeStatus: Int, onOpenTouchEditor: () -> Unit) {
+    var selectedCategory by remember { mutableStateOf("main") }
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(stringResource(R.string.settings_label), color = NexoraText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-        Text(stringResource(R.string.settings_intro), color = NexoraMuted, fontSize = 12.sp)
-        SettingsRow(stringResource(R.string.appearance_setting), stringResource(R.string.appearance_description))
-        SettingsRow(stringResource(R.string.language_setting), stringResource(R.string.language_description))
-        Column(modifier = Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(stringResource(R.string.controls_setting), color = NexoraText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.controls_editor_description), color = NexoraMuted, fontSize = 11.sp)
-            ControlSettingSlider(stringResource(R.string.dpad_size_setting), controlSettings.dpadSizeDp, 144..200, " dp") { onControlSettingsChange(controlSettings.copy(dpadSizeDp = it)) }
-            ControlSettingSlider(stringResource(R.string.action_size_setting), controlSettings.actionButtonSizeDp, 48..92, " dp") { onControlSettingsChange(controlSettings.copy(actionButtonSizeDp = it)) }
-            ControlSettingSlider(stringResource(R.string.shoulder_size_setting), controlSettings.shoulderButtonSizeDp, 48..92, " dp") { onControlSettingsChange(controlSettings.copy(shoulderButtonSizeDp = it)) }
-            ControlSettingSlider(stringResource(R.string.system_button_size_setting), controlSettings.systemButtonSizeDp, 36..72, " dp") { onControlSettingsChange(controlSettings.copy(systemButtonSizeDp = it)) }
-            ControlSettingSlider(stringResource(R.string.controls_opacity_setting), controlSettings.opacityPercent, 35..100, "%") { onControlSettingsChange(controlSettings.copy(opacityPercent = it)) }
-            Text(stringResource(R.string.dpad_position_setting), color = NexoraText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            ControlSettingSlider(stringResource(R.string.horizontal_position_setting), controlSettings.dpadOffsetXDp, -36..36, " dp") { onControlSettingsChange(controlSettings.copy(dpadOffsetXDp = it)) }
-            ControlSettingSlider(stringResource(R.string.vertical_position_setting), controlSettings.dpadOffsetYDp, -36..36, " dp") { onControlSettingsChange(controlSettings.copy(dpadOffsetYDp = it)) }
-            Text(stringResource(R.string.action_position_setting), color = NexoraText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            ControlSettingSlider(stringResource(R.string.horizontal_position_setting), controlSettings.actionOffsetXDp, -36..36, " dp") { onControlSettingsChange(controlSettings.copy(actionOffsetXDp = it)) }
-            ControlSettingSlider(stringResource(R.string.vertical_position_setting), controlSettings.actionOffsetYDp, -36..36, " dp") { onControlSettingsChange(controlSettings.copy(actionOffsetYDp = it)) }
-            Text(stringResource(R.string.shoulder_position_setting), color = NexoraText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            ControlSettingSlider(stringResource(R.string.horizontal_position_setting), controlSettings.shoulderOffsetXDp, -36..36, " dp") { onControlSettingsChange(controlSettings.copy(shoulderOffsetXDp = it)) }
-            ControlSettingSlider(stringResource(R.string.vertical_position_setting), controlSettings.shoulderOffsetYDp, -36..36, " dp") { onControlSettingsChange(controlSettings.copy(shoulderOffsetYDp = it)) }
-            Text(stringResource(R.string.system_position_setting), color = NexoraText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            ControlSettingSlider(stringResource(R.string.horizontal_position_setting), controlSettings.systemOffsetXDp, -36..36, " dp") { onControlSettingsChange(controlSettings.copy(systemOffsetXDp = it)) }
-            ControlSettingSlider(stringResource(R.string.vertical_position_setting), controlSettings.systemOffsetYDp, -36..36, " dp") { onControlSettingsChange(controlSettings.copy(systemOffsetYDp = it)) }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = { onControlSettingsChange(TouchControlSettings()) }) { Text(stringResource(R.string.reset_controls), color = NexoraPink) }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (selectedCategory != "main") TextButton(onClick = { selectedCategory = "main" }) { Text("‹", color = NexoraPurple, fontSize = 22.sp) }
+            Column {
+                Text(stringResource(R.string.settings_label), color = NexoraText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                Text(if (selectedCategory == "main") stringResource(R.string.settings_intro) else "Configurações organizadas por categoria", color = NexoraMuted, fontSize = 12.sp)
             }
         }
-        SettingsRow(stringResource(R.string.about_setting), stringResource(R.string.about_description))
-        Spacer(Modifier.height(4.dp))
-        Text(stringResource(R.string.technical_status), color = NexoraPink, fontSize = 10.sp, letterSpacing = 1.5.sp)
-        val statusText = when (nativeStatus) {
-            2 -> stringResource(R.string.native_core_ready)
-            1 -> stringResource(R.string.native_core_init_failed)
-            0 -> stringResource(R.string.native_core_create_failed)
-            else -> stringResource(R.string.native_bridge_unavailable)
+        when (selectedCategory) {
+            "main" -> {
+                SettingsCategoryCard("🎮", "Controles", "Editor visual, posição, tamanho e perfis", NexoraPurple) { selectedCategory = "controls" }
+                SettingsCategoryCard("✦", "Aparência", "Temas e elementos visuais", NexoraPink) { selectedCategory = "appearance" }
+                SettingsCategoryCard("⚡", "Emulação", "Velocidade e desempenho", NexoraPurple) { selectedCategory = "emulation" }
+                SettingsCategoryCard("♫", "Áudio", "Volume e configurações sonoras", NexoraPink) { selectedCategory = "audio" }
+                SettingsCategoryCard("⚙", "Sistema", "Idioma, armazenamento e informações", NexoraPurple) { selectedCategory = "system" }
+                Text(stringResource(R.string.technical_status), color = NexoraPink, fontSize = 10.sp, letterSpacing = 1.5.sp)
+                val statusText = when (nativeStatus) {
+                    2 -> stringResource(R.string.native_core_ready)
+                    1 -> stringResource(R.string.native_core_init_failed)
+                    0 -> stringResource(R.string.native_core_create_failed)
+                    else -> stringResource(R.string.native_bridge_unavailable)
+                }
+                Text(statusText, color = NexoraMuted, fontSize = 11.sp)
+            }
+            "controls" -> {
+                SettingsCategoryCard("✥", "Editor de layout", "Arraste os controles e use a pinça para redimensionar", NexoraPurple, onOpenTouchEditor)
+                Text("As alterações são salvas automaticamente e não modificam ROMs ou saves.", color = NexoraMuted, fontSize = 12.sp)
+            }
+            "appearance" -> SettingsRow(stringResource(R.string.appearance_setting), stringResource(R.string.appearance_description))
+            "emulation" -> SettingsRow("Velocidade", "As opções de velocidade ficam disponíveis durante o jogo.")
+            "audio" -> SettingsRow("Áudio", "As opções sonoras serão organizadas aqui.")
+            else -> {
+                SettingsRow(stringResource(R.string.language_setting), stringResource(R.string.language_description))
+                SettingsRow(stringResource(R.string.about_setting), stringResource(R.string.about_description))
+            }
         }
-        Text(statusText, color = NexoraMuted, fontSize = 11.sp)
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun SettingsCategoryCard(symbol: String, title: String, description: String, accent: Color, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+            .background(NexoraPanel).border(1.dp, accent.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text(symbol, color = accent, fontSize = 24.sp)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, color = NexoraText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(description, color = NexoraMuted, fontSize = 11.sp)
+        }
+        Text("›", color = accent, fontSize = 24.sp)
     }
 }
 
