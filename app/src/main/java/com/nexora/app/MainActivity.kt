@@ -2494,7 +2494,7 @@ private fun EditorControl(label:String,cell:Int,sizeDp:Int,offsetXDp:Int,offsetY
         .pointerInput(label) { detectTransformGestures { _,pan,zoom,_ -> latestSelect(); latestTransform(pan.x/density,pan.y/density,zoom) } }
         .clickable { latestSelect() }
         .background(if(selected) NexoraPurple.copy(alpha=.20f) else Color.Transparent,RoundedCornerShape(12.dp))
-        .border(if(selected) 1.dp else 0.dp,if(selected) NexoraPink else Color.Transparent,RoundedCornerShape(12.dp)).padding(3.dp)
+        .border(if(selected) 1.dp else 0.dp,if(selected) NexoraPink else Color.Transparent,RoundedCornerShape(12.dp))
     if(label=="MENU"||label=="SELECT"||label=="START") {
         Column(modifier.then(gesture),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(0.dp)) {
             NexoraAtlasSprite(cell=cell,modifier=Modifier.size(sizeDp.dp).alpha(opacity.coerceIn(.20f,1f)))
