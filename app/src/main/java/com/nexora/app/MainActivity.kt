@@ -1251,7 +1251,7 @@ private fun PlayerScreen(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio)
+                        GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio, controlSettings.gameScreenScalePercent)
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
@@ -1443,7 +1443,8 @@ private fun GameFrame(
     frameReady: Boolean,
     frameVersion: Int,
     frameImage: androidx.compose.ui.graphics.ImageBitmap,
-    aspectRatio: Float
+    aspectRatio: Float,
+    scalePercent: Int = 100
 ) {
     when {
         frameError -> Text(
@@ -1456,7 +1457,8 @@ private fun GameFrame(
             contentAlignment = Alignment.Center
         ) {
             // Preserve the active console's native aspect ratio (GBA 3:2, GB/GBC 10:9).
-            val fittedWidth = minOf(maxWidth, maxHeight * aspectRatio)
+            val scale = scalePercent.coerceIn(60, 120) / 100f
+            val fittedWidth = minOf(maxWidth, maxHeight * aspectRatio) * scale
             Canvas(
                 modifier = Modifier.width(fittedWidth).aspectRatio(aspectRatio)
             ) {
@@ -2599,6 +2601,18 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
                         Text(touchSettings.opacityPercent.toString() + "%", color = NexoraMuted, fontSize = 11.sp)
                     }
                     Text("A opacidade é independente do tamanho e da posição dos botões.", color = NexoraMuted, fontSize = 11.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Tamanho da tela do jogo", color = NexoraText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Slider(
+                            modifier = Modifier.weight(1f),
+                            value = touchSettings.gameScreenScalePercent.toFloat(),
+                            onValueChange = { onTouchSettingsChange(touchSettings.copy(gameScreenScalePercent = it.roundToInt().coerceIn(60, 120))) },
+                            valueRange = 60f..120f
+                        )
+                        Text("${touchSettings.gameScreenScalePercent}%", color = NexoraMuted, fontSize = 11.sp)
+                    }
+                    Text("Ajusta o tamanho da imagem do jogo sem deformar sua proporção.", color = NexoraMuted, fontSize = 11.sp)
                     Button(
                         onClick = { showResetControlsConfirmation = true },
                         modifier = Modifier.fillMaxWidth()
