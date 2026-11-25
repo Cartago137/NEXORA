@@ -437,6 +437,16 @@ private fun NexoraApp(
     var gamePendingRemoval by remember { mutableStateOf<GameEntry?>(null) }
     var removalFailed by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    var missingGameUris by remember { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(games) {
+        missingGameUris = withContext(Dispatchers.IO) {
+            games.filterNot { game ->
+                runCatching {
+                    context.contentResolver.openFileDescriptor(Uri.parse(game.uri), "r")?.use { true } ?: false
+                }.getOrDefault(false)
+            }.map { it.uri }.toSet()
+        }
+    }
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     var portraitTouchSettings by remember { mutableStateOf(TouchControlSettingsStore.load(context, false)) }
     var landscapeTouchSettings by remember { mutableStateOf(TouchControlSettingsStore.load(context, true)) }
@@ -915,6 +925,7 @@ private fun NexoraApp(
                     )
                     NexoraTab.LIBRARY -> LibraryScreen(
                         games = games,
+                        missingGameUris = missingGameUris,
                         folders = folders,
                         onSaveFolders = onSaveFolders,
                         onUpdateGame = onUpdateGame,
@@ -1709,7 +1720,11 @@ private fun GbaControl(
         NexoraTouchButton(
             normalCell = normalCell,
             pressedCell = pressedCell,
-            modifier = Modifier.size(visualSize).alpha(opacity.coerceIn(0.35f, 1f)),
+            modifier = (if (label == "L" || label == "R") {
+                Modifier.width(visualSize * (198f / 76f)).height(visualSize)
+            } else {
+                Modifier.size(visualSize)
+            }).alpha(opacity.coerceIn(0.35f, 1f)),
             keyMask = keyMask
         )
         if (isRoundLabel) {
@@ -1873,6 +1888,7 @@ private const val LIBRARY_UNFILED_FILTER = "__nexora_unfiled__"
 @Composable
 private fun LibraryScreen(
     games: List<GameEntry>,
+    missingGameUris: Set<String>,
     folders: List<GameFolder>,
     message: String?,
     isLoadingGame: Boolean,
@@ -2148,6 +2164,7 @@ private fun LibraryScreen(
                     gridItems(visibleGames, key = { it.uri }) { game ->
                         GameLibraryCard(
                             game = game,
+                            isMissing = game.uri in missingGameUris,
                             isLoading = isLoadingGame,
                             selectionMode = selectionMode,
                             isSelected = game.uri in selectedGameUris,
@@ -2301,6 +2318,7 @@ private fun LibraryScreen(
 @Composable
 private fun GameLibraryCard(
     game: GameEntry,
+    isMissing: Boolean,
     isLoading: Boolean,
     selectionMode: Boolean,
     isSelected: Boolean,
@@ -2338,12 +2356,20 @@ private fun GameLibraryCard(
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(10.dp))
-                .clickable(enabled = !selectionMode && !isLoading, onClick = onPlay)
+                .clickable(enabled = !selectionMode && !isLoading && !isMissing, onClick = onPlay)
         ) {
             GameCoverArtwork(
                 gameName = game.name,
                 modifier = Modifier.fillMaxSize()
             )
+            if (isMissing) {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Color(0xB5100B18)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("?", color = NexoraPink, fontSize = 42.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
         val consoleLabel = when (game.name.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
             "gb" -> "GB"
