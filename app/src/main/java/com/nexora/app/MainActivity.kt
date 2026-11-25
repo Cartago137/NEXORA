@@ -991,6 +991,11 @@ private fun NexoraApp(
                                     if (landscape) backgroundSettings.landscapeImagePath else backgroundSettings.portraitImagePath
                                 } else backgroundSettings.portraitImagePath.ifBlank { backgroundSettings.landscapeImagePath }
                                 BackgroundSettingsStore.removeImage(context, path)
+                                val updated = if (backgroundSettings.separateOrientations) {
+                                    if (landscape) backgroundSettings.copy(landscapeImagePath = "")
+                                    else backgroundSettings.copy(portraitImagePath = "")
+                                } else backgroundSettings.copy(portraitImagePath = "", landscapeImagePath = "")
+                                updateBackgroundSettings(updated)
                             },
                             onOpenTouchEditor = { showTouchEditor = true }
                         )
@@ -1615,7 +1620,7 @@ private fun NexoraControlShell(
             .then(if (transparent) Modifier else Modifier.background(Color(0xFF160D23)))
             .then(if (transparent) Modifier else Modifier.border(1.dp, Color(0xFF51366F), RoundedCornerShape(22.dp)))
     ) {
-        Canvas(Modifier.matchParentSize()) {
+        if (!transparent) Canvas(Modifier.matchParentSize()) {
             val points = listOf(
                 0.10f to 0.15f, 0.24f to 0.78f, 0.43f to 0.20f,
                 0.61f to 0.84f, 0.78f to 0.18f, 0.91f to 0.62f
@@ -2667,7 +2672,7 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
                         )
                         Column(Modifier.weight(1f)) {
                             Text("Sobrepor botões à tela do jogo", color = NexoraText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            Text("Move os controles para as bordas da imagem do jogo.", color = NexoraMuted, fontSize = 11.sp)
+                            Text("Oculta as barras laterais e libera a área para posicionar os controles sobre a imagem, sem trocar o layout.", color = NexoraMuted, fontSize = 11.sp)
                         }
                     }
                     if (touchSettings.controlsOnGameScreen) {
