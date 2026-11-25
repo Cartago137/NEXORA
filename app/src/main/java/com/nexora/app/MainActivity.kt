@@ -92,6 +92,7 @@ import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
@@ -1616,9 +1617,13 @@ private fun NexoraControlShell(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
+            // In overlay mode controls must be able to extend beyond their side/deck
+            // containers and draw above the game frame. Keep the old clipped shell
+            // only for the normal, non-overlay layout.
+            .then(if (transparent) Modifier else Modifier.clip(RoundedCornerShape(22.dp)))
             .then(if (transparent) Modifier else Modifier.background(Color(0xFF160D23)))
             .then(if (transparent) Modifier else Modifier.border(1.dp, Color(0xFF51366F), RoundedCornerShape(22.dp)))
+            .zIndex(if (transparent) 2f else 0f)
     ) {
         if (!transparent) Canvas(Modifier.matchParentSize()) {
             val points = listOf(
