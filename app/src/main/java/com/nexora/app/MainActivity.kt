@@ -2747,16 +2747,61 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
                     val activeImagePath = if (backgroundSettings.separateOrientations) {
                         if (appearanceIsLandscape) backgroundSettings.landscapeImagePath else backgroundSettings.portraitImagePath
                     } else backgroundSettings.portraitImagePath.ifBlank { backgroundSettings.landscapeImagePath }
+                    val activeImageBitmap = remember(activeImagePath) {
+                        activeImagePath.takeIf { it.isNotBlank() && File(it).exists() }
+                            ?.let { runCatching { BitmapFactory.decodeFile(it)?.asImageBitmap() }.getOrNull() }
+                    }
                     Button(onClick = onPickBackground, modifier = Modifier.fillMaxWidth()) {
                         Text(if (activeImagePath.isBlank()) "Escolher foto da galeria" else "Trocar foto")
                     }
-                    if (activeImagePath.isNotBlank()) {
-                        Text("Há uma imagem salva para esta orientação.", color = NexoraPurple, fontSize = 11.sp)
+                    if (activeImageBitmap != null) {
+                        Text("Prévia da foto atual no emulador", color = NexoraPurple, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Box(
+                            Modifier.fillMaxWidth().aspectRatio(if (appearanceIsLandscape) 16f / 9f else 3f / 4f)
+                                .clip(RoundedCornerShape(12.dp)).background(Color.Black)
+                        ) {
+                            Image(
+                                bitmap = activeImageBitmap,
+                                contentDescription = "Prévia da imagem de fundo",
+                                modifier = Modifier.fillMaxSize().graphicsLayer {
+                                    scaleX = backgroundSettings.cropScale
+                                    scaleY = backgroundSettings.cropScale
+                                    translationX = size.width * backgroundSettings.cropOffsetX
+                                    translationY = size.height * backgroundSettings.cropOffsetY
+                                },
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        Text("Ajustar recorte — zoom", color = NexoraText, fontSize = 11.sp)
+                        Slider(
+                            value = backgroundSettings.cropScale,
+                            onValueChange = { onBackgroundSettingsChange(backgroundSettings.copy(cropScale = it.coerceIn(1f, 3f))) },
+                            valueRange = 1f..3f
+                        )
+                        Text("Mover imagem na horizontal", color = NexoraText, fontSize = 11.sp)
+                        Slider(
+                            value = backgroundSettings.cropOffsetX,
+                            onValueChange = { onBackgroundSettingsChange(backgroundSettings.copy(cropOffsetX = it.coerceIn(-1f, 1f))) },
+                            valueRange = -1f..1f
+                        )
+                        Text("Mover imagem na vertical", color = NexoraText, fontSize = 11.sp)
+                        Slider(
+                            value = backgroundSettings.cropOffsetY,
+                            onValueChange = { onBackgroundSettingsChange(backgroundSettings.copy(cropOffsetY = it.coerceIn(-1f, 1f))) },
+                            valueRange = -1f..1f
+                        )
+                        TextButton(onClick = {
+                            onBackgroundSettingsChange(backgroundSettings.copy(cropScale = 1f, cropOffsetX = 0f, cropOffsetY = 0f))
+                        }) {
+                            Text("Redefinir recorte", color = NexoraMuted)
+                        }
                         TextButton(onClick = { onRemoveBackground(appearanceIsLandscape) }) {
                             Text("Remover foto", color = NexoraPink)
                         }
+                    } else {
+                        Text("Nenhuma foto selecionada para esta orientação. Escolha uma imagem para ver a prévia aqui.", color = NexoraMuted, fontSize = 11.sp)
                     }
-                    Text("A foto não altera a imagem do jogo nem a posição dos botões.", color = NexoraMuted, fontSize = 11.sp)
+                    Text("A prévia acompanha o recorte usado na tela do emulador. A foto não altera a imagem do jogo nem a posição dos botões.", color = NexoraMuted, fontSize = 11.sp)
                 }
             }
             "emulation" -> {
