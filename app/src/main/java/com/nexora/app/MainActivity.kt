@@ -2754,7 +2754,10 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
                         onTouchSettingsChange(
                             TouchControlSettings(
                                 defaultSpeed = touchSettings.defaultSpeed,
-                                audioVolumePercent = touchSettings.audioVolumePercent
+                                audioVolumePercent = touchSettings.audioVolumePercent,
+                                gameScreenScalePercent = touchSettings.gameScreenScalePercent,
+                                controlsOnGameScreen = touchSettings.controlsOnGameScreen,
+                                clipOverlayControls = touchSettings.clipOverlayControls
                             )
                         )
                         showResetControlsConfirmation = false
