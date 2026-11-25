@@ -1288,7 +1288,7 @@ private fun PlayerScreen(
             ) {
                 NexoraControlShell(
                     modifier = Modifier.width(224.dp).fillMaxHeight(),
-                    transparent = controlSettings.controlsOnGameScreen || backgroundSettings.mode == 2
+                    transparent = controlSettings.controlsOnGameScreen || (backgroundSettings.mode != 0 && backgroundBitmap != null)
                 ) {
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         if (!isGbFamily) {
@@ -1324,7 +1324,7 @@ private fun PlayerScreen(
 
                 NexoraControlShell(
                     modifier = Modifier.width(224.dp).fillMaxHeight(),
-                    transparent = controlSettings.controlsOnGameScreen || backgroundSettings.mode == 2
+                    transparent = controlSettings.controlsOnGameScreen || (backgroundSettings.mode != 0 && backgroundBitmap != null)
                 ) {
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         if (!isGbFamily) {
@@ -1356,7 +1356,7 @@ private fun PlayerScreen(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                     showShoulderButtons = !isGbFamily,
                     settings = controlSettings,
-                    transparent = controlSettings.controlsOnGameScreen || backgroundSettings.mode == 2,
+                    transparent = controlSettings.controlsOnGameScreen || (backgroundSettings.mode != 0 && backgroundBitmap != null),
                     onMenu = { showFunctionsMenu = true }
                 )
             }
