@@ -38,6 +38,16 @@ object TouchControlSettingsStore {
         val legacy = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val profileName = if (isLandscape) PREFS_NAME + "_landscape" else PREFS_NAME + "_portrait"
         val p = context.getSharedPreferences(profileName, Context.MODE_PRIVATE)
+        // One-time migration: keep the previous gameplay arrangement as the default.
+        // Users can explicitly enable overlays again from Controls settings.
+        if (!p.getBoolean("gameplay_layout_v2_initialized", false)) {
+            p.edit()
+                .putBoolean("controls_on_game_screen", false)
+                .putInt("game_screen_scale", 100)
+                .putBoolean("clip_overlay_controls", false)
+                .putBoolean("gameplay_layout_v2_initialized", true)
+                .apply()
+        }
         if (!p.contains("dpad_size")) {
             // Copy the previous shared layout into each orientation profile once.
             val editor = p.edit()
