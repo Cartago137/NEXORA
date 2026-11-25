@@ -2513,7 +2513,12 @@ private fun EditorControl(label:String,cell:Int,sizeDp:Int,offsetXDp:Int,offsetY
             Text(label,color=if(selected) NexoraPink else NexoraMuted,fontSize=8.sp,fontWeight=FontWeight.Bold)
         }
     } else {
-        Box(modifier.then(gesture).size(sizeDp.dp),contentAlignment=Alignment.Center) {
+        Box(
+            modifier
+                .then(if (label == "L" || label == "R") Modifier.width(sizeDp.dp * (198f / 76f)).height(sizeDp.dp) else Modifier.size(sizeDp.dp))
+                .then(gesture),
+            contentAlignment=Alignment.Center
+        ) {
             NexoraAtlasSprite(cell=cell,modifier=Modifier.fillMaxSize().alpha(opacity.coerceIn(.20f,1f)))
         }
     }
