@@ -1340,7 +1340,10 @@ private fun PlayerScreen(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio)
+                    GameFrame(
+                        frameError, frameReady, frameVersion, frameImage,
+                        videoAspectRatio, controlSettings.gameScreenScalePercent
+                    )
                 }
 
                 GbaPortraitControlDeck(
