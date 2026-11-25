@@ -1222,7 +1222,50 @@ private fun PlayerScreen(
     ) {
         val isLandscape = maxWidth > maxHeight
 
-        if (isLandscape) {
+        if (controlSettings.controlsOnGameScreen) {
+            GameFrame(
+                frameError, frameReady, frameVersion, frameImage,
+                videoAspectRatio, controlSettings.gameScreenScalePercent
+            ) {
+                if (!isGbFamily) {
+                    GbaControl("L", 1 shl 9, shoulderSize = controlSettings.lSizeDp,
+                        opacity = controlSettings.opacityPercent / 100f,
+                        offsetXDp = controlSettings.lOffsetXDp, offsetYDp = controlSettings.lOffsetYDp,
+                        modifier = Modifier.align(Alignment.TopStart).padding(4.dp))
+                    GbaControl("R", 1 shl 8, shoulderSize = controlSettings.rSizeDp,
+                        opacity = controlSettings.opacityPercent / 100f,
+                        offsetXDp = controlSettings.rOffsetXDp, offsetYDp = controlSettings.rOffsetYDp,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp))
+                }
+                GbaDPad(sizeDp = controlSettings.dpadSizeDp,
+                    opacity = controlSettings.opacityPercent / 100f,
+                    offsetXDp = controlSettings.dpadOffsetXDp, offsetYDp = controlSettings.dpadOffsetYDp,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(4.dp))
+                GbaControl("B", 1 shl 1, controlSize = controlSettings.bSizeDp,
+                    opacity = controlSettings.opacityPercent / 100f,
+                    offsetXDp = controlSettings.bOffsetXDp, offsetYDp = controlSettings.bOffsetYDp,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 76.dp, bottom = 12.dp))
+                GbaControl("A", 1 shl 0, controlSize = controlSettings.aSizeDp,
+                    opacity = controlSettings.opacityPercent / 100f,
+                    offsetXDp = controlSettings.aOffsetXDp, offsetYDp = controlSettings.aOffsetYDp,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp))
+                Row(
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    GbaMenuControl(onClick = { showFunctionsMenu = true }, sizeDp = controlSettings.menuSizeDp,
+                        opacity = controlSettings.opacityPercent / 100f,
+                        offsetXDp = controlSettings.menuOffsetXDp, offsetYDp = controlSettings.menuOffsetYDp)
+                    GbaControl("SELECT", 1 shl 2, systemButtonSize = controlSettings.selectSizeDp,
+                        opacity = controlSettings.opacityPercent / 100f,
+                        offsetXDp = controlSettings.selectOffsetXDp, offsetYDp = controlSettings.selectOffsetYDp)
+                    GbaControl("START", 1 shl 3, systemButtonSize = controlSettings.startSizeDp,
+                        opacity = controlSettings.opacityPercent / 100f,
+                        offsetXDp = controlSettings.startOffsetXDp, offsetYDp = controlSettings.startOffsetYDp)
+                }
+            }
+        } else if (isLandscape) {
             // Landscape: keep the complete GBA image in the center, with
             // the approved control arrangement on both sides.
             Row(
@@ -1444,7 +1487,8 @@ private fun GameFrame(
     frameVersion: Int,
     frameImage: androidx.compose.ui.graphics.ImageBitmap,
     aspectRatio: Float,
-    scalePercent: Int = 100
+    scalePercent: Int = 100,
+    overlayControls: (@Composable BoxScope.() -> Unit)? = null
 ) {
     when {
         frameError -> Text(
@@ -1459,15 +1503,18 @@ private fun GameFrame(
             // Preserve the active console's native aspect ratio (GBA 3:2, GB/GBC 10:9).
             val scale = scalePercent.coerceIn(60, 120) / 100f
             val fittedWidth = minOf(maxWidth, maxHeight * aspectRatio) * scale
-            Canvas(
+            Box(
                 modifier = Modifier.width(fittedWidth).aspectRatio(aspectRatio)
             ) {
-                frameVersion.let { /* Snapshot read invalidates this draw scope. */ }
-                drawImage(
-                    image = frameImage,
-                    dstSize = IntSize(size.width.toInt(), size.height.toInt()),
-                    filterQuality = FilterQuality.None
-                )
+                Canvas(Modifier.fillMaxSize()) {
+                    frameVersion.let { /* Snapshot read invalidates this draw scope. */ }
+                    drawImage(
+                        image = frameImage,
+                        dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+                        filterQuality = FilterQuality.None
+                    )
+                }
+                overlayControls?.invoke(this)
             }
         }
         else -> Text("Iniciando jogo…", color = NexoraMuted)
@@ -1625,10 +1672,10 @@ private fun NexoraTouchButton(
 }
 
 @Composable
-private fun GbaDPad(sizeDp: Int = 184, opacity: Float = 1f, offsetXDp: Int = 0, offsetYDp: Int = 0) {
+private fun GbaDPad(sizeDp: Int = 184, opacity: Float = 1f, offsetXDp: Int = 0, offsetYDp: Int = 0, modifier: Modifier = Modifier) {
     var visualCell by remember { mutableIntStateOf(0) }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(sizeDp.dp)
             .offset(x = offsetXDp.dp, y = offsetYDp.dp)
             .alpha(opacity.coerceIn(0.35f, 1f))
@@ -1697,7 +1744,8 @@ private fun GbaControl(
     systemButtonSize: Int = 48,
     opacity: Float = 1f,
     offsetXDp: Int = 0,
-    offsetYDp: Int = 0
+    offsetYDp: Int = 0,
+    modifier: Modifier = Modifier
 ) {
     val normalCell = when (label) {
         "A" -> 7
@@ -1715,7 +1763,7 @@ private fun GbaControl(
     }
 
     Column(
-        modifier = Modifier.offset(x = offsetXDp.dp, y = offsetYDp.dp),
+        modifier = modifier.offset(x = offsetXDp.dp, y = offsetYDp.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
@@ -2601,6 +2649,16 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
                         Text(touchSettings.opacityPercent.toString() + "%", color = NexoraMuted, fontSize = 11.sp)
                     }
                     Text("A opacidade é independente do tamanho e da posição dos botões.", color = NexoraMuted, fontSize = 11.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = touchSettings.controlsOnGameScreen,
+                            onCheckedChange = { onTouchSettingsChange(touchSettings.copy(controlsOnGameScreen = it)) }
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text("Sobrepor botões à tela do jogo", color = NexoraText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Move os controles para as bordas da imagem do jogo.", color = NexoraMuted, fontSize = 11.sp)
+                        }
+                    }
                     Spacer(Modifier.height(8.dp))
                     Text("Tamanho da tela do jogo", color = NexoraText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Row(verticalAlignment = Alignment.CenterVertically) {
