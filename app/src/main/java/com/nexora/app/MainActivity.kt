@@ -20,6 +20,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -76,6 +77,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.border
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -451,6 +453,32 @@ private fun NexoraApp(
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     var portraitTouchSettings by remember { mutableStateOf(TouchControlSettingsStore.load(context, false)) }
     var landscapeTouchSettings by remember { mutableStateOf(TouchControlSettingsStore.load(context, true)) }
+    var backgroundSettings by remember { mutableStateOf(BackgroundSettingsStore.load(context)) }
+    var backgroundPickerLandscapeTarget by remember { mutableStateOf(false) }
+    val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            val copiedPath = BackgroundSettingsStore.copyImageIntoPrivateStorage(context, uri, backgroundPickerLandscapeTarget)
+            if (!copiedPath.isNullOrBlank()) {
+                val updated = if (!backgroundSettings.separateOrientations) {
+                    backgroundSettings.copy(portraitImagePath = copiedPath, landscapeImagePath = copiedPath)
+                } else if (backgroundPickerLandscapeTarget) {
+                    backgroundSettings.copy(landscapeImagePath = copiedPath)
+                } else {
+                    backgroundSettings.copy(portraitImagePath = copiedPath)
+                }
+                backgroundSettings = updated
+                BackgroundSettingsStore.save(context, updated)
+            }
+        }
+    }
+    fun chooseBackgroundForCurrentOrientation() {
+        backgroundPickerLandscapeTarget = isLandscape
+        backgroundPicker.launch("image/*")
+    }
+    fun updateBackgroundSettings(updated: BackgroundSettings) {
+        backgroundSettings = updated
+        BackgroundSettingsStore.save(context, updated)
+    }
     val touchControlSettings = if (isLandscape) landscapeTouchSettings else portraitTouchSettings
     var showTouchEditor by remember { mutableStateOf(false) }
     androidx.activity.compose.BackHandler(enabled = showTouchEditor) { showTouchEditor = false }
@@ -742,6 +770,7 @@ private fun NexoraApp(
                         gameName = activeGameName!!,
                         saveStateKey = activeGameSaveKey ?: gameStateKey(activeGameName!!),
                         controlSettings = touchControlSettings,
+                        backgroundSettings = backgroundSettings,
                         isAppInForeground = isAppInForeground,
                         isLinkConnected = linkTransport != null || linkBusy,
                         onOpenLink = {
@@ -954,6 +983,15 @@ private fun NexoraApp(
                             nativeStatus = nativeStatus,
                             touchSettings = touchControlSettings,
                             onTouchSettingsChange = ::updateTouchControlSettings,
+                            backgroundSettings = backgroundSettings,
+                            onBackgroundSettingsChange = ::updateBackgroundSettings,
+                            onPickBackground = ::chooseBackgroundForCurrentOrientation,
+                            onRemoveBackground = { landscape ->
+                                val path = if (backgroundSettings.separateOrientations) {
+                                    if (landscape) backgroundSettings.landscapeImagePath else backgroundSettings.portraitImagePath
+                                } else backgroundSettings.portraitImagePath.ifBlank { backgroundSettings.landscapeImagePath }
+                                BackgroundSettingsStore.removeImage(context, path)
+                            },
                             onOpenTouchEditor = { showTouchEditor = true }
                         )
                     }
@@ -1032,6 +1070,7 @@ private fun PlayerScreen(
     gameName: String,
     saveStateKey: String,
     controlSettings: TouchControlSettings,
+    backgroundSettings: BackgroundSettings,
     isAppInForeground: Boolean,
     isLinkConnected: Boolean,
     onOpenLink: () -> Unit,
@@ -1222,60 +1261,30 @@ private fun PlayerScreen(
         modifier = Modifier.fillMaxSize().background(NexoraBackground)
     ) {
         val isLandscape = maxWidth > maxHeight
+        val selectedBackgroundPath = backgroundSettings.imagePath(isLandscape)
+        val backgroundBitmap = remember(selectedBackgroundPath) {
+            selectedBackgroundPath.takeIf { it.isNotBlank() && File(it).exists() }
+                ?.let { runCatching { BitmapFactory.decodeFile(it)?.asImageBitmap() }.getOrNull() }
+        }
+        if (backgroundSettings.mode != 0 && backgroundBitmap != null) {
+            Image(
+                bitmap = backgroundBitmap,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
 
-        if (controlSettings.controlsOnGameScreen) {
-            GameFrame(
-                frameError, frameReady, frameVersion, frameImage,
-                videoAspectRatio, controlSettings.gameScreenScalePercent,
-                controlSettings.clipOverlayControls
-            ) {
-                if (!isGbFamily) {
-                    GbaControl("L", 1 shl 9, shoulderSize = controlSettings.lSizeDp,
-                        opacity = controlSettings.opacityPercent / 100f,
-                        offsetXDp = controlSettings.lOffsetXDp, offsetYDp = controlSettings.lOffsetYDp,
-                        modifier = Modifier.align(Alignment.TopStart).padding(4.dp))
-                    GbaControl("R", 1 shl 8, shoulderSize = controlSettings.rSizeDp,
-                        opacity = controlSettings.opacityPercent / 100f,
-                        offsetXDp = controlSettings.rOffsetXDp, offsetYDp = controlSettings.rOffsetYDp,
-                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp))
-                }
-                GbaDPad(sizeDp = controlSettings.dpadSizeDp,
-                    opacity = controlSettings.opacityPercent / 100f,
-                    offsetXDp = controlSettings.dpadOffsetXDp, offsetYDp = controlSettings.dpadOffsetYDp,
-                    modifier = Modifier.align(Alignment.BottomStart).padding(4.dp))
-                GbaControl("B", 1 shl 1, controlSize = controlSettings.bSizeDp,
-                    opacity = controlSettings.opacityPercent / 100f,
-                    offsetXDp = controlSettings.bOffsetXDp, offsetYDp = controlSettings.bOffsetYDp,
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 76.dp, bottom = 12.dp))
-                GbaControl("A", 1 shl 0, controlSize = controlSettings.aSizeDp,
-                    opacity = controlSettings.opacityPercent / 100f,
-                    offsetXDp = controlSettings.aOffsetXDp, offsetYDp = controlSettings.aOffsetYDp,
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp))
-                Row(
-                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    GbaMenuControl(onClick = { showFunctionsMenu = true }, sizeDp = controlSettings.menuSizeDp,
-                        opacity = controlSettings.opacityPercent / 100f,
-                        offsetXDp = controlSettings.menuOffsetXDp, offsetYDp = controlSettings.menuOffsetYDp)
-                    GbaControl("SELECT", 1 shl 2, systemButtonSize = controlSettings.selectSizeDp,
-                        opacity = controlSettings.opacityPercent / 100f,
-                        offsetXDp = controlSettings.selectOffsetXDp, offsetYDp = controlSettings.selectOffsetYDp)
-                    GbaControl("START", 1 shl 3, systemButtonSize = controlSettings.startSizeDp,
-                        opacity = controlSettings.opacityPercent / 100f,
-                        offsetXDp = controlSettings.startOffsetXDp, offsetYDp = controlSettings.startOffsetYDp)
-                }
-            }
-        } else if (isLandscape) {
-            // Landscape: keep the complete GBA image in the center, with
-            // the approved control arrangement on both sides.
+        if (isLandscape) {
             Row(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                NexoraControlShell(Modifier.width(224.dp).fillMaxHeight()) {
+                NexoraControlShell(
+                    modifier = Modifier.width(224.dp).fillMaxHeight(),
+                    transparent = controlSettings.controlsOnGameScreen || backgroundSettings.mode == 2
+                ) {
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         if (!isGbFamily) {
                             Box(Modifier.align(Alignment.TopStart)) {
@@ -1292,10 +1301,7 @@ private fun PlayerScreen(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Box(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio, controlSettings.gameScreenScalePercent)
                     }
                     Row(
@@ -1311,7 +1317,10 @@ private fun PlayerScreen(
                     }
                 }
 
-                NexoraControlShell(Modifier.width(224.dp).fillMaxHeight()) {
+                NexoraControlShell(
+                    modifier = Modifier.width(224.dp).fillMaxHeight(),
+                    transparent = controlSettings.controlsOnGameScreen || backgroundSettings.mode == 2
+                ) {
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         if (!isGbFamily) {
                             Box(Modifier.align(Alignment.TopEnd)) {
@@ -1330,26 +1339,19 @@ private fun PlayerScreen(
                 }
             }
         } else {
-            // Portrait: preserve the game-above-controls hierarchy.
             Column(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    GameFrame(
-                        frameError, frameReady, frameVersion, frameImage,
-                        videoAspectRatio, controlSettings.gameScreenScalePercent
-                    )
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio, controlSettings.gameScreenScalePercent)
                 }
-
                 GbaPortraitControlDeck(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                     showShoulderButtons = !isGbFamily,
                     settings = controlSettings,
+                    transparent = controlSettings.controlsOnGameScreen || backgroundSettings.mode == 2,
                     onMenu = { showFunctionsMenu = true }
                 )
             }
@@ -1604,13 +1606,14 @@ private fun NexoraAtlasSprite(cell: Int, modifier: Modifier = Modifier) {
 @Composable
 private fun NexoraControlShell(
     modifier: Modifier = Modifier,
+    transparent: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(22.dp))
-            .background(Color(0xFF160D23))
-            .border(1.dp, Color(0xFF51366F), RoundedCornerShape(22.dp))
+            .then(if (transparent) Modifier else Modifier.background(Color(0xFF160D23)))
+            .then(if (transparent) Modifier else Modifier.border(1.dp, Color(0xFF51366F), RoundedCornerShape(22.dp)))
     ) {
         Canvas(Modifier.matchParentSize()) {
             val points = listOf(
@@ -1817,9 +1820,10 @@ private fun GbaPortraitControlDeck(
     modifier: Modifier = Modifier,
     showShoulderButtons: Boolean = true,
     settings: TouchControlSettings = TouchControlSettings(),
+    transparent: Boolean = false,
     onMenu: () -> Unit
 ) {
-    NexoraControlShell(modifier) {
+    NexoraControlShell(modifier, transparent) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -2617,7 +2621,7 @@ private fun EmptyScreen(eyebrow: String, title: String, description: String, sym
 }
 
 @Composable
-private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSettings, onTouchSettingsChange: (TouchControlSettings) -> Unit, onOpenTouchEditor: () -> Unit) {
+private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSettings, onTouchSettingsChange: (TouchControlSettings) -> Unit, backgroundSettings: BackgroundSettings, onBackgroundSettingsChange: (BackgroundSettings) -> Unit, onPickBackground: () -> Unit, onRemoveBackground: (Boolean) -> Unit, onOpenTouchEditor: () -> Unit) {
     var selectedCategory by remember { mutableStateOf("main") }
     var showResetControlsConfirmation by remember { mutableStateOf(false) }
     Column(
@@ -2701,7 +2705,42 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
                 Text("As alterações são salvas automaticamente e não modificam ROMs ou saves.", color = NexoraMuted, fontSize = 12.sp)
             }
             "appearance" -> {
-                SettingsRow("Identidade visual", "O NEXORA mantém sua interface roxa com brilho. Mais opções visuais serão adicionadas sem alterar os controles.")
+                Column(Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Imagem de fundo", color = NexoraText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Escolha uma foto para personalizar o espaço atrás do jogo e dos controles. O NEXORA guarda uma cópia privada.", color = NexoraMuted, fontSize = 11.sp)
+                    listOf(0 to "Sem imagem", 1 to "Tela inteira", 2 to "Somente laterais").forEach { (mode, label) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.RadioButton(
+                                selected = backgroundSettings.mode == mode,
+                                onClick = { onBackgroundSettingsChange(backgroundSettings.copy(mode = mode)) }
+                            )
+                            Text(label, color = NexoraText, fontSize = 13.sp)
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = backgroundSettings.separateOrientations,
+                            onCheckedChange = { onBackgroundSettingsChange(backgroundSettings.copy(separateOrientations = it)) }
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text("Fotos diferentes por orientação", color = NexoraText, fontSize = 13.sp)
+                            Text("Desativado: uma foto compartilhada. Ativado: uma foto para retrato e outra para paisagem.", color = NexoraMuted, fontSize = 10.sp)
+                        }
+                    }
+                    val activeImagePath = if (backgroundSettings.separateOrientations) {
+                        if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE) backgroundSettings.landscapeImagePath else backgroundSettings.portraitImagePath
+                    } else backgroundSettings.portraitImagePath.ifBlank { backgroundSettings.landscapeImagePath }
+                    Button(onClick = onPickBackground, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (activeImagePath.isBlank()) "Escolher foto da galeria" else "Trocar foto")
+                    }
+                    if (activeImagePath.isNotBlank()) {
+                        Text("Há uma imagem salva para esta orientação.", color = NexoraPurple, fontSize = 11.sp)
+                        TextButton(onClick = { onRemoveBackground(LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE) }) {
+                            Text("Remover foto", color = NexoraPink)
+                        }
+                    }
+                    Text("A foto não altera a imagem do jogo nem a posição dos botões.", color = NexoraMuted, fontSize = 11.sp)
+                }
             }
             "emulation" -> {
                 Column(Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
