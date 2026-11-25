@@ -72,6 +72,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.border
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -1225,7 +1226,8 @@ private fun PlayerScreen(
         if (controlSettings.controlsOnGameScreen) {
             GameFrame(
                 frameError, frameReady, frameVersion, frameImage,
-                videoAspectRatio, controlSettings.gameScreenScalePercent
+                videoAspectRatio, controlSettings.gameScreenScalePercent,
+                controlSettings.clipOverlayControls
             ) {
                 if (!isGbFamily) {
                     GbaControl("L", 1 shl 9, shoulderSize = controlSettings.lSizeDp,
@@ -1488,6 +1490,7 @@ private fun GameFrame(
     frameImage: androidx.compose.ui.graphics.ImageBitmap,
     aspectRatio: Float,
     scalePercent: Int = 100,
+    clipOverlayControls: Boolean = false,
     overlayControls: (@Composable BoxScope.() -> Unit)? = null
 ) {
     when {
@@ -1505,6 +1508,7 @@ private fun GameFrame(
             val fittedWidth = minOf(maxWidth, maxHeight * aspectRatio) * scale
             Box(
                 modifier = Modifier.width(fittedWidth).aspectRatio(aspectRatio)
+                    .then(if (clipOverlayControls) Modifier.clipToBounds() else Modifier)
             ) {
                 Canvas(Modifier.fillMaxSize()) {
                     frameVersion.let { /* Snapshot read invalidates this draw scope. */ }
@@ -2657,6 +2661,18 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
                         Column(Modifier.weight(1f)) {
                             Text("Sobrepor botões à tela do jogo", color = NexoraText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             Text("Move os controles para as bordas da imagem do jogo.", color = NexoraMuted, fontSize = 11.sp)
+                        }
+                    }
+                    if (touchSettings.controlsOnGameScreen) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = touchSettings.clipOverlayControls,
+                                onCheckedChange = { onTouchSettingsChange(touchSettings.copy(clipOverlayControls = it)) }
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text("Recortar botões nos limites da tela", color = NexoraText, fontSize = 12.sp)
+                                Text("Oculta as partes dos sprites que ultrapassarem a área da imagem do jogo. Desative para deixá-las avançar para fora dela.", color = NexoraMuted, fontSize = 10.sp)
+                            }
                         }
                     }
                     Spacer(Modifier.height(8.dp))
