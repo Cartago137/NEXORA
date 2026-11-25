@@ -2454,8 +2454,8 @@ private fun GameLibraryCard(
                 )
             }
         } else {
-            TextButton(onClick = onPlay, enabled = !isLoading, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.load_game), color = NexoraPurple, fontSize = 10.sp)
+            TextButton(onClick = onPlay, enabled = !isLoading && !isMissing, modifier = Modifier.fillMaxWidth()) {
+                Text(if (isMissing) "Arquivo ausente" else stringResource(R.string.load_game), color = if (isMissing) NexoraPink else NexoraPurple, fontSize = 10.sp)
             }
             TextButton(onClick = onRemove, enabled = !isLoading, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.remove), color = NexoraPink, fontSize = 10.sp)
