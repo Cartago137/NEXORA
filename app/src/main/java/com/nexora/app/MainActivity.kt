@@ -74,6 +74,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.border
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -1276,7 +1277,12 @@ private fun PlayerScreen(
             Image(
                 bitmap = backgroundBitmap,
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().graphicsLayer {
+                    scaleX = backgroundSettings.cropScale
+                    scaleY = backgroundSettings.cropScale
+                    translationX = size.width * backgroundSettings.cropOffsetX
+                    translationY = size.height * backgroundSettings.cropOffsetY
+                },
                 contentScale = ContentScale.Crop
             )
         }
@@ -2666,10 +2672,10 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
                 Column(Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Opacidade dos controles", color = NexoraText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Slider(modifier = Modifier.weight(1f), value = touchSettings.opacityPercent.toFloat(), onValueChange = { onTouchSettingsChange(touchSettings.copy(opacityPercent = it.roundToInt().coerceIn(20, 100))) }, valueRange = 20f..100f)
+                        Slider(modifier = Modifier.weight(1f), value = touchSettings.opacityPercent.toFloat(), onValueChange = { onTouchSettingsChange(touchSettings.copy(opacityPercent = it.roundToInt().coerceIn(0, 100))) }, valueRange = 0f..100f)
                         Text(touchSettings.opacityPercent.toString() + "%", color = NexoraMuted, fontSize = 11.sp)
                     }
-                    Text("A opacidade é independente do tamanho e da posição dos botões.", color = NexoraMuted, fontSize = 11.sp)
+                    Text("A opacidade pode chegar a 0%, deixando os botões totalmente invisíveis, sem alterar suas áreas de toque.", color = NexoraMuted, fontSize = 11.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = touchSettings.controlsOnGameScreen,
