@@ -2710,6 +2710,7 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
                 Text("As alterações são salvas automaticamente e não modificam ROMs ou saves.", color = NexoraMuted, fontSize = 12.sp)
             }
             "appearance" -> {
+                val appearanceIsLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
                 Column(Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Imagem de fundo", color = NexoraText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Text("Escolha uma foto para personalizar o espaço atrás do jogo e dos controles. O NEXORA guarda uma cópia privada.", color = NexoraMuted, fontSize = 11.sp)
@@ -2733,14 +2734,14 @@ private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSetting
                         }
                     }
                     val activeImagePath = if (backgroundSettings.separateOrientations) {
-                        if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE) backgroundSettings.landscapeImagePath else backgroundSettings.portraitImagePath
+                        if (appearanceIsLandscape) backgroundSettings.landscapeImagePath else backgroundSettings.portraitImagePath
                     } else backgroundSettings.portraitImagePath.ifBlank { backgroundSettings.landscapeImagePath }
                     Button(onClick = onPickBackground, modifier = Modifier.fillMaxWidth()) {
                         Text(if (activeImagePath.isBlank()) "Escolher foto da galeria" else "Trocar foto")
                     }
                     if (activeImagePath.isNotBlank()) {
                         Text("Há uma imagem salva para esta orientação.", color = NexoraPurple, fontSize = 11.sp)
-                        TextButton(onClick = { onRemoveBackground(LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE) }) {
+                        TextButton(onClick = { onRemoveBackground(appearanceIsLandscape) }) {
                             Text("Remover foto", color = NexoraPink)
                         }
                     }
