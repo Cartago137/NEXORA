@@ -10,6 +10,7 @@ data class TouchControlSettings(
     val systemButtonSizeDp: Int = 48,
     val opacityPercent: Int = 100,
     val gameScreenScalePercent: Int = 100,
+    val controlsOnGameScreen: Boolean = false,
     val dpadOffsetXDp: Int = 0,
     val dpadOffsetYDp: Int = 0,
     val actionOffsetXDp: Int = 0,
@@ -56,6 +57,7 @@ object TouchControlSettingsStore {
             systemButtonSizeDp = p.getInt("system_size", 48).coerceIn(28, 96),
             opacityPercent = p.getInt("opacity", 100).coerceIn(20, 100),
             gameScreenScalePercent = p.getInt("game_screen_scale", 100).coerceIn(60, 120),
+            controlsOnGameScreen = p.getBoolean("controls_on_game_screen", false),
             dpadOffsetXDp = p.getInt("dpad_x", 0).coerceIn(-180, 180),
             dpadOffsetYDp = p.getInt("dpad_y", 0).coerceIn(-180, 180),
             actionOffsetXDp = p.getInt("action_x", 0).coerceIn(-180, 180),
@@ -85,6 +87,7 @@ object TouchControlSettingsStore {
             .putInt("system_size", s.systemButtonSizeDp.coerceIn(28, 96))
             .putInt("opacity", s.opacityPercent.coerceIn(20, 100))
             .putInt("game_screen_scale", s.gameScreenScalePercent.coerceIn(60, 120))
+            .putBoolean("controls_on_game_screen", s.controlsOnGameScreen)
             .putInt("dpad_x", s.dpadOffsetXDp.coerceIn(-180, 180))
             .putInt("dpad_y", s.dpadOffsetYDp.coerceIn(-180, 180))
             .putInt("action_x", s.actionOffsetXDp.coerceIn(-180, 180))
