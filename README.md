@@ -1,64 +1,43 @@
 # NEXORA
 
-NEXORA is an Android-first Game Boy Advance emulator project with a premium console-inspired experience and a modular architecture intended to support additional systems in the future.
+NEXORA is an Android-first handheld emulator project targeting **Game Boy Advance (GBA), Game Boy (GB), and Game Boy Color (GBC)** through mGBA. The current integrated development milestone is **Android version 0.4.1**. It combines a custom Kotlin/Jetpack Compose interface, a native C/C++ emulation layer, and a modular foundation for future systems.
 
-> **Project status:** a test APK has already been produced and tested on a physical Android device. Static inspection of that APK confirms an Android application, Kotlin/Compose-related app classes, a native NEXORA library for ARM64 and x86_64, JNI entry points, and mGBA symbols. The current GitHub repository does **not yet contain the corresponding application/native source project**. The immediate engineering task is to reconcile the tested binary with a maintainable, reproducible source tree.
-
-## Verified continuity
-
-The previously tested APK provides a concrete reference implementation; this project is not being treated as a blank-slate product.
-
-Evidence from the APK inspection:
-- Android package containing Kotlin application classes, including `MainActivityKt`, `NativeBridge`, and Compose-generated player-screen classes.
-- Native shared library `libnexora_native.so` for `arm64-v8a` and `x86_64`.
-- JNI entry points for status, ROM loading, frame execution, audio reads, key input, and ROM unloading.
-- mGBA-related native symbols and an included mGBA MPL-2.0 license notice.
-- The user confirmed that in-game GBA saves remain available after fully closing and reopening the app.
-
-These findings establish useful compatibility targets, but they do not recover the original Kotlin/C/C++ source or prove that every feature is complete. The APK is a reference artifact, not a substitute for source code.
-
-See [APK audit and source recovery](docs/APK_AUDIT_AND_SOURCE_RECOVERY.md).
+> **Development status:** the latest unified work lives on `feature/nexora-unified-next-release` and draft PR [#33](https://github.com/Cartago137/NEXORA/pull/33). It combines the latest Home/Library/player work, Wi-Fi GBA Link Cable integration, Save States, and GB/GBC core support. This is a development build, not a released or physically validated version.
 
 ## Product direction
 
 - **Platform:** Android first.
-- **Initial system:** Game Boy Advance (GBA), using mGBA.
-- **Application layer:** Kotlin and Jetpack Compose, as indicated by the inspected APK.
-- **Native layer:** C/C++ with Android NDK and JNI.
-- **Future growth:** modular architecture that can accommodate additional console cores without rebuilding the application from scratch.
-- **Languages:** English and Spanish.
-- **Visual identity:** dark, premium interface inspired by deep Gengar-like purples, with restrained violet and pink/red accents.
-- **Orientation-aware experience:** landscape mode evokes the Game Boy Advance; portrait mode evokes the Game Boy Advance SP.
-- **Personalization:** selectable color themes and user-provided console-body skins.
-- **Game library:** searchable collection, custom folders, favorites, pinned items, multi-select actions, and play history.
-- **Featured game presentation:** a subtle floating 3D game box, not a flat cover or cartridge.
-- **Special hardware features:** support for compatible motion/tilt sensors and rumble is a product goal that still requires implementation and per-game/device validation.
-- **Connectivity:** multiplayer/link functionality is a core product goal, including local Wi-Fi connectivity where technically and legally feasible.
+- **First-release systems:** GBA, GB, and GBC.
+- **Emulation:** mGBA pinned to upstream commit `26b7884bc25a5933960f3cdcd98bac1ae14d42e2` (project version label 0.10.5).
+- **Application:** Kotlin + Jetpack Compose.
+- **Native layer:** C/C++ with Android NDK, CMake and JNI.
+- **Languages:** Portuguese, English and Spanish resources.
+- **Visual identity:** original NEXORA dark-purple interface with violet and pink accents; the user's hand-drawn cat mascot is used in the launcher/splash/header.
+- **Library:** unified GBA/GB/GBC collection, console filter, search, folders, favorites, pinned items and multi-selection.
+- **Player:** responsive layouts, continuous D-pad drag, GBA-only shoulder buttons, and selectable 1.0x/1.5x/2.0x/3.0x speed.
+- **Gameplay menu:** one hamburger button opens Save State, Load State, speed, Link Cable and Exit actions.
+- **Connectivity:** experimental two-device local Wi-Fi GBA MULTI SIO integration; Pokémon trade has not yet passed a physical two-device acceptance test.
+
+## Current engineering status
+
+- **Unified branch:** `feature/nexora-unified-next-release`
+- **Draft PR:** [#33 — Unify NEXORA Link Cable, gameplay tools and latest interface](https://github.com/Cartago137/NEXORA/pull/33)
+- **No merge to `main` is authorized yet.**
+- The Wi-Fi room and NXLP protocol are integrated with a first mGBA GBA MULTI SIO driver. The native SIO callback uses non-blocking polling with a timeout; distributed lockstep correctness remains to be validated.
+- Save State/Load State call mGBA named-state APIs and use app-private per-ROM files. They are disabled during a Link session.
+- GB/GBC ROM detection uses mGBA's cartridge-header compatibility detection; the player uses active frame dimensions and hides GBA-only L/R controls.
+- CI has been extended to run JVM protocol/transport tests as well as Android builds. Check the current PR Actions results before describing any build as passed.
+- Physical testing on the Motorola G54 is still required. A real Pokémon trade additionally requires a second Android device running the same FireRed ROM/revision.
 
 ## Engineering principles
 
-1. Keep the user interface, emulator core, platform services, and system-specific integrations separated.
-2. Define stable interfaces between the app and each emulator core.
-3. Keep console-specific behavior inside system modules rather than scattering it throughout the app.
-4. Document decisions, limitations, licensing, and test coverage.
-5. Prefer incremental, testable changes over a large unverified implementation.
-6. Preserve tested behavior when reconstructing the source project; do not replace the existing native core with a placeholder and call it equivalent.
-7. Respect software licenses and users' rights: NEXORA will not include copyrighted game ROMs or BIOS files.
-
-## Repository status
-
-The Android source project has been restored to `main` from preserved development branches in this repository. The APK's embedded Git revision identifies the exact launch-shell snapshot (`17bcb65bad01e23790605ef4ec32fbdb173e637a`). The restored mainline source uses the later CI-verified `feature/audio-saves-orientation` development line, which includes the Kotlin/Compose application, JNI/C++ bridge, pinned mGBA CMake integration, Gradle configuration, license notices, multi-ROM import, reusable video buffers, corrected native color conversion, audio, battery-save loading, and orientation handling.
-
-The `feature/audio-saves-orientation` branch's debug APK build completed successfully in GitHub Actions (run 42711690785). The restored `main` branch now triggers the Android build workflow. The generated APK still requires physical-device validation before it is treated as a release candidate. A successful compile does not replace physical-device testing.
-
-## Development sequence
-
-1. Preserve the tested APK and its exact source revision as a compatibility reference.
-2. Restore the later CI-verified Android and native source line into `main`.
-3. Run the Android/NDK build from the restoration pull request and keep the pipeline in GitHub Actions.
-4. Install the new APK on the target phone and revalidate rendering, audio, controls, orientation, and save persistence.
-5. Continue feature work only from the restored, reproducible source project.
+1. Keep presentation, application services, native core and system-specific integration separated.
+2. Preserve tested behavior in ROM loading, battery saves, audio, rendering and input.
+3. Never call a feature complete because a screen or placeholder exists.
+4. Review every stage, run tests, fix failures and repeat before moving on.
+5. Document limitations and exact validation status.
+6. Do not merge into `main` without the user's explicit approval.
 
 ## Legal and preservation note
 
-NEXORA is intended to run user-provided game files. The project will not distribute commercial ROMs, copyrighted game assets, or proprietary BIOS files. Any third-party emulator core or library must be reviewed for license compatibility before integration.
+NEXORA runs user-provided game files. The project will not distribute commercial ROMs, copyrighted game assets, or proprietary BIOS files. Third-party emulator cores and libraries must retain their required license notices.

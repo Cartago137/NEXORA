@@ -1,7 +1,11 @@
 package com.nexora.app
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
@@ -10,51 +14,99 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.view.View
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import com.nexora.app.link.LinkProtocol
+import com.nexora.app.link.WifiLinkTransport
+import java.security.SecureRandom
+import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicLong
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.border
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.abs
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -71,6 +123,12 @@ private val NexoraText = Color(0xFFF4EFFA)
 private val NexoraMuted = Color(0xFFB7AFC2)
 
 private enum class NexoraTab { HOME, LIBRARY, HISTORY, SETTINGS }
+
+private fun gameStateKey(uri: String): String =
+    MessageDigest.getInstance("SHA-256")
+        .digest(uri.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+
 
 class MainActivity : ComponentActivity() {
 
@@ -202,6 +260,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var games by remember { mutableStateOf(GameLibraryStore.load(this@MainActivity)) }
+            var folders by remember { mutableStateOf(GameFolderStore.load(this@MainActivity)) }
             var libraryMessage by remember { mutableStateOf<String?>(null) }
             var isLoadingGame by remember { mutableStateOf(false) }
 
@@ -259,7 +318,7 @@ class MainActivity : ComponentActivity() {
                                 .lowercase(Locale.ROOT)
 
                             when {
-                                extension !in setOf("gba", "agb", "bin") -> {
+                                extension !in setOf("gba", "agb", "bin", "gb", "gbc") -> {
                                     invalidCount++
                                     releaseDocumentAccess(uri)
                                 }
@@ -298,7 +357,22 @@ class MainActivity : ComponentActivity() {
                     nativeStatus = -1,
                     isAppInForeground = isAppInForeground,
                     games = games,
+                    folders = folders,
                     libraryMessage = libraryMessage,
+                    onSaveFolders = { updatedFolders ->
+                        folders = updatedFolders
+                        GameFolderStore.save(this@MainActivity, folders)
+                    },
+                    onUpdateGame = { updatedGame ->
+                        games = games.map { if (it.uri == updatedGame.uri) updatedGame else it }
+                        GameLibraryStore.save(this@MainActivity, games)
+                    },
+                    onDeleteFolder = { folder ->
+                        folders = folders.filterNot { it.id == folder.id }
+                        games = games.map { if (it.folderId == folder.id) it.copy(folderId = null) else it }
+                        GameFolderStore.save(this@MainActivity, folders)
+                        GameLibraryStore.save(this@MainActivity, games)
+                    },
                     isLoadingGame = isLoadingGame,
                     onImportGame = { romPicker.launch(arrayOf("*/*")) },
                     onPlayGame = { game, onLoaded ->
@@ -351,7 +425,11 @@ private fun NexoraApp(
     nativeStatus: Int,
     isAppInForeground: Boolean,
     games: List<GameEntry>,
+    folders: List<GameFolder>,
     libraryMessage: String?,
+    onSaveFolders: (List<GameFolder>) -> Unit,
+    onUpdateGame: (GameEntry) -> Unit,
+    onDeleteFolder: (GameFolder) -> Unit,
     isLoadingGame: Boolean,
     onImportGame: () -> Unit,
     onPlayGame: (GameEntry, (Int) -> Unit) -> Unit,
@@ -361,12 +439,296 @@ private fun NexoraApp(
 ) {
     var selectedTab by remember { mutableStateOf(NexoraTab.HOME) }
     var activeGameName by remember { mutableStateOf<String?>(null) }
+    var activeGameSaveKey by remember { mutableStateOf<String?>(null) }
     var gamePendingRemoval by remember { mutableStateOf<GameEntry?>(null) }
     var removalFailed by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    var missingGameUris by remember { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(games) {
+        missingGameUris = withContext(Dispatchers.IO) {
+            games.filterNot { game ->
+                runCatching {
+                    context.contentResolver.openFileDescriptor(Uri.parse(game.uri), "r")?.use { true } ?: false
+                }.getOrDefault(false)
+            }.map { it.uri }.toSet()
+        }
+    }
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    var portraitTouchSettings by remember { mutableStateOf(TouchControlSettingsStore.load(context, false)) }
+    var landscapeTouchSettings by remember { mutableStateOf(TouchControlSettingsStore.load(context, true)) }
+    var backgroundSettings by remember { mutableStateOf(BackgroundSettingsStore.load(context)) }
+    var backgroundPickerLandscapeTarget by remember { mutableStateOf(false) }
+    val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            val copiedPath = BackgroundSettingsStore.copyImageIntoPrivateStorage(context, uri, backgroundPickerLandscapeTarget)
+            if (!copiedPath.isNullOrBlank()) {
+                val updated = if (!backgroundSettings.separateOrientations) {
+                    backgroundSettings.copy(portraitImagePath = copiedPath, landscapeImagePath = copiedPath)
+                } else if (backgroundPickerLandscapeTarget) {
+                    backgroundSettings.copy(landscapeImagePath = copiedPath)
+                } else {
+                    backgroundSettings.copy(portraitImagePath = copiedPath)
+                }
+                backgroundSettings = updated
+                BackgroundSettingsStore.save(context, updated)
+            }
+        }
+    }
+    fun chooseBackgroundForCurrentOrientation() {
+        backgroundPickerLandscapeTarget = isLandscape
+        backgroundPicker.launch("image/*")
+    }
+    fun updateBackgroundSettings(updated: BackgroundSettings) {
+        backgroundSettings = updated
+        BackgroundSettingsStore.save(context, updated)
+    }
+    val touchControlSettings = if (isLandscape) landscapeTouchSettings else portraitTouchSettings
+    var showTouchEditor by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = showTouchEditor) { showTouchEditor = false }
+    fun updateTouchControlSettings(updated: TouchControlSettings) {
+        if (isLandscape) {
+            landscapeTouchSettings = updated
+            portraitTouchSettings = portraitTouchSettings.copy(
+                defaultSpeed = updated.defaultSpeed,
+                audioVolumePercent = updated.audioVolumePercent
+            )
+        } else {
+            portraitTouchSettings = updated
+            landscapeTouchSettings = landscapeTouchSettings.copy(
+                defaultSpeed = updated.defaultSpeed,
+                audioVolumePercent = updated.audioVolumePercent
+            )
+        }
+        TouchControlSettingsStore.save(context, updated, isLandscape)
+    }
+    var showLinkDialog by remember { mutableStateOf(false) }
+    var linkTransport by remember { mutableStateOf<WifiLinkTransport?>(null) }
+    var linkMessage by remember { mutableStateOf<String?>(null) }
+    var linkBusy by remember { mutableStateOf(false) }
+    var roomCode by remember { mutableStateOf<String?>(null) }
+    var hostIp by remember { mutableStateOf(WifiLinkTransport.localIpv4Address()) }
+    var joinIp by remember { mutableStateOf("") }
+    var joinCode by remember { mutableStateOf("") }
+    val linkScope = rememberCoroutineScope()
+    var linkConnectJob by remember { mutableStateOf<Job?>(null) }
+    val roomCodeRandom = remember { SecureRandom() }
+    val lastPongNonce = remember { AtomicLong(0L) }
+
+    fun disconnectLink(finalMessage: String? = null) {
+        if (linkBusy && linkTransport == null && linkConnectJob == null) return
+        val pendingConnect = linkConnectJob
+        pendingConnect?.cancel()
+        linkConnectJob = null
+        val active = linkTransport
+        NativeBridge.nativeLinkSetConnected(false)
+        linkTransport = null
+        roomCode = null
+        joinCode = ""
+        linkBusy = true
+        linkScope.launch(Dispatchers.IO) {
+            pendingConnect?.join()
+            if (active != null) runCatching { active.close() }
+            runCatching { NativeBridge.nativeLinkDetach() }
+            linkScope.launch {
+                linkBusy = false
+                linkMessage = finalMessage ?: context.getString(R.string.link_disconnected)
+            }
+        }
+    }
+
+    fun installLinkTransport(transport: WifiLinkTransport) {
+        NativeBridge.nativeLinkSetConnected(true)
+        if (!NativeBridge.nativeLinkAttach(transport.session.localPlayerId)) {
+            NativeBridge.nativeLinkSetConnected(false)
+            transport.close()
+            linkBusy = false
+            linkMessage = context.getString(R.string.link_native_attach_failed)
+            return
+        }
+
+        lastPongNonce.set(0L)
+        linkTransport = transport
+        linkBusy = false
+        linkMessage = context.getString(R.string.link_connected_instruction)
+        transport.startReceiving(
+            onMessage = { message ->
+                when (message) {
+                    is LinkProtocol.SerialTransfer -> {
+                        val accepted = message.mode == LinkProtocol.SerialMode.MULTIPLAYER &&
+                            message.bitWidth == 16 &&
+                            NativeBridge.nativeLinkReceiveSerialTransfer(
+                                message.transferId,
+                                message.cycle,
+                                message.baudCode,
+                                message.dataOut and 0xFFFF,
+                                message.sioControl,
+                                message.rcnt
+                            )
+                        if (!accepted) {
+                            NativeBridge.nativeLinkSetConnected(false)
+                            linkScope.launch {
+                                linkMessage = context.getString(R.string.link_transfer_rejected)
+                            }
+                        }
+                    }
+                    is LinkProtocol.SerialResult -> {
+                        val localWord = message.receivedWords.getOrNull(1)
+                            ?: message.receivedWords.firstOrNull()
+                            ?: 0xFFFF
+                        val accepted = NativeBridge.nativeLinkReceiveSerialResult(
+                            message.transferId,
+                            message.cycle,
+                            localWord,
+                            message.sioControl,
+                            0
+                        )
+                        if (!accepted) {
+                            NativeBridge.nativeLinkSetConnected(false)
+                            linkScope.launch {
+                                linkMessage = context.getString(R.string.link_transfer_rejected)
+                            }
+                        }
+                    }
+                    is LinkProtocol.Ping -> runCatching {
+                        transport.send(LinkProtocol.Pong(message.nonce))
+                    }
+                    is LinkProtocol.Pong -> lastPongNonce.set(message.nonce)
+                    is LinkProtocol.Goodbye -> NativeBridge.nativeLinkSetConnected(false)
+                    is LinkProtocol.ProtocolError -> {
+                        NativeBridge.nativeLinkSetConnected(false)
+                        linkScope.launch {
+                            linkMessage = context.getString(R.string.link_remote_ended_reason, message.message)
+                        }
+                    }
+                    else -> Unit
+                }
+            },
+            onDisconnected = { error ->
+                NativeBridge.nativeLinkSetConnected(false)
+                linkScope.launch {
+                    if (linkTransport === transport) {
+                        linkMessage = error?.message?.let {
+                            context.getString(R.string.link_connection_lost, it)
+                        } ?: context.getString(R.string.link_remote_ended)
+                    }
+                }
+            }
+        )
+    }
+
+    LaunchedEffect(linkTransport) {
+        val active = linkTransport ?: return@LaunchedEffect
+        var nextPingNonce = 1L
+        var awaitingPongNonce: Long? = null
+        var pingSentAtNanos = 0L
+        var nextPingAtNanos = System.nanoTime() + 3_000_000_000L
+
+        while (isActive && linkTransport === active) {
+            if (NativeBridge.nativeLinkStatus() != 1) {
+                disconnectLink(context.getString(R.string.link_session_interrupted))
+                break
+            }
+
+            val nowNanos = System.nanoTime()
+            val waitingForPong = awaitingPongNonce
+            if (waitingForPong != null) {
+                if (lastPongNonce.get() == waitingForPong) {
+                    awaitingPongNonce = null
+                    nextPingAtNanos = nowNanos + 3_000_000_000L
+                } else if (nowNanos - pingSentAtNanos > 10_000_000_000L) {
+                    disconnectLink(context.getString(R.string.link_heartbeat_timeout))
+                    break
+                }
+            }
+
+            val packet = NativeBridge.nativeLinkTakeOutgoing()
+            if (packet == null) {
+                if (awaitingPongNonce == null && nowNanos >= nextPingAtNanos) {
+                    val nonce = nextPingNonce++
+                    try {
+                        withContext(Dispatchers.IO) {
+                            active.send(LinkProtocol.Ping(nonce))
+                        }
+                        awaitingPongNonce = nonce
+                        pingSentAtNanos = nowNanos
+                    } catch (error: Throwable) {
+                        disconnectLink(
+                            context.getString(
+                                R.string.link_send_failed,
+                                error.message ?: context.getString(R.string.link_network_error)
+                            )
+                        )
+                        break
+                    }
+                }
+                delay(2)
+                continue
+            }
+            if (packet.size != 7) {
+                disconnectLink(context.getString(R.string.link_invalid_event))
+                break
+            }
+            val message: LinkProtocol.Message? = when (packet[0].toInt()) {
+                1 -> LinkProtocol.SerialTransfer(
+                    transferId = packet[1],
+                    cycle = packet[2],
+                    mode = LinkProtocol.SerialMode.MULTIPLAYER,
+                    baudCode = packet[3].toInt(),
+                    bitWidth = 16,
+                    dataOut = packet[4].toInt() and 0xFFFF,
+                    sioControl = packet[5].toInt() and 0xFFFF,
+                    rcnt = packet[6].toInt() and 0xFFFF
+                )
+                2 -> LinkProtocol.SerialResult(
+                    transferId = packet[1],
+                    cycle = packet[2],
+                    receivedWords = listOf(0xFFFF, packet[4].toInt() and 0xFFFF),
+                    sioControl = packet[5].toInt() and 0xFFFF
+                )
+                else -> null
+            }
+            if (message == null) {
+                disconnectLink(context.getString(R.string.link_unknown_event))
+                break
+            }
+            try {
+                withContext(Dispatchers.IO) { active.send(message) }
+            } catch (error: Throwable) {
+                disconnectLink(
+                    context.getString(
+                        R.string.link_send_failed,
+                        error.message ?: context.getString(R.string.link_network_error)
+                    )
+                )
+                break
+            }
+        }
+    }
+
+    var lastPlayedUri by remember {
+        mutableStateOf(
+            context.getSharedPreferences("nexora_home", android.content.Context.MODE_PRIVATE)
+                .getString("last_played_uri", null)
+        )
+    }
+    val startGame: (GameEntry) -> Unit = { game ->
+        onPlayGame(game) { status ->
+            if (status == 4) {
+                activeGameName = game.name
+                activeGameSaveKey = gameStateKey(game.uri)
+                lastPlayedUri = game.uri
+                context.getSharedPreferences("nexora_home", android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .putString("last_played_uri", game.uri)
+                    .apply()
+            }
+        }
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = NexoraBackground) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            if (activeGameName == null) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            if (activeGameName == null && !showTouchEditor) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -378,7 +740,14 @@ private fun NexoraApp(
                             .size(width = 4.dp, height = 38.dp)
                             .background(NexoraPurple, RoundedCornerShape(4.dp))
                     )
-                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(R.drawable.nexora_cat_mascot),
+                        contentDescription = stringResource(R.string.app_name),
+                        modifier = Modifier
+                            .padding(start = 9.dp)
+                            .size(42.dp)
+                    )
+                    Column(modifier = Modifier.padding(start = 10.dp)) {
                         Text(
                             text = stringResource(R.string.brand_name),
                             color = NexoraText,
@@ -402,30 +771,203 @@ private fun NexoraApp(
                 if (activeGameName != null) {
                     PlayerScreen(
                         gameName = activeGameName!!,
+                        saveStateKey = activeGameSaveKey ?: gameStateKey(activeGameName!!),
+                        controlSettings = touchControlSettings,
+                        backgroundSettings = backgroundSettings,
                         isAppInForeground = isAppInForeground,
+                        isLinkConnected = linkTransport != null || linkBusy,
+                        onOpenLink = {
+                            hostIp = WifiLinkTransport.localIpv4Address()
+                            showLinkDialog = true
+                        },
                         onExit = {
+                            disconnectLink()
                             onExitGame()
                             activeGameName = null
+                            activeGameSaveKey = null
                         }
                     )
+                    if (showLinkDialog) {
+                        val gameCode = NativeBridge.nativeGetGameCode()
+                        val romCrc32 = NativeBridge.nativeGetRomCrc32()
+                        AlertDialog(
+                            onDismissRequest = { if (!linkBusy) showLinkDialog = false },
+                            title = { Text(stringResource(R.string.link_dialog_title), color = NexoraText) },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    if (linkTransport != null) {
+                                        Text(stringResource(R.string.link_room_connected), color = NexoraPurple, fontWeight = FontWeight.Bold)
+                                        Text(stringResource(R.string.link_player_connected, linkTransport!!.session.localPlayerId + 1), color = NexoraText)
+                                        Text(stringResource(R.string.link_cable_club_instruction), color = NexoraMuted, fontSize = 12.sp)
+                                        Button(onClick = { disconnectLink() }) { Text(stringResource(R.string.link_disconnect)) }
+                                    } else {
+                                        Text(stringResource(R.string.link_wifi_same_rom), color = NexoraMuted, fontSize = 12.sp)
+                                        Button(
+                                            onClick = {
+                                                val code = (1000 + roomCodeRandom.nextInt(9000)).toString()
+                                                roomCode = code
+                                                hostIp = WifiLinkTransport.localIpv4Address()
+                                                linkBusy = true
+                                                linkMessage = context.getString(R.string.link_room_waiting)
+                                                linkConnectJob = linkScope.launch {
+                                                    val connectionJob = currentCoroutineContext()[Job]
+                                                    try {
+                                                        val session = withContext(Dispatchers.IO) {
+                                                            WifiLinkTransport.host(
+                                                                gameCode = gameCode,
+                                                                romCrc32 = romCrc32,
+                                                                sessionId = WifiLinkTransport.roomSessionId(code),
+                                                                onListening = { address ->
+                                                                    linkScope.launch {
+                                                                        hostIp = address
+                                                                        linkMessage = context.getString(R.string.link_room_waiting_short)
+                                                                    }
+                                                                },
+                                                                shouldCancel = { connectionJob?.isActive != true }
+                                                            )
+                                                        }
+                                                        linkConnectJob = null
+                                                        installLinkTransport(session)
+                                                    } catch (cancelled: CancellationException) {
+                                                        throw cancelled
+                                                    } catch (error: Throwable) {
+                                                        linkConnectJob = null
+                                                        linkBusy = false
+                                                        roomCode = null
+                                                        linkMessage = context.getString(R.string.link_create_room_failed, error.message ?: context.getString(R.string.link_timeout))
+                                                    }
+                                                }
+                                            },
+                                            enabled = !linkBusy && gameCode.length == 4 && romCrc32 != 0L
+                                        ) { Text(stringResource(R.string.link_create_room)) }
+                                        if (roomCode != null) {
+                                            Text(stringResource(R.string.link_room_code, roomCode ?: ""), color = NexoraPink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                            Text(
+                                                stringResource(R.string.link_host_ip),
+                                                color = NexoraMuted,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                "$hostIp:${WifiLinkTransport.DEFAULT_PORT}",
+                                                color = NexoraText,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(NexoraPanelLight, RoundedCornerShape(12.dp))
+                                                    .padding(horizontal = 12.dp, vertical = 11.dp)
+                                            )
+                                            Text(stringResource(R.string.link_share_ip_code), color = NexoraMuted, fontSize = 11.sp)
+                                        }
+                                        TextField(
+                                            value = joinIp,
+                                            onValueChange = { joinIp = it },
+                                            label = { Text(stringResource(R.string.link_host_ip_label)) },
+                                            singleLine = true,
+                                            colors = TextFieldDefaults.colors(
+                                                focusedTextColor = NexoraText,
+                                                unfocusedTextColor = NexoraText,
+                                                focusedContainerColor = NexoraPanelLight,
+                                                unfocusedContainerColor = NexoraPanelLight,
+                                                focusedLabelColor = NexoraPurple,
+                                                unfocusedLabelColor = NexoraMuted,
+                                                cursorColor = NexoraPurple,
+                                                focusedIndicatorColor = NexoraPurple,
+                                                unfocusedIndicatorColor = NexoraMuted
+                                            )
+                                        )
+                                        TextField(
+                                            value = joinCode,
+                                            onValueChange = { joinCode = it.filter(Char::isDigit).take(4) },
+                                            label = { Text(stringResource(R.string.link_room_code_label)) },
+                                            singleLine = true,
+                                            colors = TextFieldDefaults.colors(
+                                                focusedTextColor = NexoraText,
+                                                unfocusedTextColor = NexoraText,
+                                                focusedContainerColor = NexoraPanelLight,
+                                                unfocusedContainerColor = NexoraPanelLight,
+                                                focusedLabelColor = NexoraPurple,
+                                                unfocusedLabelColor = NexoraMuted,
+                                                cursorColor = NexoraPurple,
+                                                focusedIndicatorColor = NexoraPurple,
+                                                unfocusedIndicatorColor = NexoraMuted
+                                            )
+                                        )
+                                        Button(
+                                            onClick = {
+                                                linkBusy = true
+                                                linkMessage = context.getString(R.string.link_joining)
+                                                val code = joinCode
+                                                val address = joinIp.trim()
+                                                linkConnectJob = linkScope.launch {
+                                                    val connectionJob = currentCoroutineContext()[Job]
+                                                    try {
+                                                        val session = withContext(Dispatchers.IO) {
+                                                            WifiLinkTransport.join(
+                                                                hostAddress = address,
+                                                                expectedSessionId = WifiLinkTransport.roomSessionId(code),
+                                                                gameCode = gameCode,
+                                                                romCrc32 = romCrc32,
+                                                                shouldCancel = { connectionJob?.isActive != true }
+                                                            )
+                                                        }
+                                                        linkConnectJob = null
+                                                        installLinkTransport(session)
+                                                    } catch (cancelled: CancellationException) {
+                                                        throw cancelled
+                                                    } catch (error: Throwable) {
+                                                        linkConnectJob = null
+                                                        linkBusy = false
+                                                        linkMessage = context.getString(R.string.link_join_room_failed, error.message ?: context.getString(R.string.link_network_error))
+                                                    }
+                                                }
+                                            },
+                                            enabled = !linkBusy && joinIp.isNotBlank() &&
+                                                joinCode.length == 4 && gameCode.length == 4 &&
+                                                romCrc32 != 0L
+                                        ) { Text(stringResource(R.string.link_join_room)) }
+                                        if (linkBusy) Text(stringResource(R.string.link_waiting_connection), color = NexoraPurple, fontSize = 12.sp)
+                                    }
+                                    linkMessage?.let {
+                                        Text(it, color = if (linkTransport != null) NexoraPurple else NexoraMuted, fontSize = 12.sp)
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showLinkDialog = false }, enabled = !linkBusy) {
+                                    Text(stringResource(R.string.close), color = NexoraText)
+                                }
+                            },
+                            containerColor = NexoraPanel,
+                            titleContentColor = NexoraText,
+                            textContentColor = NexoraText
+                        )
+                    }
                 } else when (selectedTab) {
-                    NexoraTab.HOME -> HomeScreen(
+                    NexoraTab.HOME -> NexoraHomeScreen(
+                        games = games,
+                        featuredGame = games.firstOrNull { it.uri == lastPlayedUri } ?: games.firstOrNull(),
+                        isLastPlayed = lastPlayedUri != null && games.any { it.uri == lastPlayedUri },
                         onImportGame = {
                             selectedTab = NexoraTab.LIBRARY
                             onImportGame()
                         },
-                        onOpenLibrary = { selectedTab = NexoraTab.LIBRARY }
+                        onOpenLibrary = { selectedTab = NexoraTab.LIBRARY },
+                        onPlayGame = startGame
                     )
                     NexoraTab.LIBRARY -> LibraryScreen(
                         games = games,
+                        missingGameUris = missingGameUris,
+                        folders = folders,
+                        onSaveFolders = onSaveFolders,
+                        onUpdateGame = onUpdateGame,
+                        onDeleteFolder = onDeleteFolder,
+                        onRemoveSelectedGames = { selected -> selected.forEach { onRemoveGame(it, false) } },
                         message = libraryMessage,
                         isLoadingGame = isLoadingGame,
                         onImportGame = onImportGame,
-                        onPlayGame = { game ->
-                            onPlayGame(game) { status ->
-                                if (status == 4) activeGameName = game.name
-                            }
-                        },
+                        onPlayGame = { game -> startGame(game) },
                         onClearMessage = onClearLibraryMessage,
                         onRemoveGame = { game ->
                             removalFailed = false
@@ -433,12 +975,47 @@ private fun NexoraApp(
                         }
                     )
                     NexoraTab.HISTORY -> HistoryScreen()
-                    NexoraTab.SETTINGS -> SettingsScreen(nativeStatus)
+                    NexoraTab.SETTINGS -> if (showTouchEditor) {
+                        TouchLayoutEditorScreen(
+                            settings = touchControlSettings,
+                            backgroundSettings = backgroundSettings,
+                            onSettingsChange = ::updateTouchControlSettings,
+                            onBackgroundSettingsChange = ::updateBackgroundSettings,
+                            onPickBackground = ::chooseBackgroundForCurrentOrientation,
+                            onBack = { showTouchEditor = false }
+                        )
+                    } else {
+                        SettingsScreen(
+                            nativeStatus = nativeStatus,
+                            touchSettings = touchControlSettings,
+                            onTouchSettingsChange = ::updateTouchControlSettings,
+                            backgroundSettings = backgroundSettings,
+                            onBackgroundSettingsChange = ::updateBackgroundSettings,
+                            onPickBackground = ::chooseBackgroundForCurrentOrientation,
+                            onRemoveBackground = { landscape ->
+                                val path = if (backgroundSettings.separateOrientations) {
+                                    if (landscape) backgroundSettings.landscapeImagePath else backgroundSettings.portraitImagePath
+                                } else backgroundSettings.portraitImagePath.ifBlank { backgroundSettings.landscapeImagePath }
+                                BackgroundSettingsStore.removeImage(context, path)
+                                val updated = if (backgroundSettings.separateOrientations) {
+                                    if (landscape) backgroundSettings.copy(landscapeImagePath = "")
+                                    else backgroundSettings.copy(portraitImagePath = "")
+                                } else backgroundSettings.copy(portraitImagePath = "", landscapeImagePath = "")
+                                updateBackgroundSettings(updated)
+                            },
+                            onOpenTouchEditor = { showTouchEditor = true }
+                        )
+                    }
                 }
             }
 
-            if (activeGameName == null) {
+            if (activeGameName == null && !isLandscape && !showTouchEditor) {
                 BottomNavigation(selectedTab = selectedTab, onSelect = { selectedTab = it })
+            }
+            }
+
+            if (activeGameName == null && isLandscape && !showTouchEditor) {
+                SideNavigation(selectedTab = selectedTab, onSelect = { selectedTab = it })
             }
         }
     }
@@ -500,18 +1077,48 @@ private fun NexoraApp(
 }
 
 @Composable
-private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: () -> Unit) {
-    val pixelBuffer = remember { IntArray(240 * 160) }
-    val frameBitmap = remember {
-        Bitmap.createBitmap(240, 160, Bitmap.Config.ARGB_8888)
+private fun PlayerScreen(
+    gameName: String,
+    saveStateKey: String,
+    controlSettings: TouchControlSettings,
+    backgroundSettings: BackgroundSettings,
+    isAppInForeground: Boolean,
+    isLinkConnected: Boolean,
+    onOpenLink: () -> Unit,
+    onExit: () -> Unit
+) {
+    val videoWidth = remember(saveStateKey) {
+        NativeBridge.nativeGetVideoWidth().takeIf { it > 0 } ?: 240
     }
-    val frameImage = remember { frameBitmap.asImageBitmap() }
+    val videoHeight = remember(saveStateKey) {
+        NativeBridge.nativeGetVideoHeight().takeIf { it > 0 } ?: 160
+    }
+    val isGbFamily = remember(saveStateKey) { NativeBridge.nativeGetPlatform() == 1 }
+    val videoAspectRatio = videoWidth.toFloat() / videoHeight.toFloat()
+    val previewContext = LocalContext.current
+    LaunchedEffect(saveStateKey, videoAspectRatio) {
+        previewContext.getSharedPreferences("nexora_display_preview", Context.MODE_PRIVATE)
+            .edit().putFloat("last_video_aspect", videoAspectRatio).apply()
+    }
+    val pixelBuffer = remember(saveStateKey) { IntArray(videoWidth * videoHeight) }
+    val frameBitmap = remember(saveStateKey) {
+        Bitmap.createBitmap(videoWidth, videoHeight, Bitmap.Config.ARGB_8888)
+    }
+    val frameImage = remember(saveStateKey, frameBitmap) { frameBitmap.asImageBitmap() }
     var frameReady by remember { mutableStateOf(false) }
     var frameError by remember { mutableStateOf(false) }
     var frameVersion by remember { mutableIntStateOf(0) }
+    var emulationSpeed by remember { mutableFloatStateOf(controlSettings.defaultSpeed) }
+    var showFunctionsMenu by remember { mutableStateOf(false) }
+    var functionsBusy by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val functionsScope = rememberCoroutineScope()
+    val stateFile = remember(saveStateKey) {
+        File(File(context.filesDir, "save_states"), "$saveStateKey.state")
+    }
 
-    LaunchedEffect(gameName, isAppInForeground) {
-        if (!isAppInForeground) {
+    LaunchedEffect(gameName, saveStateKey, isAppInForeground, showFunctionsMenu) {
+        if (!isAppInForeground || showFunctionsMenu) {
             NativeBridge.nativeSetKeys(0)
             return@LaunchedEffect
         }
@@ -555,12 +1162,13 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                         check(it.state == AudioTrack.STATE_INITIALIZED)
                         // Keep the device output well below clipping while the
                         // core mixer is also attenuated.
-                        it.setVolume(0.60f)
+                        it.setVolume((controlSettings.audioVolumePercent / 100f).coerceIn(0f, 1f))
                         it.play()
                     }
             }
         }.getOrNull()
         audioTrack = createdAudioTrack
+        var appliedAudioSpeed = 1.0f
 
         // mGBA produces audio while frames run; this worker drains it without
         // blocking the Compose/UI thread or slowing down video frame pacing.
@@ -604,13 +1212,21 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
             val targetFrameNanos = 16_742_706L
 
             while (isActive) {
+                // Keep Android audio consumption in step with emulation speed.
+                // Matching playback rate prevents an ever-growing PCM queue.
+                if (appliedAudioSpeed != emulationSpeed) {
+                    val requestedRate = (outputSampleRate * emulationSpeed).toInt()
+                    createdAudioTrack?.setPlaybackRate(requestedRate)
+                    appliedAudioSpeed = emulationSpeed
+                }
+
                 val frameStartNanos = System.nanoTime()
                 val rendered = withContext(Dispatchers.Default) {
                     runCatching {
                         val success = NativeBridge.nativeRunFrame(pixelBuffer)
                         if (success) {
                             // Keep pixel conversion/copying off the UI thread.
-                            frameBitmap.setPixels(pixelBuffer, 0, 240, 0, 0, 240, 160)
+                            frameBitmap.setPixels(pixelBuffer, 0, videoWidth, 0, 0, videoWidth, videoHeight)
                         }
                         success
                     }.getOrDefault(false)
@@ -626,7 +1242,8 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
                 // bitmap to be painted again even though its object identity is stable.
                 frameVersion++
 
-                val remainingNanos = targetFrameNanos - (System.nanoTime() - frameStartNanos)
+                val frameIntervalNanos = (targetFrameNanos / emulationSpeed).toLong()
+                val remainingNanos = frameIntervalNanos - (System.nanoTime() - frameStartNanos)
                 if (remainingNanos > 0L) {
                     delay((remainingNanos / 1_000_000L).coerceAtLeast(1L))
                 } else {
@@ -648,106 +1265,245 @@ private fun PlayerScreen(gameName: String, isAppInForeground: Boolean, onExit: (
     }
 
     androidx.activity.compose.BackHandler {
-        NativeBridge.nativeSetKeys(0)
-        onExit()
+        if (showFunctionsMenu) {
+            if (!functionsBusy) showFunctionsMenu = false
+        } else {
+            NativeBridge.nativeSetKeys(0)
+            onExit()
+        }
     }
 
     BoxWithConstraints(
-        modifier = Modifier.fillMaxSize().background(Color.Black)
+        modifier = Modifier.fillMaxSize().background(NexoraBackground)
     ) {
         val isLandscape = maxWidth > maxHeight
+        val selectedBackgroundPath = backgroundSettings.imagePath(isLandscape)
+        val backgroundBitmap = remember(selectedBackgroundPath) {
+            selectedBackgroundPath.takeIf { it.isNotBlank() && File(it).exists() }
+                ?.let { runCatching { BitmapFactory.decodeFile(it)?.asImageBitmap() }.getOrNull() }
+        }
+        if (backgroundSettings.mode != 0 && backgroundBitmap != null) {
+            Image(
+                bitmap = backgroundBitmap,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize().graphicsLayer {
+                    scaleX = backgroundSettings.cropScale
+                    scaleY = backgroundSettings.cropScale
+                    translationX = size.width * backgroundSettings.cropOffsetX
+                    translationY = size.height * backgroundSettings.cropOffsetY
+                },
+                contentScale = ContentScale.Crop
+            )
+        }
 
         if (isLandscape) {
-            // Keep the game image centered, with controls on both sides.
             Row(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(
-                    modifier = Modifier.weight(0.19f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                NexoraControlShell(
+                    modifier = Modifier.width(224.dp).fillMaxHeight(),
+                    transparent = controlSettings.controlsOnGameScreen || (backgroundSettings.mode != 0 && backgroundBitmap != null)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        GbaControl("↑", 1 shl 6)
-                        Row {
-                            GbaControl("←", 1 shl 5)
-                            GbaControl("↓", 1 shl 7)
-                            GbaControl("→", 1 shl 4)
+                    Box(Modifier.fillMaxSize().padding(8.dp)) {
+                        if (!isGbFamily) {
+                            Box(Modifier.align(Alignment.TopStart)) {
+                                GbaControl("L", 1 shl 9, shoulderSize = controlSettings.lSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.lOffsetXDp, offsetYDp = controlSettings.lOffsetYDp)
+                            }
+                        }
+                        Box(Modifier.align(Alignment.CenterStart)) {
+                            GbaDPad(sizeDp = controlSettings.dpadSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.dpadOffsetXDp, offsetYDp = controlSettings.dpadOffsetYDp)
                         }
                     }
-                    Row {
-                        GbaControl("SELECT", 1 shl 2, compact = true)
-                        GbaControl("START", 1 shl 3, compact = true)
-                    }
-                }
-
-                Box(
-                    modifier = Modifier.weight(0.62f).fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    GameFrame(frameError, frameReady, frameVersion, frameImage)
                 }
 
                 Column(
-                    modifier = Modifier.weight(0.19f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GbaControl("B", 1 shl 1)
-                        GbaControl("A", 1 shl 0)
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio, controlSettings.gameScreenScalePercent)
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GbaControl("L", 1 shl 9, compact = true)
-                        GbaControl("R", 1 shl 8, compact = true)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        GbaMenuControl(onClick = { showFunctionsMenu = true }, sizeDp = controlSettings.menuSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.menuOffsetXDp, offsetYDp = controlSettings.menuOffsetYDp)
+                        Spacer(Modifier.width(8.dp))
+                        GbaControl("SELECT", 1 shl 2, systemButtonSize = controlSettings.selectSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.selectOffsetXDp, offsetYDp = controlSettings.selectOffsetYDp)
+                        Spacer(Modifier.width(8.dp))
+                        GbaControl("START", 1 shl 3, systemButtonSize = controlSettings.startSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.startOffsetXDp, offsetYDp = controlSettings.startOffsetYDp)
+                    }
+                }
+
+                NexoraControlShell(
+                    modifier = Modifier.width(224.dp).fillMaxHeight(),
+                    transparent = controlSettings.controlsOnGameScreen || (backgroundSettings.mode != 0 && backgroundBitmap != null)
+                ) {
+                    Box(Modifier.fillMaxSize().padding(8.dp)) {
+                        if (!isGbFamily) {
+                            Box(Modifier.align(Alignment.TopEnd)) {
+                                GbaControl("R", 1 shl 8, shoulderSize = controlSettings.rSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.rOffsetXDp, offsetYDp = controlSettings.rOffsetYDp)
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.align(Alignment.CenterEnd),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            GbaControl("B", 1 shl 1, controlSize = controlSettings.bSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.bOffsetXDp, offsetYDp = controlSettings.bOffsetYDp)
+                            GbaControl("A", 1 shl 0, controlSize = controlSettings.aSizeDp, systemButtonSize = controlSettings.systemButtonSizeDp, opacity = controlSettings.opacityPercent / 100f, offsetXDp = controlSettings.aOffsetXDp, offsetYDp = controlSettings.aOffsetYDp)
+                        }
                     }
                 }
             }
         } else {
-            // Portrait: game first, controls below; no title or exit toolbar.
             Column(
-                modifier = Modifier.fillMaxSize().padding(10.dp),
-                verticalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    GameFrame(frameError, frameReady, frameVersion, frameImage)
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    GameFrame(frameError, frameReady, frameVersion, frameImage, videoAspectRatio, controlSettings.gameScreenScalePercent)
                 }
+                GbaPortraitControlDeck(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    showShoulderButtons = !isGbFamily,
+                    settings = controlSettings,
+                    transparent = controlSettings.controlsOnGameScreen || (backgroundSettings.mode != 0 && backgroundBitmap != null),
+                    onMenu = { showFunctionsMenu = true }
+                )
+            }
+        }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        GbaControl("↑", 1 shl 6)
-                        Row {
-                            GbaControl("←", 1 shl 5)
-                            GbaControl("↓", 1 shl 7)
-                            GbaControl("→", 1 shl 4)
+        if (showFunctionsMenu) {
+            AlertDialog(
+                onDismissRequest = { if (!functionsBusy) showFunctionsMenu = false },
+                title = {
+                    Text(stringResource(R.string.functions_menu_title), color = NexoraText, fontSize = 17.sp)
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = maxHeight * 0.72f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        TextButton(
+                            onClick = {
+                                NativeBridge.nativeSetKeys(0)
+                                showFunctionsMenu = false
+                                onExit()
+                            },
+                            enabled = !functionsBusy
+                        ) { Text(stringResource(R.string.exit_game), color = NexoraPink) }
+
+                        TextButton(
+                            onClick = {
+                                functionsBusy = true
+                                functionsScope.launch {
+                                    val saved = withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            stateFile.parentFile?.mkdirs()
+                                            NativeBridge.nativeSaveState(stateFile.absolutePath)
+                                        }.getOrDefault(false)
+                                    }
+                                    functionsBusy = false
+                                    showFunctionsMenu = false
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(
+                                            if (saved) R.string.save_state_success else R.string.save_state_failure
+                                        ),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            enabled = !functionsBusy && !isLinkConnected
+                        ) { Text(stringResource(R.string.save_state), color = NexoraText) }
+
+                        TextButton(
+                            onClick = {
+                                functionsBusy = true
+                                functionsScope.launch {
+                                    val loaded = withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            NativeBridge.nativeLoadState(stateFile.absolutePath)
+                                        }.getOrDefault(false)
+                                    }
+                                    if (loaded) withContext(Dispatchers.IO) {
+                                        runCatching { NativeBridge.nativeClearAudio() }
+                                    }
+                                    functionsBusy = false
+                                    showFunctionsMenu = false
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(
+                                            if (loaded) R.string.load_state_success else R.string.load_state_failure
+                                        ),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            enabled = !functionsBusy && !isLinkConnected && stateFile.exists()
+                        ) { Text(stringResource(R.string.load_state), color = NexoraText) }
+
+                        Text(stringResource(R.string.emulation_speed), color = NexoraMuted, fontSize = 12.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            listOf(1.0f, 1.5f, 2.0f, 3.0f).forEach { speed ->
+                                TextButton(
+                                    onClick = {
+                                        emulationSpeed = speed
+                                        showFunctionsMenu = false
+                                    },
+                                    enabled = !functionsBusy
+                                ) {
+                                    Text(
+                                        "${speed}x",
+                                        color = if (emulationSpeed == speed) NexoraPink else NexoraMuted,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (emulationSpeed == speed) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+
+                        TextButton(
+                            onClick = {
+                                showFunctionsMenu = false
+                                onOpenLink()
+                            },
+                            enabled = !functionsBusy && !isGbFamily
+                        ) { Text(stringResource(R.string.link_cable_trade), color = NexoraText) }
+                        if (isGbFamily) {
+                            Text(
+                                stringResource(R.string.link_cable_gba_only),
+                                color = NexoraMuted,
+                                fontSize = 10.sp
+                            )
+                        }
+
+                        if (isLinkConnected) {
+                            Text(
+                                context.getString(R.string.save_states_disabled_link),
+                                color = NexoraMuted,
+                                fontSize = 10.sp
+                            )
                         }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GbaControl("B", 1 shl 1)
-                        GbaControl("A", 1 shl 0)
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    GbaControl("SELECT", 1 shl 2, compact = true)
-                    GbaControl("START", 1 shl 3, compact = true)
-                    GbaControl("L", 1 shl 9, compact = true)
-                    GbaControl("R", 1 shl 8, compact = true)
-                }
-            }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = { showFunctionsMenu = false },
+                        enabled = !functionsBusy
+                    ) { Text("Fechar", color = NexoraText) }
+                },
+                containerColor = NexoraPanel,
+                titleContentColor = NexoraText,
+                textContentColor = NexoraText
+            )
         }
     }
 }
@@ -757,7 +1513,11 @@ private fun GameFrame(
     frameError: Boolean,
     frameReady: Boolean,
     frameVersion: Int,
-    frameImage: androidx.compose.ui.graphics.ImageBitmap
+    frameImage: androidx.compose.ui.graphics.ImageBitmap,
+    aspectRatio: Float,
+    scalePercent: Int = 100,
+    clipOverlayControls: Boolean = false,
+    overlayControls: (@Composable BoxScope.() -> Unit)? = null
 ) {
     when {
         frameError -> Text(
@@ -769,17 +1529,22 @@ private fun GameFrame(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            // Use the whole available area while preserving the GBA's native 3:2 ratio.
-            val fittedWidth = minOf(maxWidth, maxHeight * 1.5f)
-            Canvas(
-                modifier = Modifier.width(fittedWidth).aspectRatio(1.5f)
+            // Preserve the active console's native aspect ratio (GBA 3:2, GB/GBC 10:9).
+            val scale = scalePercent.coerceIn(60, 120) / 100f
+            val fittedWidth = minOf(maxWidth, maxHeight * aspectRatio) * scale
+            Box(
+                modifier = Modifier.width(fittedWidth).aspectRatio(aspectRatio)
+                    .then(if (clipOverlayControls) Modifier.clipToBounds() else Modifier)
             ) {
-                frameVersion.let { /* Snapshot read invalidates this draw scope. */ }
-                drawImage(
-                    image = frameImage,
-                    dstSize = IntSize(size.width.toInt(), size.height.toInt()),
-                    filterQuality = FilterQuality.None
-                )
+                Canvas(Modifier.fillMaxSize()) {
+                    frameVersion.let { /* Snapshot read invalidates this draw scope. */ }
+                    drawImage(
+                        image = frameImage,
+                        dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+                        filterQuality = FilterQuality.None
+                    )
+                }
+                overlayControls?.invoke(this)
             }
         }
         else -> Text("Iniciando jogo…", color = NexoraMuted)
@@ -788,25 +1553,340 @@ private fun GameFrame(
 
 
 @Composable
-private fun GbaControl(label: String, keyMask: Int, compact: Boolean = false) {
+private fun NexoraAtlasSprite(cell: Int, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val resourceId = when (cell) {
+        0 -> R.drawable.dpad_normal
+        1 -> R.drawable.dpad_cima_pressionado
+        2 -> R.drawable.dpad_baixo_pressionado
+        3 -> R.drawable.dpad_esquerda_pressionado
+        4 -> R.drawable.dpad_direita_pressionado
+        5 -> R.drawable.botao_liso
+        6 -> R.drawable.botao_liso_pressionado
+        7 -> R.drawable.botao_a
+        8 -> R.drawable.botao_a_pressionado
+        9 -> R.drawable.botao_b
+        10 -> R.drawable.botao_b_pressionado
+        11 -> R.drawable.botao_l
+        12 -> R.drawable.botao_l_pressionado
+        13 -> R.drawable.botao_r
+        14 -> R.drawable.botao_r_pressionado
+        else -> 0
+    }
+    val sprite = remember(context, resourceId) {
+        if (resourceId == 0) null else runCatching {
+            BitmapFactory.decodeResource(
+                context.resources,
+                resourceId,
+                BitmapFactory.Options().apply {
+                    inScaled = false
+                    inPreferredConfig = Bitmap.Config.ARGB_8888
+                }
+            )?.asImageBitmap()
+        }.onFailure {
+            Log.e("NEXORA", "Failed to decode touch-control sprite for cell $cell.", it)
+        }.getOrNull()
+    }
+
+    Canvas(modifier) {
+        if (sprite != null && sprite.width > 0 && sprite.height > 0) {
+            // Fit the PNG inside the visual bounds without changing its aspect ratio.
+            // The Canvas and touch target keep their original size and position.
+            val scale = minOf(
+                size.width / sprite.width.toFloat(),
+                size.height / sprite.height.toFloat()
+            )
+            val destinationWidth = (sprite.width * scale).toInt().coerceAtLeast(1)
+            val destinationHeight = (sprite.height * scale).toInt().coerceAtLeast(1)
+            val destinationOffset = IntOffset(
+                ((size.width - destinationWidth) / 2f).toInt(),
+                ((size.height - destinationHeight) / 2f).toInt()
+            )
+            drawImage(
+                image = sprite,
+                dstOffset = destinationOffset,
+                dstSize = IntSize(destinationWidth, destinationHeight)
+            )
+        } else {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val unit = minOf(size.width, size.height).coerceAtLeast(1f)
+            val fill = Color(0xFF442A66)
+            val edge = Color(0xFFB99AFF)
+            if (cell in 0..4) {
+                drawLine(fill, Offset(center.x - unit * 0.31f, center.y), Offset(center.x + unit * 0.31f, center.y), unit * 0.23f)
+                drawLine(fill, Offset(center.x, center.y - unit * 0.31f), Offset(center.x, center.y + unit * 0.31f), unit * 0.23f)
+                drawCircle(edge, unit * 0.12f, center)
+            } else {
+                drawCircle(fill, unit * 0.42f, center)
+                drawCircle(edge, unit * 0.42f, center, style = Stroke(width = unit * 0.045f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun NexoraControlShell(
+    modifier: Modifier = Modifier,
+    transparent: Boolean = false,
+    content: @Composable BoxScope.() -> Unit
+) {
     Box(
-        modifier = Modifier
-            .padding(3.dp)
-            .size(width = if (compact) 58.dp else 52.dp, height = if (compact) 38.dp else 52.dp)
-            .background(NexoraPanelLight, RoundedCornerShape(14.dp))
-            .pointerInput(keyMask) {
-                detectTapGestures(onPress = {
-                    NativeBridge.nativeAddKeys(keyMask)
+        modifier = modifier
+            // In overlay mode controls must be able to extend beyond their side/deck
+            // containers and draw above the game frame. Keep the old clipped shell
+            // only for the normal, non-overlay layout.
+            .then(if (transparent) Modifier else Modifier.clip(RoundedCornerShape(22.dp)))
+            .then(if (transparent) Modifier else Modifier.background(Color(0xFF160D23)))
+            .then(if (transparent) Modifier else Modifier.border(1.dp, Color(0xFF51366F), RoundedCornerShape(22.dp)))
+            .zIndex(if (transparent) 2f else 0f)
+    ) {
+        if (!transparent) Canvas(Modifier.matchParentSize()) {
+            val points = listOf(
+                0.10f to 0.15f, 0.24f to 0.78f, 0.43f to 0.20f,
+                0.61f to 0.84f, 0.78f to 0.18f, 0.91f to 0.62f
+            )
+            points.forEachIndexed { index, point ->
+                val center = Offset(size.width * point.first, size.height * point.second)
+                val radius = if (index % 2 == 0) 2.2f else 1.4f
+                drawCircle(Color(0xFFB99AFF).copy(alpha = 0.72f), radius, center)
+                if (index % 2 == 0) {
+                    drawLine(
+                        Color(0xFFB99AFF).copy(alpha = 0.55f),
+                        Offset(center.x - 4f, center.y),
+                        Offset(center.x + 4f, center.y),
+                        strokeWidth = 1f
+                    )
+                    drawLine(
+                        Color(0xFFB99AFF).copy(alpha = 0.55f),
+                        Offset(center.x, center.y - 4f),
+                        Offset(center.x, center.y + 4f),
+                        strokeWidth = 1f
+                    )
+                }
+            }
+        }
+        content()
+    }
+}
+
+
+@Composable
+private fun NexoraTouchButton(
+    normalCell: Int,
+    pressedCell: Int,
+    modifier: Modifier,
+    keyMask: Int? = null,
+    onClick: (() -> Unit)? = null
+) {
+    var pressed by remember { mutableStateOf(false) }
+    Box(
+        modifier = modifier.pointerInput(keyMask, onClick) {
+            detectTapGestures(
+                onPress = {
+                    pressed = true
+                    if (keyMask != null) NativeBridge.nativeAddKeys(keyMask)
                     try {
                         tryAwaitRelease()
                     } finally {
-                        NativeBridge.nativeClearKeys(keyMask)
+                        if (keyMask != null) NativeBridge.nativeClearKeys(keyMask)
+                        pressed = false
                     }
-                })
+                },
+                onTap = {
+                    if (keyMask == null) onClick?.invoke()
+                }
+            )
+        },
+        contentAlignment = Alignment.Center
+    ) {
+        NexoraAtlasSprite(
+            cell = if (pressed) pressedCell else normalCell,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+@Composable
+private fun GbaDPad(sizeDp: Int = 184, opacity: Float = 1f, offsetXDp: Int = 0, offsetYDp: Int = 0, modifier: Modifier = Modifier) {
+    var visualCell by remember { mutableIntStateOf(0) }
+    Box(
+        modifier = modifier
+            .size(sizeDp.dp)
+            .offset(x = offsetXDp.dp, y = offsetYDp.dp)
+            .alpha(opacity.coerceIn(0f, 1f))
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var activeDirectionMask = 0
+
+                    fun directionAt(position: Offset): Int {
+                        val halfWidth = size.width / 2f
+                        val halfHeight = size.height / 2f
+                        if (halfWidth <= 0f || halfHeight <= 0f) return 0
+                        val normalizedX = (position.x - halfWidth) / halfWidth
+                        val normalizedY = (position.y - halfHeight) / halfHeight
+                        val horizontal = if (abs(normalizedX) >= 0.28f) {
+                            if (normalizedX < 0f) (1 shl 5) else (1 shl 4)
+                        } else 0
+                        val vertical = if (abs(normalizedY) >= 0.28f) {
+                            if (normalizedY < 0f) (1 shl 6) else (1 shl 7)
+                        } else 0
+                        return horizontal or vertical
+                    }
+
+                    fun updateDirection(nextMask: Int) {
+                        if (nextMask == activeDirectionMask) return
+                        if (activeDirectionMask != 0) NativeBridge.nativeClearKeys(activeDirectionMask)
+                        if (nextMask != 0) NativeBridge.nativeAddKeys(nextMask)
+                        activeDirectionMask = nextMask
+                        visualCell = when {
+                            nextMask and (1 shl 6) != 0 -> 1
+                            nextMask and (1 shl 7) != 0 -> 2
+                            nextMask and (1 shl 5) != 0 -> 3
+                            nextMask and (1 shl 4) != 0 -> 4
+                            else -> 0
+                        }
+                    }
+
+                    try {
+                        updateDirection(directionAt(down.position))
+                        var pointer = down
+                        while (pointer.pressed) {
+                            val event = awaitPointerEvent()
+                            pointer = event.changes.firstOrNull { it.id == down.id } ?: break
+                            updateDirection(directionAt(pointer.position))
+                            pointer.consume()
+                        }
+                    } finally {
+                        if (activeDirectionMask != 0) NativeBridge.nativeClearKeys(activeDirectionMask)
+                        visualCell = 0
+                    }
+                }
             },
         contentAlignment = Alignment.Center
     ) {
-        Text(label, color = NexoraText, fontSize = if (compact) 9.sp else 16.sp, fontWeight = FontWeight.Bold)
+        NexoraAtlasSprite(cell = visualCell, modifier = Modifier.fillMaxSize())
+    }
+}
+
+@Composable
+private fun GbaControl(
+    label: String,
+    keyMask: Int,
+    compact: Boolean = false,
+    controlSize: Int = 52,
+    shoulderSize: Int = 68,
+    systemButtonSize: Int = 48,
+    opacity: Float = 1f,
+    offsetXDp: Int = 0,
+    offsetYDp: Int = 0,
+    modifier: Modifier = Modifier
+) {
+    val normalCell = when (label) {
+        "A" -> 7
+        "B" -> 9
+        "L" -> 11
+        "R" -> 13
+        else -> 5
+    }
+    val pressedCell = normalCell + 1
+    val isRoundLabel = label == "SELECT" || label == "START"
+    val visualSize = when (label) {
+        "L", "R" -> shoulderSize.dp
+        "A", "B" -> controlSize.dp
+        else -> systemButtonSize.dp
+    }
+
+    Column(
+        modifier = modifier.offset(x = offsetXDp.dp, y = offsetYDp.dp).alpha(opacity.coerceIn(0f, 1f)),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+        NexoraTouchButton(
+            normalCell = normalCell,
+            pressedCell = pressedCell,
+            modifier = if (label == "L" || label == "R") {
+                Modifier.width(visualSize * (198f / 76f)).height(visualSize)
+            } else {
+                Modifier.size(visualSize)
+            },
+            keyMask = keyMask
+        )
+        if (isRoundLabel) {
+            Text(
+                label,
+                color = Color(0xFFE9DDF8),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun GbaMenuControl(onClick: () -> Unit, sizeDp: Int = 48, opacity: Float = 1f, offsetXDp: Int = 0, offsetYDp: Int = 0) {
+    Column(
+        modifier = Modifier.offset(x = offsetXDp.dp, y = offsetYDp.dp).alpha(opacity.coerceIn(0f, 1f)),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+        NexoraTouchButton(
+            normalCell = 5,
+            pressedCell = 6,
+            modifier = Modifier.size(sizeDp.dp),
+            onClick = onClick
+        )
+        Text("MENU", color = Color(0xFFE9DDF8), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun GbaPortraitControlDeck(
+    modifier: Modifier = Modifier,
+    showShoulderButtons: Boolean = true,
+    settings: TouchControlSettings = TouchControlSettings(),
+    transparent: Boolean = false,
+    onMenu: () -> Unit
+) {
+    NexoraControlShell(modifier, transparent) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (showShoulderButtons) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    GbaControl("L", 1 shl 9, shoulderSize = settings.lSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.lOffsetXDp, offsetYDp = settings.lOffsetYDp)
+                    GbaControl("R", 1 shl 8, shoulderSize = settings.rSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.rOffsetXDp, offsetYDp = settings.rOffsetYDp)
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                GbaDPad(sizeDp = settings.dpadSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.dpadOffsetXDp, offsetYDp = settings.dpadOffsetYDp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GbaControl("B", 1 shl 1, controlSize = settings.bSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.bOffsetXDp, offsetYDp = settings.bOffsetYDp)
+                    GbaControl("A", 1 shl 0, controlSize = settings.aSizeDp, systemButtonSize = settings.systemButtonSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.aOffsetXDp, offsetYDp = settings.aOffsetYDp)
+                }
+            }
+
+            Row(
+                modifier = Modifier,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                GbaMenuControl(onClick = onMenu, sizeDp = settings.menuSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.menuOffsetXDp, offsetYDp = settings.menuOffsetYDp)
+                GbaControl("SELECT", 1 shl 2, systemButtonSize = settings.selectSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.selectOffsetXDp, offsetYDp = settings.selectOffsetYDp)
+                GbaControl("START", 1 shl 3, systemButtonSize = settings.startSizeDp, opacity = settings.opacityPercent / 100f, offsetXDp = settings.startOffsetXDp, offsetYDp = settings.startOffsetYDp)
+            }
+        }
     }
 }
 
@@ -889,19 +1969,63 @@ private fun QuickAction(modifier: Modifier, symbol: String, title: String, onCli
     }
 }
 
+private const val LIBRARY_UNFILED_FILTER = "__nexora_unfiled__"
+
 @Composable
 private fun LibraryScreen(
     games: List<GameEntry>,
+    missingGameUris: Set<String>,
+    folders: List<GameFolder>,
     message: String?,
     isLoadingGame: Boolean,
     onImportGame: () -> Unit,
     onPlayGame: (GameEntry) -> Unit,
     onClearMessage: () -> Unit,
-    onRemoveGame: (GameEntry) -> Unit
+    onRemoveGame: (GameEntry) -> Unit,
+    onSaveFolders: (List<GameFolder>) -> Unit,
+    onUpdateGame: (GameEntry) -> Unit,
+    onDeleteFolder: (GameFolder) -> Unit,
+    onRemoveSelectedGames: (List<GameEntry>) -> Unit
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFolderId by remember { mutableStateOf<String?>(null) }
+    var selectedConsoleFilter by remember { mutableStateOf("ALL") }
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedGameUris by remember { mutableStateOf(setOf<String>()) }
+    var showCreateFolder by remember { mutableStateOf(false) }
+    var newFolderName by remember { mutableStateOf("") }
+    var showMoveDialog by remember { mutableStateOf(false) }
+    var showRemoveSelectedDialog by remember { mutableStateOf(false) }
+    var folderPendingDelete by remember { mutableStateOf<GameFolder?>(null) }
+
+    val configuration = LocalConfiguration.current
+    val sortedFolders = folders.sortedByDescending { it.isPinned }
+    val visibleGames = games
+        .filter { game ->
+            val matchesFolder = when (selectedFolderId) {
+                null -> true
+                LIBRARY_UNFILED_FILTER -> game.folderId == null
+                else -> game.folderId == selectedFolderId
+            }
+            val extension = game.name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+            val matchesConsole = when (selectedConsoleFilter) {
+                "GBA" -> extension in setOf("gba", "agb", "bin")
+                "GB" -> extension == "gb"
+                "GBC" -> extension == "gbc"
+                else -> true
+            }
+            matchesFolder && matchesConsole &&
+                game.name.contains(searchQuery.trim(), ignoreCase = true)
+        }
+        .sortedWith(
+            compareByDescending<GameEntry> { it.isPinned }
+                .thenByDescending { it.isFavorite }
+                .thenBy { it.name.lowercase(Locale.ROOT) }
+        )
+
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -910,10 +2034,182 @@ private fun LibraryScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.library_label), color = NexoraText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
                 Text(stringResource(R.string.library_game_count, games.size), color = NexoraMuted, fontSize = 12.sp)
-                Text(stringResource(R.string.library_not_playable_yet), color = NexoraMuted, fontSize = 10.sp)
+            }
+            TextButton(onClick = { showCreateFolder = true }) {
+                Text(stringResource(R.string.create_folder), color = NexoraPurple)
             }
             Button(onClick = onImportGame) {
                 Text(stringResource(R.string.add_games))
+            }
+        }
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text(stringResource(R.string.search_games)) }
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(R.string.console_filter),
+                color = NexoraMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            LazyRow(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items(listOf("ALL", "GBA", "GB", "GBC")) { console ->
+                    TextButton(onClick = { selectedConsoleFilter = console }) {
+                        val label = when (console) {
+                            "ALL" -> stringResource(R.string.console_all)
+                            "GBA" -> stringResource(R.string.console_gba)
+                            "GB" -> stringResource(R.string.console_gb)
+                            else -> stringResource(R.string.console_gbc)
+                        }
+                        Text(
+                            label,
+                            color = if (selectedConsoleFilter == console) NexoraPink else NexoraMuted
+                        )
+                    }
+                }
+            }
+        }
+
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            item {
+                TextButton(onClick = { selectedFolderId = null }) {
+                    Text(
+                        stringResource(R.string.all_games),
+                        color = if (selectedFolderId == null) NexoraPink else NexoraMuted
+                    )
+                }
+            }
+            item {
+                TextButton(onClick = { selectedFolderId = LIBRARY_UNFILED_FILTER }) {
+                    Text(
+                        stringResource(R.string.unfiled_games),
+                        color = if (selectedFolderId == LIBRARY_UNFILED_FILTER) NexoraPink else NexoraMuted
+                    )
+                }
+            }
+            items(sortedFolders, key = { it.id }) { folder ->
+                Column(
+                    modifier = Modifier
+                        .background(
+                            if (selectedFolderId == folder.id) NexoraPanelLight else NexoraPanel,
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(horizontal = 5.dp, vertical = 2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    TextButton(onClick = { selectedFolderId = folder.id }) {
+                        Text(
+                            text = (if (folder.isPinned) "📌 " else "▰ ") + folder.name,
+                            color = if (selectedFolderId == folder.id) NexoraPink else NexoraText,
+                            maxLines = 1
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = {
+                            onSaveFolders(
+                                folders.map {
+                                    if (it.id == folder.id) it.copy(isPinned = !it.isPinned) else it
+                                }
+                            )
+                        }) {
+                            Text(
+                                if (folder.isPinned) stringResource(R.string.unpin) else stringResource(R.string.pin),
+                                color = NexoraPurple,
+                                fontSize = 10.sp
+                            )
+                        }
+                        TextButton(onClick = { folderPendingDelete = folder }) {
+                            Text(stringResource(R.string.delete_folder), color = NexoraPink, fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        if (selectionMode) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    stringResource(R.string.selected_games_count, selectedGameUris.size),
+                    color = NexoraText,
+                    fontSize = 12.sp
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    item {
+                        TextButton(
+                            onClick = { showMoveDialog = true },
+                            enabled = selectedGameUris.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.move_to_folder), color = NexoraPurple)
+                        }
+                    }
+                    item {
+                        TextButton(
+                            onClick = {
+                                val selected = games.filter { it.uri in selectedGameUris }
+                                val markFavorite = !selected.all { it.isFavorite }
+                                selected.forEach { onUpdateGame(it.copy(isFavorite = markFavorite)) }
+                            },
+                            enabled = selectedGameUris.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.favorite_selected), color = NexoraPink)
+                        }
+                    }
+                    item {
+                        TextButton(
+                            onClick = {
+                                val selected = games.filter { it.uri in selectedGameUris }
+                                val markPinned = !selected.all { it.isPinned }
+                                selected.forEach { onUpdateGame(it.copy(isPinned = markPinned)) }
+                            },
+                            enabled = selectedGameUris.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.pin_selected), color = NexoraPurple)
+                        }
+                    }
+                    item {
+                        TextButton(
+                            onClick = { showRemoveSelectedDialog = true },
+                            enabled = selectedGameUris.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.remove_selected), color = NexoraPink)
+                        }
+                    }
+                    item {
+                        TextButton(onClick = {
+                            selectionMode = false
+                            selectedGameUris = emptySet()
+                        }) {
+                            Text(stringResource(R.string.cancel), color = NexoraMuted)
+                        }
+                    }
+                }
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { selectionMode = true }) {
+                    Text(stringResource(R.string.select_games), color = NexoraPurple)
+                }
             }
         }
 
@@ -927,62 +2223,275 @@ private fun LibraryScreen(
         }
 
         if (games.isEmpty()) {
-            EmptyScreen(
-                eyebrow = stringResource(R.string.library_label),
-                title = stringResource(R.string.no_games_yet),
-                description = stringResource(R.string.library_empty_description),
-                symbol = "▦"
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            Box(modifier = Modifier.fillMaxWidth().heightIn(min = 320.dp), contentAlignment = Alignment.Center) {
+                EmptyScreen(
+                    eyebrow = stringResource(R.string.library_label),
+                    title = stringResource(R.string.no_games_yet),
+                    description = stringResource(R.string.library_empty_description),
+                    symbol = "▦"
+                )
+            }
+        } else if (visibleGames.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp),
+                contentAlignment = Alignment.Center
             ) {
-                items(games, key = { it.uri }) { game ->
-                    GameLibraryRow(
-                        game = game,
-                        isLoading = isLoadingGame,
-                        onPlay = { onPlayGame(game) },
-                        onRemove = { onRemoveGame(game) }
-                    )
+                Text(stringResource(R.string.no_games_in_view), color = NexoraMuted)
+            }
+        } else {
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp, max = 460.dp)) {
+                val columns = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 5 else 3
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columns),
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    gridItems(visibleGames, key = { it.uri }) { game ->
+                        GameLibraryCard(
+                            game = game,
+                            isMissing = game.uri in missingGameUris,
+                            isLoading = isLoadingGame,
+                            selectionMode = selectionMode,
+                            isSelected = game.uri in selectedGameUris,
+                            onToggleSelect = {
+                                selectedGameUris = if (game.uri in selectedGameUris) {
+                                    selectedGameUris - game.uri
+                                } else {
+                                    selectedGameUris + game.uri
+                                }
+                            },
+                            onPlay = { onPlayGame(game) },
+                            onRemove = { onRemoveGame(game) },
+                            onToggleFavorite = {
+                                onUpdateGame(game.copy(isFavorite = !game.isFavorite))
+                            },
+                            onTogglePinned = {
+                                onUpdateGame(game.copy(isPinned = !game.isPinned))
+                            }
+                        )
+                    }
                 }
             }
         }
     }
+
+    if (showCreateFolder) {
+        AlertDialog(
+            onDismissRequest = { showCreateFolder = false; newFolderName = "" },
+            containerColor = NexoraPanel,
+            title = { Text(stringResource(R.string.create_folder), color = NexoraText) },
+            text = {
+                OutlinedTextField(
+                    value = newFolderName,
+                    onValueChange = { newFolderName = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.folder_name)) }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val cleanName = newFolderName.trim()
+                    if (cleanName.isNotEmpty() && folders.none { it.name.equals(cleanName, true) }) {
+                        val createdFolder = GameFolder(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = cleanName
+                        )
+                        onSaveFolders(folders + createdFolder)
+                        selectedFolderId = createdFolder.id
+                        showCreateFolder = false
+                        newFolderName = ""
+                    }
+                }, enabled = newFolderName.isNotBlank() && folders.none { it.name.equals(newFolderName.trim(), true) }) {
+                    Text(stringResource(R.string.create), color = NexoraPurple)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateFolder = false; newFolderName = "" }) {
+                    Text(stringResource(R.string.cancel), color = NexoraMuted)
+                }
+            }
+        )
+    }
+
+    if (showRemoveSelectedDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoveSelectedDialog = false },
+            containerColor = NexoraPanel,
+            title = { Text(stringResource(R.string.remove_selected), color = NexoraText) },
+            text = { Text(stringResource(R.string.remove_selected_question, selectedGameUris.size), color = NexoraMuted) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRemoveSelectedGames(games.filter { it.uri in selectedGameUris })
+                    selectedGameUris = emptySet()
+                    selectionMode = false
+                    showRemoveSelectedDialog = false
+                }) {
+                    Text(stringResource(R.string.remove_only), color = NexoraPink)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveSelectedDialog = false }) {
+                    Text(stringResource(R.string.cancel), color = NexoraMuted)
+                }
+            }
+        )
+    }
+
+    if (showMoveDialog) {
+        AlertDialog(
+            onDismissRequest = { showMoveDialog = false },
+            containerColor = NexoraPanel,
+            title = { Text(stringResource(R.string.move_to_folder), color = NexoraText) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = {
+                        games.filter { it.uri in selectedGameUris }.forEach {
+                            onUpdateGame(it.copy(folderId = null))
+                        }
+                        selectedGameUris = emptySet()
+                        selectionMode = false
+                        showMoveDialog = false
+                    }) {
+                        Text(stringResource(R.string.unfiled_games), color = NexoraText)
+                    }
+                    folders.forEach { folder ->
+                        TextButton(onClick = {
+                            games.filter { it.uri in selectedGameUris }.forEach {
+                                onUpdateGame(it.copy(folderId = folder.id))
+                            }
+                            selectedGameUris = emptySet()
+                            selectionMode = false
+                            showMoveDialog = false
+                        }) {
+                            Text(folder.name, color = NexoraText)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMoveDialog = false }) {
+                    Text(stringResource(R.string.cancel), color = NexoraMuted)
+                }
+            }
+        )
+    }
+
+    folderPendingDelete?.let { folder ->
+        AlertDialog(
+            onDismissRequest = { folderPendingDelete = null },
+            containerColor = NexoraPanel,
+            title = { Text(stringResource(R.string.delete_folder), color = NexoraText) },
+            text = { Text(stringResource(R.string.delete_folder_question, folder.name), color = NexoraMuted) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteFolder(folder)
+                    if (selectedFolderId == folder.id) selectedFolderId = null
+                    folderPendingDelete = null
+                }) {
+                    Text(stringResource(R.string.delete_folder), color = NexoraPink)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { folderPendingDelete = null }) {
+                    Text(stringResource(R.string.cancel), color = NexoraMuted)
+                }
+            }
+        )
+    }
 }
 
 @Composable
-private fun GameLibraryRow(
+private fun GameLibraryCard(
     game: GameEntry,
+    isMissing: Boolean,
     isLoading: Boolean,
+    selectionMode: Boolean,
+    isSelected: Boolean,
+    onToggleSelect: () -> Unit,
     onPlay: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onTogglePinned: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(NexoraPanel, RoundedCornerShape(16.dp))
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .background(NexoraPanel, RoundedCornerShape(14.dp))
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            if (selectionMode) {
+                Checkbox(checked = isSelected, onCheckedChange = { onToggleSelect() })
+            } else {
+                TextButton(onClick = onToggleFavorite) {
+                    Text(if (game.isFavorite) "★" else "☆", color = NexoraPink, fontSize = 17.sp)
+                }
+                TextButton(onClick = onTogglePinned) {
+                    Text(if (game.isPinned) "📌" else "⌖", color = NexoraPurple, fontSize = 15.sp)
+                }
+            }
+        }
         Box(
             modifier = Modifier
-                .size(48.dp)
-                .background(NexoraPanelLight, RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(enabled = !selectionMode && !isLoading && !isMissing, onClick = onPlay)
         ) {
-            Text("GBA", color = NexoraPurple, fontSize = 11.sp, fontWeight = FontWeight.Black)
+            GameCoverArtwork(
+                gameName = game.name,
+                modifier = Modifier.fillMaxSize()
+            )
+            if (isMissing) {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Color(0xB5100B18)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("?", color = NexoraPink, fontSize = 42.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(game.name, color = NexoraText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Text(formatFileSize(game.sizeBytes), color = NexoraMuted, fontSize = 11.sp)
+        val consoleLabel = when (game.name.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
+            "gb" -> "GB"
+            "gbc" -> "GBC"
+            else -> "GBA"
         }
-        TextButton(onClick = onPlay, enabled = !isLoading) {
-            Text(stringResource(R.string.load_game), color = NexoraPurple)
-        }
-        TextButton(onClick = onRemove, enabled = !isLoading) {
-            Text(stringResource(R.string.remove), color = NexoraPink)
+        Text(
+            consoleLabel,
+            color = NexoraPink,
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.7.sp
+        )
+        Text(
+            game.name.substringBeforeLast('.'),
+            color = NexoraText,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2
+        )
+        Text(formatFileSize(game.sizeBytes), color = NexoraMuted, fontSize = 9.sp, maxLines = 1)
+        if (selectionMode) {
+            TextButton(onClick = onToggleSelect, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    if (isSelected) stringResource(R.string.selected) else stringResource(R.string.select),
+                    color = if (isSelected) NexoraPink else NexoraPurple,
+                    fontSize = 10.sp
+                )
+            }
+        } else {
+            TextButton(onClick = onPlay, enabled = !isLoading && !isMissing, modifier = Modifier.fillMaxWidth()) {
+                Text(if (isMissing) "Arquivo ausente" else stringResource(R.string.load_game), color = if (isMissing) NexoraPink else NexoraPurple, fontSize = 10.sp)
+            }
+            TextButton(onClick = onRemove, enabled = !isLoading, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.remove), color = NexoraPink, fontSize = 10.sp)
+            }
         }
     }
 }
@@ -994,13 +2503,234 @@ private fun formatFileSize(bytes: Long): String {
 }
 
 @Composable
+private fun TouchLayoutEditorScreen(
+    settings: TouchControlSettings,
+    backgroundSettings: BackgroundSettings,
+    onSettingsChange: (TouchControlSettings) -> Unit,
+    onBackgroundSettingsChange: (BackgroundSettings) -> Unit,
+    onPickBackground: () -> Unit,
+    onBack: () -> Unit
+) {
+    var selected by remember { mutableStateOf("D-pad") }
+    var showOpacityDialog by remember { mutableStateOf(false) }
+    val density = LocalDensity.current.density
+    val previewContext = LocalContext.current
+    val previewAspectRatio = remember {
+        previewContext.getSharedPreferences("nexora_display_preview", Context.MODE_PRIVATE)
+            .getFloat("last_video_aspect", 1.5f).coerceIn(1f, 2f)
+    }
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val activeBackgroundPath = backgroundSettings.imagePath(isLandscape)
+    val backgroundBitmap = remember(activeBackgroundPath) {
+        activeBackgroundPath.takeIf { it.isNotBlank() && File(it).exists() }
+            ?.let { runCatching { BitmapFactory.decodeFile(it)?.asImageBitmap() }.getOrNull() }
+    }
+    val latestBackground by rememberUpdatedState(backgroundSettings)
+    val latestBackgroundChange by rememberUpdatedState(onBackgroundSettingsChange)
+
+    val transform: (String, Float, Float, Float) -> Unit = { name, dx, dy, scale ->
+        val x = dx.roundToInt()
+        val y = dy.roundToInt()
+        val next = when (name) {
+            "D-pad" -> settings.copy(dpadOffsetXDp=(settings.dpadOffsetXDp+x).coerceIn(-180,180),dpadOffsetYDp=(settings.dpadOffsetYDp+y).coerceIn(-180,180),dpadSizeDp=(settings.dpadSizeDp*scale).roundToInt().coerceIn(100,240))
+            "A" -> settings.copy(aOffsetXDp=(settings.aOffsetXDp+x).coerceIn(-180,180),aOffsetYDp=(settings.aOffsetYDp+y).coerceIn(-180,180),aSizeDp=(settings.aSizeDp*scale).roundToInt().coerceIn(36,120))
+            "B" -> settings.copy(bOffsetXDp=(settings.bOffsetXDp+x).coerceIn(-180,180),bOffsetYDp=(settings.bOffsetYDp+y).coerceIn(-180,180),bSizeDp=(settings.bSizeDp*scale).roundToInt().coerceIn(36,120))
+            "L" -> settings.copy(lOffsetXDp=(settings.lOffsetXDp+x).coerceIn(-180,180),lOffsetYDp=(settings.lOffsetYDp+y).coerceIn(-180,180),lSizeDp=(settings.lSizeDp*scale).roundToInt().coerceIn(36,120))
+            "R" -> settings.copy(rOffsetXDp=(settings.rOffsetXDp+x).coerceIn(-180,180),rOffsetYDp=(settings.rOffsetYDp+y).coerceIn(-180,180),rSizeDp=(settings.rSizeDp*scale).roundToInt().coerceIn(36,120))
+            "MENU" -> settings.copy(menuOffsetXDp=(settings.menuOffsetXDp+x).coerceIn(-180,180),menuOffsetYDp=(settings.menuOffsetYDp+y).coerceIn(-180,180),menuSizeDp=(settings.menuSizeDp*scale).roundToInt().coerceIn(28,96))
+            "SELECT" -> settings.copy(selectOffsetXDp=(settings.selectOffsetXDp+x).coerceIn(-180,180),selectOffsetYDp=(settings.selectOffsetYDp+y).coerceIn(-180,180),selectSizeDp=(settings.selectSizeDp*scale).roundToInt().coerceIn(28,96))
+            else -> settings.copy(startOffsetXDp=(settings.startOffsetXDp+x).coerceIn(-180,180),startOffsetYDp=(settings.startOffsetYDp+y).coerceIn(-180,180),startSizeDp=(settings.startSizeDp*scale).roundToInt().coerceIn(28,96))
+        }
+        onSettingsChange(next)
+    }
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF160D23))) {
+        if (backgroundSettings.mode != 0 && backgroundBitmap != null) {
+            Image(
+                bitmap = backgroundBitmap,
+                contentDescription = "Papel de parede do jogo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+                    .pointerInput(isLandscape, activeBackgroundPath) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            val current = latestBackground
+                            latestBackgroundChange(current.copy(
+                                cropScale = (current.cropScale * zoom).coerceIn(1f, 3f),
+                                cropOffsetX = (current.cropOffsetX + pan.x / size.width).coerceIn(-1f, 1f),
+                                cropOffsetY = (current.cropOffsetY + pan.y / size.height).coerceIn(-1f, 1f)
+                            ))
+                        }
+                    }
+                    .graphicsLayer {
+                        scaleX = backgroundSettings.cropScale
+                        scaleY = backgroundSettings.cropScale
+                        translationX = size.width * backgroundSettings.cropOffsetX
+                        translationY = size.height * backgroundSettings.cropOffsetY
+                    }
+            )
+        }
+
+        // The playfield uses the same side-shell widths, padding, aspect ratio and
+        // scale calculation as PlayerScreen/GameFrame. Only the live frame pixels
+        // are replaced by a neutral preview while editing outside a running game.
+        if (maxWidth > maxHeight) {
+            Row(
+                Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                NexoraControlShell(Modifier.width(224.dp).fillMaxHeight(), transparent = settings.controlsOnGameScreen || (backgroundSettings.mode != 0 && backgroundBitmap != null)) {
+                    Box(Modifier.fillMaxSize().padding(8.dp)) {
+                        EditorControl("L",11,settings.lSizeDp,settings.lOffsetXDp,settings.lOffsetYDp,Modifier.align(Alignment.TopStart),selected=="L",density,settings.opacityPercent/100f,{selected="L"},{showOpacityDialog=true}) {dx,dy,z->transform("L",dx,dy,z)}
+                        EditorControl("D-pad",0,settings.dpadSizeDp,settings.dpadOffsetXDp,settings.dpadOffsetYDp,Modifier.align(Alignment.CenterStart),selected=="D-pad",density,settings.opacityPercent/100f,{selected="D-pad"},{showOpacityDialog=true}) {dx,dy,z->transform("D-pad",dx,dy,z)}
+                    }
+                }
+                Column(Modifier.weight(1f).fillMaxHeight(),horizontalAlignment=Alignment.CenterHorizontally) {
+                    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
+                        val fittedWidth = minOf(maxWidth, maxHeight * previewAspectRatio) * (settings.gameScreenScalePercent.coerceIn(60,120)/100f)
+                        Box(Modifier.width(fittedWidth).aspectRatio(previewAspectRatio).background(Color.Black))
+                    }
+                    Row(Modifier.fillMaxWidth().padding(bottom=2.dp),horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically) {
+                        EditorControl("MENU",5,settings.menuSizeDp,settings.menuOffsetXDp,settings.menuOffsetYDp,Modifier,selected=="MENU",density,settings.opacityPercent/100f,{selected="MENU"},{showOpacityDialog=true}) {dx,dy,z->transform("MENU",dx,dy,z)}
+                        Spacer(Modifier.width(8.dp))
+                        EditorControl("SELECT",5,settings.selectSizeDp,settings.selectOffsetXDp,settings.selectOffsetYDp,Modifier,selected=="SELECT",density,settings.opacityPercent/100f,{selected="SELECT"},{showOpacityDialog=true}) {dx,dy,z->transform("SELECT",dx,dy,z)}
+                        Spacer(Modifier.width(8.dp))
+                        EditorControl("START",5,settings.startSizeDp,settings.startOffsetXDp,settings.startOffsetYDp,Modifier,selected=="START",density,settings.opacityPercent/100f,{selected="START"},{showOpacityDialog=true}) {dx,dy,z->transform("START",dx,dy,z)}
+                    }
+                }
+                NexoraControlShell(Modifier.width(224.dp).fillMaxHeight(), transparent = settings.controlsOnGameScreen || (backgroundSettings.mode != 0 && backgroundBitmap != null)) {
+                    Box(Modifier.fillMaxSize().padding(8.dp)) {
+                        EditorControl("R",13,settings.rSizeDp,settings.rOffsetXDp,settings.rOffsetYDp,Modifier.align(Alignment.TopEnd),selected=="R",density,settings.opacityPercent/100f,{selected="R"},{showOpacityDialog=true}) {dx,dy,z->transform("R",dx,dy,z)}
+                        Row(Modifier.align(Alignment.CenterEnd),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically) {
+                            EditorControl("B",9,settings.bSizeDp,settings.bOffsetXDp,settings.bOffsetYDp,Modifier,selected=="B",density,settings.opacityPercent/100f,{selected="B"},{showOpacityDialog=true}) {dx,dy,z->transform("B",dx,dy,z)}
+                            EditorControl("A",7,settings.aSizeDp,settings.aOffsetXDp,settings.aOffsetYDp,Modifier,selected=="A",density,settings.opacityPercent/100f,{selected="A"},{showOpacityDialog=true}) {dx,dy,z->transform("A",dx,dy,z)}
+                        }
+                    }
+                }
+            }
+        } else {
+            Column(Modifier.fillMaxSize().padding(horizontal=10.dp, vertical=8.dp),verticalArrangement=Arrangement.SpaceBetween,horizontalAlignment=Alignment.CenterHorizontally) {
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
+                    val fittedWidth = minOf(maxWidth, maxHeight * 1.5f) * (settings.gameScreenScalePercent.coerceIn(60,120)/100f)
+                    Box(Modifier.width(fittedWidth).aspectRatio(1.5f).background(Color.Black))
+                }
+                NexoraControlShell(Modifier.fillMaxWidth(), transparent = settings.controlsOnGameScreen || (backgroundSettings.mode != 0 && backgroundBitmap != null)) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=8.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+                            EditorControl("L",11,settings.lSizeDp,settings.lOffsetXDp,settings.lOffsetYDp,Modifier,selected=="L",density,settings.opacityPercent/100f,{selected="L"},{showOpacityDialog=true}) {dx,dy,z->transform("L",dx,dy,z)}
+                            EditorControl("R",13,settings.rSizeDp,settings.rOffsetXDp,settings.rOffsetYDp,Modifier,selected=="R",density,settings.opacityPercent/100f,{selected="R"},{showOpacityDialog=true}) {dx,dy,z->transform("R",dx,dy,z)}
+                        }
+                        Row(Modifier.fillMaxWidth().padding(horizontal=4.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+                            EditorControl("D-pad",0,settings.dpadSizeDp,settings.dpadOffsetXDp,settings.dpadOffsetYDp,Modifier,selected=="D-pad",density,settings.opacityPercent/100f,{selected="D-pad"},{showOpacityDialog=true}) {dx,dy,z->transform("D-pad",dx,dy,z)}
+                            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                EditorControl("B",9,settings.bSizeDp,settings.bOffsetXDp,settings.bOffsetYDp,Modifier,selected=="B",density,settings.opacityPercent/100f,{selected="B"},{showOpacityDialog=true}) {dx,dy,z->transform("B",dx,dy,z)}
+                                EditorControl("A",7,settings.aSizeDp,settings.aOffsetXDp,settings.aOffsetYDp,Modifier,selected=="A",density,settings.opacityPercent/100f,{selected="A"},{showOpacityDialog=true}) {dx,dy,z->transform("A",dx,dy,z)}
+                            }
+                        }
+                        Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                            EditorControl("MENU",5,settings.menuSizeDp,settings.menuOffsetXDp,settings.menuOffsetYDp,Modifier,selected=="MENU",density,settings.opacityPercent/100f,{selected="MENU"},{showOpacityDialog=true}) {dx,dy,z->transform("MENU",dx,dy,z)}
+                            EditorControl("SELECT",5,settings.selectSizeDp,settings.selectOffsetXDp,settings.selectOffsetYDp,Modifier,selected=="SELECT",density,settings.opacityPercent/100f,{selected="SELECT"},{showOpacityDialog=true}) {dx,dy,z->transform("SELECT",dx,dy,z)}
+                            EditorControl("START",5,settings.startSizeDp,settings.startOffsetXDp,settings.startOffsetYDp,Modifier,selected=="START",density,settings.opacityPercent/100f,{selected="START"},{showOpacityDialog=true}) {dx,dy,z->transform("START",dx,dy,z)}
+                        }
+                    }
+                }
+            }
+        }
+
+        Column(
+            Modifier.align(Alignment.TopEnd).padding(8.dp)
+                .background(Color(0xDD160D23), RoundedCornerShape(12.dp)).padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onBack) { Text("Concluir", color = NexoraPink, fontSize = 11.sp) }
+                TextButton(onClick = onPickBackground) { Text("Trocar foto", color = NexoraText, fontSize = 11.sp) }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Tela", color = NexoraText, fontSize = 10.sp)
+                Slider(
+                    modifier = Modifier.width(104.dp),
+                    value = settings.gameScreenScalePercent.toFloat(),
+                    onValueChange = { onSettingsChange(settings.copy(gameScreenScalePercent=it.roundToInt().coerceIn(60,120))) },
+                    valueRange = 60f..120f
+                )
+                Text("${settings.gameScreenScalePercent}%", color = NexoraMuted, fontSize = 9.sp)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                TextButton(onClick = { onBackgroundSettingsChange(backgroundSettings.copy(mode=0)) }) { Text("Sem foto", color = if(backgroundSettings.mode==0) NexoraPink else NexoraMuted, fontSize = 9.sp) }
+                TextButton(onClick = { onBackgroundSettingsChange(backgroundSettings.copy(mode=1)) }) { Text("Fundo", color = if(backgroundSettings.mode==1) NexoraPink else NexoraMuted, fontSize = 9.sp) }
+                TextButton(onClick = { onBackgroundSettingsChange(backgroundSettings.copy(mode=2)) }) { Text("Laterais", color = if(backgroundSettings.mode==2) NexoraPink else NexoraMuted, fontSize = 9.sp) }
+            }
+            TextButton(onClick = { onBackgroundSettingsChange(backgroundSettings.copy(cropScale=1f,cropOffsetX=0f,cropOffsetY=0f)) }) {
+                Text("Redefinir recorte", color = NexoraMuted, fontSize = 9.sp)
+            }
+            Text("Pinça para ampliar e arraste para recortar", color = NexoraMuted, fontSize = 9.sp)
+            Text("Toque duplo em um botão: transparência", color = NexoraMuted, fontSize = 9.sp)
+        }
+    }
+
+    if (showOpacityDialog) {
+        AlertDialog(
+            onDismissRequest = { showOpacityDialog = false },
+            title = { Text("Transparência dos botões", color = NexoraText) },
+            text = {
+                Column {
+                    Text("${settings.opacityPercent}%", color = NexoraMuted)
+                    Slider(
+                        value = settings.opacityPercent.toFloat(),
+                        onValueChange = { onSettingsChange(settings.copy(opacityPercent=it.roundToInt().coerceIn(0,100))) },
+                        valueRange = 0f..100f
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { showOpacityDialog=false }) { Text("Concluir", color = NexoraPink) } },
+            containerColor = NexoraPanel
+        )
+    }
+}
+
+@Composable
+private fun EditorControl(label:String,cell:Int,sizeDp:Int,offsetXDp:Int,offsetYDp:Int,modifier:Modifier,selected:Boolean,density:Float,opacity:Float,onSelect:()->Unit,onDoubleTap:()->Unit,onTransform:(Float,Float,Float)->Unit) {
+    val latestTransform by rememberUpdatedState(onTransform)
+    val latestSelect by rememberUpdatedState(onSelect)
+    val latestDoubleTap by rememberUpdatedState(onDoubleTap)
+    val gesture=Modifier.offset(x=offsetXDp.dp,y=offsetYDp.dp)
+        .pointerInput(label) { detectTransformGestures { _,pan,zoom,_ -> latestSelect(); latestTransform(pan.x/density,pan.y/density,zoom) } }
+        .pointerInput(label) { detectTapGestures(onTap = { latestSelect() }, onDoubleTap = { latestDoubleTap() }) }
+        .background(if(selected) NexoraPurple.copy(alpha=.20f) else Color.Transparent,RoundedCornerShape(12.dp))
+        .border(if(selected) 1.dp else 0.dp,if(selected) NexoraPink else Color.Transparent,RoundedCornerShape(12.dp))
+    if(label=="MENU"||label=="SELECT"||label=="START") {
+        Column(modifier.then(gesture),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(0.dp)) {
+            NexoraAtlasSprite(cell=cell,modifier=Modifier.size(sizeDp.dp).alpha(opacity.coerceIn(0f,1f)))
+            Text(label,color=if(selected) NexoraPink else NexoraMuted,fontSize=8.sp,fontWeight=FontWeight.Bold)
+        }
+    } else {
+        Box(
+            modifier
+                .then(if (label == "L" || label == "R") Modifier.width(sizeDp.dp * (198f / 76f)).height(sizeDp.dp) else Modifier.size(sizeDp.dp))
+                .then(gesture),
+            contentAlignment=Alignment.Center
+        ) {
+            NexoraAtlasSprite(cell=cell,modifier=Modifier.fillMaxSize().alpha(opacity.coerceIn(0f,1f)))
+        }
+    }
+}
+
+@Composable
 private fun HistoryScreen() {
-    EmptyScreen(
-        eyebrow = stringResource(R.string.history_label),
-        title = stringResource(R.string.no_history_yet),
-        description = stringResource(R.string.history_empty_description),
-        symbol = "◷"
-    )
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(modifier = Modifier.fillMaxWidth().heightIn(min = 360.dp), contentAlignment = Alignment.Center) {
+            EmptyScreen(
+                eyebrow = stringResource(R.string.history_label),
+                title = stringResource(R.string.no_history_yet),
+                description = stringResource(R.string.history_empty_description),
+                symbol = "◷"
+            )
+        }
+        Spacer(Modifier.height(24.dp))
+    }
 }
 
 @Composable
@@ -1021,25 +2751,277 @@ private fun EmptyScreen(eyebrow: String, title: String, description: String, sym
 }
 
 @Composable
-private fun SettingsScreen(nativeStatus: Int) {
+private fun SettingsScreen(nativeStatus: Int, touchSettings: TouchControlSettings, onTouchSettingsChange: (TouchControlSettings) -> Unit, backgroundSettings: BackgroundSettings, onBackgroundSettingsChange: (BackgroundSettings) -> Unit, onPickBackground: () -> Unit, onRemoveBackground: (Boolean) -> Unit, onOpenTouchEditor: () -> Unit) {
+    var selectedCategory by remember { mutableStateOf("main") }
+    var showResetControlsConfirmation by remember { mutableStateOf(false) }
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(stringResource(R.string.settings_label), color = NexoraText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-        SettingsRow(stringResource(R.string.appearance_setting), stringResource(R.string.appearance_description))
-        SettingsRow(stringResource(R.string.language_setting), stringResource(R.string.language_description))
-        SettingsRow(stringResource(R.string.controls_setting), stringResource(R.string.controls_description))
-        SettingsRow(stringResource(R.string.about_setting), stringResource(R.string.about_description))
-        Spacer(Modifier.height(4.dp))
-        Text(stringResource(R.string.technical_status), color = NexoraPink, fontSize = 10.sp, letterSpacing = 1.5.sp)
-        val statusText = when (nativeStatus) {
-            2 -> stringResource(R.string.native_core_ready)
-            1 -> stringResource(R.string.native_core_init_failed)
-            0 -> stringResource(R.string.native_core_create_failed)
-            else -> stringResource(R.string.native_bridge_unavailable)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (selectedCategory != "main") TextButton(onClick = { selectedCategory = "main" }) { Text("‹", color = NexoraPurple, fontSize = 22.sp) }
+            Column {
+                Text(stringResource(R.string.settings_label), color = NexoraText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                Text(if (selectedCategory == "main") stringResource(R.string.settings_intro) else "Configurações organizadas por categoria", color = NexoraMuted, fontSize = 12.sp)
+            }
         }
-        Text(statusText, color = NexoraMuted, fontSize = 11.sp)
+        when (selectedCategory) {
+            "main" -> {
+                SettingsCategoryCard("🎮", "Controles", "Editor visual, posição e tamanho", NexoraPurple) { selectedCategory = "controls" }
+                SettingsCategoryCard("✦", "Aparência", "Temas e elementos visuais", NexoraPink) { selectedCategory = "appearance" }
+                SettingsCategoryCard("⚡", "Emulação", "Velocidade e desempenho", NexoraPurple) { selectedCategory = "emulation" }
+                SettingsCategoryCard("♫", "Áudio", "Volume e configurações sonoras", NexoraPink) { selectedCategory = "audio" }
+                SettingsCategoryCard("⚙", "Sistema", "Idioma, armazenamento e informações", NexoraPurple) { selectedCategory = "system" }
+                Text(stringResource(R.string.technical_status), color = NexoraPink, fontSize = 10.sp, letterSpacing = 1.5.sp)
+                val statusText = when (nativeStatus) {
+                    2 -> stringResource(R.string.native_core_ready)
+                    1 -> stringResource(R.string.native_core_init_failed)
+                    0 -> stringResource(R.string.native_core_create_failed)
+                    else -> stringResource(R.string.native_bridge_unavailable)
+                }
+                Text(statusText, color = NexoraMuted, fontSize = 11.sp)
+            }
+            "controls" -> {
+                SettingsCategoryCard("🎮", "Botões e personalizar", "Abra a tela de jogo para mover e redimensionar cada botão", NexoraPurple, onOpenTouchEditor)
+                Column(Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Opacidade dos controles", color = NexoraText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Slider(modifier = Modifier.weight(1f), value = touchSettings.opacityPercent.toFloat(), onValueChange = { onTouchSettingsChange(touchSettings.copy(opacityPercent = it.roundToInt().coerceIn(0, 100))) }, valueRange = 0f..100f)
+                        Text(touchSettings.opacityPercent.toString() + "%", color = NexoraMuted, fontSize = 11.sp)
+                    }
+                    Text("A opacidade pode chegar a 0%, deixando os botões totalmente invisíveis, sem alterar suas áreas de toque.", color = NexoraMuted, fontSize = 11.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = touchSettings.controlsOnGameScreen,
+                            onCheckedChange = { onTouchSettingsChange(touchSettings.copy(controlsOnGameScreen = it)) }
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text("Sobrepor botões à tela do jogo", color = NexoraText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Oculta as barras laterais e libera a área para posicionar os controles sobre a imagem, sem trocar o layout.", color = NexoraMuted, fontSize = 11.sp)
+                        }
+                    }
+                    if (touchSettings.controlsOnGameScreen) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = touchSettings.clipOverlayControls,
+                                onCheckedChange = { onTouchSettingsChange(touchSettings.copy(clipOverlayControls = it)) }
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text("Recortar botões nos limites da tela", color = NexoraText, fontSize = 12.sp)
+                                Text("Oculta as partes dos sprites que ultrapassarem a área da imagem do jogo. Desative para deixá-las avançar para fora dela.", color = NexoraMuted, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Tamanho da tela do jogo", color = NexoraText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Slider(
+                            modifier = Modifier.weight(1f),
+                            value = touchSettings.gameScreenScalePercent.toFloat(),
+                            onValueChange = { onTouchSettingsChange(touchSettings.copy(gameScreenScalePercent = it.roundToInt().coerceIn(60, 120))) },
+                            valueRange = 60f..120f
+                        )
+                        Text("${touchSettings.gameScreenScalePercent}%", color = NexoraMuted, fontSize = 11.sp)
+                    }
+                    Text("Ajusta o tamanho da imagem do jogo sem deformar sua proporção.", color = NexoraMuted, fontSize = 11.sp)
+                    Button(
+                        onClick = { showResetControlsConfirmation = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Restaurar padrão dos botões")
+                    }
+                }
+                Text("Restaura posição, tamanho e opacidade dos botões somente nesta orientação.", color = NexoraMuted, fontSize = 12.sp)
+                Text("As alterações são salvas automaticamente e não modificam ROMs ou saves.", color = NexoraMuted, fontSize = 12.sp)
+            }
+            "appearance" -> {
+                val appearanceIsLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+                Column(Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Imagem de fundo", color = NexoraText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Escolha uma foto para personalizar o espaço atrás do jogo e dos controles. O NEXORA guarda uma cópia privada.", color = NexoraMuted, fontSize = 11.sp)
+                    listOf(0 to "Sem imagem", 1 to "Tela inteira", 2 to "Somente laterais").forEach { (mode, label) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.RadioButton(
+                                selected = backgroundSettings.mode == mode,
+                                onClick = { onBackgroundSettingsChange(backgroundSettings.copy(mode = mode)) }
+                            )
+                            Text(label, color = NexoraText, fontSize = 13.sp)
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = backgroundSettings.separateOrientations,
+                            onCheckedChange = { onBackgroundSettingsChange(backgroundSettings.copy(separateOrientations = it)) }
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text("Fotos diferentes por orientação", color = NexoraText, fontSize = 13.sp)
+                            Text("Desativado: uma foto compartilhada. Ativado: uma foto para retrato e outra para paisagem.", color = NexoraMuted, fontSize = 10.sp)
+                        }
+                    }
+                    val activeImagePath = if (backgroundSettings.separateOrientations) {
+                        if (appearanceIsLandscape) backgroundSettings.landscapeImagePath else backgroundSettings.portraitImagePath
+                    } else backgroundSettings.portraitImagePath.ifBlank { backgroundSettings.landscapeImagePath }
+                    val activeImageBitmap = remember(activeImagePath) {
+                        activeImagePath.takeIf { it.isNotBlank() && File(it).exists() }
+                            ?.let { runCatching { BitmapFactory.decodeFile(it)?.asImageBitmap() }.getOrNull() }
+                    }
+                    Button(onClick = onPickBackground, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (activeImagePath.isBlank()) "Escolher foto da galeria" else "Trocar foto")
+                    }
+                    if (activeImageBitmap != null) {
+                        Text("Prévia da foto atual no emulador", color = NexoraPurple, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Box(
+                            Modifier.fillMaxWidth().aspectRatio(if (appearanceIsLandscape) 16f / 9f else 3f / 4f)
+                                .clip(RoundedCornerShape(12.dp)).background(Color.Black)
+                        ) {
+                            Image(
+                                bitmap = activeImageBitmap,
+                                contentDescription = "Prévia da imagem de fundo",
+                                modifier = Modifier.fillMaxSize().graphicsLayer {
+                                    scaleX = backgroundSettings.cropScale
+                                    scaleY = backgroundSettings.cropScale
+                                    translationX = size.width * backgroundSettings.cropOffsetX
+                                    translationY = size.height * backgroundSettings.cropOffsetY
+                                },
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        Text("Ajustar recorte — zoom", color = NexoraText, fontSize = 11.sp)
+                        Slider(
+                            value = backgroundSettings.cropScale,
+                            onValueChange = { onBackgroundSettingsChange(backgroundSettings.copy(cropScale = it.coerceIn(1f, 3f))) },
+                            valueRange = 1f..3f
+                        )
+                        Text("Mover imagem na horizontal", color = NexoraText, fontSize = 11.sp)
+                        Slider(
+                            value = backgroundSettings.cropOffsetX,
+                            onValueChange = { onBackgroundSettingsChange(backgroundSettings.copy(cropOffsetX = it.coerceIn(-1f, 1f))) },
+                            valueRange = -1f..1f
+                        )
+                        Text("Mover imagem na vertical", color = NexoraText, fontSize = 11.sp)
+                        Slider(
+                            value = backgroundSettings.cropOffsetY,
+                            onValueChange = { onBackgroundSettingsChange(backgroundSettings.copy(cropOffsetY = it.coerceIn(-1f, 1f))) },
+                            valueRange = -1f..1f
+                        )
+                        TextButton(onClick = {
+                            onBackgroundSettingsChange(backgroundSettings.copy(cropScale = 1f, cropOffsetX = 0f, cropOffsetY = 0f))
+                        }) {
+                            Text("Redefinir recorte", color = NexoraMuted)
+                        }
+                        TextButton(onClick = { onRemoveBackground(appearanceIsLandscape) }) {
+                            Text("Remover foto", color = NexoraPink)
+                        }
+                    } else {
+                        Text("Nenhuma foto selecionada para esta orientação. Escolha uma imagem para ver a prévia aqui.", color = NexoraMuted, fontSize = 11.sp)
+                    }
+                    Text("A prévia acompanha o recorte usado na tela do emulador. A foto não altera a imagem do jogo nem a posição dos botões.", color = NexoraMuted, fontSize = 11.sp)
+                }
+            }
+            "emulation" -> {
+                Column(Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Velocidade padrão", color = NexoraText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Define a velocidade inicial dos jogos. Você também pode alterá-la durante a partida pelo menu MENU.", color = NexoraMuted, fontSize = 11.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        listOf(1.0f, 1.5f, 2.0f, 3.0f).forEach { speed ->
+                            TextButton(onClick = { onTouchSettingsChange(touchSettings.copy(defaultSpeed = speed)) }) {
+                                Text(
+                                    "${speed}x",
+                                    color = if (touchSettings.defaultSpeed == speed) NexoraPink else NexoraMuted,
+                                    fontWeight = if (touchSettings.defaultSpeed == speed) FontWeight.Bold else FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                    Text("Velocidade selecionada: ${touchSettings.defaultSpeed}x", color = NexoraPurple, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            "audio" -> {
+                Column(Modifier.fillMaxWidth().background(NexoraPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Volume do jogo", color = NexoraText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Slider(
+                            modifier = Modifier.weight(1f),
+                            value = touchSettings.audioVolumePercent.toFloat(),
+                            onValueChange = { onTouchSettingsChange(touchSettings.copy(audioVolumePercent = it.roundToInt().coerceIn(0, 100))) },
+                            valueRange = 0f..100f
+                        )
+                        Text("${touchSettings.audioVolumePercent}%", color = NexoraMuted, fontSize = 11.sp)
+                    }
+                    Text("O ajuste é aplicado ao áudio dos jogos e salvo automaticamente.", color = NexoraMuted, fontSize = 11.sp)
+                }
+            }
+            else -> {
+                SettingsRow(stringResource(R.string.language_setting), stringResource(R.string.language_description))
+                SettingsRow(stringResource(R.string.about_setting), stringResource(R.string.about_description))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+
+    if (showResetControlsConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showResetControlsConfirmation = false },
+            title = { Text("Restaurar botões ao padrão?") },
+            text = {
+                Text("A posição, o tamanho e a opacidade dos controles desta orientação voltarão aos valores originais. A configuração da outra orientação, a velocidade e o áudio não serão alterados.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onTouchSettingsChange(
+                            TouchControlSettings(
+                                defaultSpeed = touchSettings.defaultSpeed,
+                                audioVolumePercent = touchSettings.audioVolumePercent,
+                                gameScreenScalePercent = touchSettings.gameScreenScalePercent,
+                                controlsOnGameScreen = touchSettings.controlsOnGameScreen,
+                                clipOverlayControls = touchSettings.clipOverlayControls
+                            )
+                        )
+                        showResetControlsConfirmation = false
+                    }
+                ) {
+                    Text("Restaurar", color = NexoraPink)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetControlsConfirmation = false }) {
+                    Text("Cancelar", color = NexoraMuted)
+                }
+            },
+            containerColor = NexoraPanel,
+            titleContentColor = NexoraText,
+            textContentColor = NexoraMuted
+        )
+    }
+}
+
+@Composable
+private fun SettingsCategoryCard(symbol: String, title: String, description: String, accent: Color, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+            .background(NexoraPanel).border(1.dp, accent.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text(symbol, color = accent, fontSize = 24.sp)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, color = NexoraText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(description, color = NexoraMuted, fontSize = 11.sp)
+        }
+        Text("›", color = accent, fontSize = 24.sp)
+    }
+}
+
+@Composable
+private fun ControlSettingSlider(label: String, value: Int, range: IntRange, unit: String, onValueChange: (Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, color = NexoraMuted, fontSize = 11.sp)
+            Text("$value$unit", color = NexoraText, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Slider(value = value.toFloat(), onValueChange = { onValueChange(it.roundToInt().coerceIn(range)) }, valueRange = range.first.toFloat()..range.last.toFloat())
     }
 }
 
@@ -1062,6 +3044,25 @@ private fun BottomNavigation(selectedTab: NexoraTab, onSelect: (NexoraTab) -> Un
             .background(NexoraPanel)
             .padding(horizontal = 8.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        NavigationItem("⌂", stringResource(R.string.nav_home), NexoraTab.HOME, selectedTab, onSelect)
+        NavigationItem("▦", stringResource(R.string.nav_library), NexoraTab.LIBRARY, selectedTab, onSelect)
+        NavigationItem("◷", stringResource(R.string.nav_history), NexoraTab.HISTORY, selectedTab, onSelect)
+        NavigationItem("⚙", stringResource(R.string.nav_settings), NexoraTab.SETTINGS, selectedTab, onSelect)
+    }
+}
+
+@Composable
+private fun SideNavigation(selectedTab: NexoraTab, onSelect: (NexoraTab) -> Unit) {
+    Column(
+        modifier = Modifier
+            .width(76.dp)
+            .fillMaxHeight()
+            .background(NexoraPanel.copy(alpha = 0.82f))
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         NavigationItem("⌂", stringResource(R.string.nav_home), NexoraTab.HOME, selectedTab, onSelect)
         NavigationItem("▦", stringResource(R.string.nav_library), NexoraTab.LIBRARY, selectedTab, onSelect)

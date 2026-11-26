@@ -19,7 +19,14 @@ object NativeBridge {
      */
     external fun nativeLoadRom(path: String): Int
 
-    /** Runs one GBA frame into a reusable 240x160 ARGB pixel buffer. */
+    /** Active frame dimensions; GB/GBC normally use 160x144, GBA uses 240x160. */
+    external fun nativeGetVideoWidth(): Int
+    external fun nativeGetVideoHeight(): Int
+
+    /** Returns 0 for GBA and 1 for the shared GB/GBC core. */
+    external fun nativeGetPlatform(): Int
+
+    /** Runs one frame into a tightly packed ARGB buffer sized for the active console. */
     external fun nativeRunFrame(output: IntArray): Boolean
 
     /** Opens or creates the per-game battery save file through mGBA. */
@@ -34,7 +41,7 @@ object NativeBridge {
     /** Discards buffered audio when gameplay is paused or leaves the foreground. */
     external fun nativeClearAudio()
 
-    /** Replaces the active GBA key bitmask. */
+    /** Replaces the active console's key bitmask. */
     external fun nativeSetKeys(keys: Int)
 
     /** Adds a pressed key without releasing other simultaneously held keys. */
@@ -42,6 +49,52 @@ object NativeBridge {
 
     /** Releases only the supplied key bits. */
     external fun nativeClearKeys(keys: Int)
+
+    /** Returns the four-character GBA game code for the active ROM, or empty when no ROM is loaded. */
+    external fun nativeGetGameCode(): String
+
+    /** Returns the active ROM CRC32 as an unsigned value stored in a Long, or zero when unavailable. */
+    external fun nativeGetRomCrc32(): Long
+
+    /** Attaches the GBA MULTI SIO driver after the Wi-Fi handshake (0=host/P0, 1=client/P1). */
+    external fun nativeLinkAttach(role: Int): Boolean
+
+    /** Updates the transport connection state without waiting for the emulation-core lock. */
+    external fun nativeLinkSetConnected(connected: Boolean)
+
+    /** 1=connected, 0=disconnected, -1=link transfer/queue failure. */
+    external fun nativeLinkStatus(): Int
+
+    /** Queues a host-to-client GBA MULTI transfer for the native SIO driver. */
+    external fun nativeLinkReceiveSerialTransfer(
+        transferId: Long,
+        cycle: Long,
+        baudCode: Int,
+        dataOut: Int,
+        sioControl: Int,
+        rcnt: Int
+    ): Boolean
+
+    /** Supplies the client's 16-bit response to the pending host transfer. */
+    external fun nativeLinkReceiveSerialResult(
+        transferId: Long,
+        cycle: Long,
+        dataOut: Int,
+        sioControl: Int,
+        rcnt: Int
+    ): Boolean
+
+    /** Returns one outgoing serial event as [kind, id, cycle, baud, data, SIOCNT, RCNT]. */
+    external fun nativeLinkTakeOutgoing(): LongArray?
+
+    /** Saves the complete mGBA machine state to an app-private file. Disabled during Link sessions. */
+    external fun nativeSaveState(path: String): Boolean
+
+    /** Restores a previously saved mGBA machine state. Disabled during Link sessions. */
+    external fun nativeLoadState(path: String): Boolean
+
+    /** Detaches the native Link driver and clears session queues. */
+    external fun nativeLinkDetach()
 
     /** Stops the active session and releases the native core. */
     external fun nativeUnloadRom()
