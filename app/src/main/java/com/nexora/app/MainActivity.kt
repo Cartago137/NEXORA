@@ -1,5 +1,6 @@
 package com.nexora.app
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
