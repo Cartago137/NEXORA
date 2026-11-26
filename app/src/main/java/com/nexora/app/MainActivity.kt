@@ -1803,7 +1803,7 @@ private fun GbaControl(
                 Modifier.width(visualSize * (198f / 76f)).height(visualSize)
             } else {
                 Modifier.size(visualSize)
-            }).alpha(opacity.coerceIn(0.35f, 1f)),
+            }).alpha(opacity.coerceIn(0f, 1f)),
             keyMask = keyMask
         )
         if (isRoundLabel) {
@@ -2586,7 +2586,7 @@ private fun TouchLayoutEditorScreen(
                         EditorControl("START",5,settings.startSizeDp,settings.startOffsetXDp,settings.startOffsetYDp,Modifier,selected=="START",density,settings.opacityPercent/100f,{selected="START"},{showOpacityDialog=true}) {dx,dy,z->transform("START",dx,dy,z)}
                     }
                 }
-                NexoraControlShell(Modifier.width(224.dp).fillMaxHeight(), transparent = settings.controlsOnGameScreen) {
+                NexoraControlShell(Modifier.width(224.dp).fillMaxHeight(), transparent = settings.controlsOnGameScreen || (backgroundSettings.mode != 0 && backgroundBitmap != null)) {
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         EditorControl("R",13,settings.rSizeDp,settings.rOffsetXDp,settings.rOffsetYDp,Modifier.align(Alignment.TopEnd),selected=="R",density,settings.opacityPercent/100f,{selected="R"},{showOpacityDialog=true}) {dx,dy,z->transform("R",dx,dy,z)}
                         Row(Modifier.align(Alignment.CenterEnd),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -2699,7 +2699,7 @@ private fun EditorControl(label:String,cell:Int,sizeDp:Int,offsetXDp:Int,offsetY
                 .then(gesture),
             contentAlignment=Alignment.Center
         ) {
-            NexoraAtlasSprite(cell=cell,modifier=Modifier.fillMaxSize().alpha(opacity.coerceIn(.20f,1f)))
+            NexoraAtlasSprite(cell=cell,modifier=Modifier.fillMaxSize().alpha(opacity.coerceIn(0f,1f)))
         }
     }
 }
