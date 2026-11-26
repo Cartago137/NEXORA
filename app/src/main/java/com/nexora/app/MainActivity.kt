@@ -1797,18 +1797,18 @@ private fun GbaControl(
     }
 
     Column(
-        modifier = modifier.offset(x = offsetXDp.dp, y = offsetYDp.dp),
+        modifier = modifier.offset(x = offsetXDp.dp, y = offsetYDp.dp).alpha(opacity.coerceIn(0f, 1f)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         NexoraTouchButton(
             normalCell = normalCell,
             pressedCell = pressedCell,
-            modifier = (if (label == "L" || label == "R") {
+            modifier = if (label == "L" || label == "R") {
                 Modifier.width(visualSize * (198f / 76f)).height(visualSize)
             } else {
                 Modifier.size(visualSize)
-            }).alpha(opacity.coerceIn(0f, 1f)),
+            },
             keyMask = keyMask
         )
         if (isRoundLabel) {
@@ -1825,14 +1825,14 @@ private fun GbaControl(
 @Composable
 private fun GbaMenuControl(onClick: () -> Unit, sizeDp: Int = 48, opacity: Float = 1f, offsetXDp: Int = 0, offsetYDp: Int = 0) {
     Column(
-        modifier = Modifier.offset(x = offsetXDp.dp, y = offsetYDp.dp),
+        modifier = Modifier.offset(x = offsetXDp.dp, y = offsetYDp.dp).alpha(opacity.coerceIn(0f, 1f)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         NexoraTouchButton(
             normalCell = 5,
             pressedCell = 6,
-            modifier = Modifier.size(sizeDp.dp).alpha(opacity.coerceIn(0f, 1f)),
+            modifier = Modifier.size(sizeDp.dp),
             onClick = onClick
         )
         Text("MENU", color = Color(0xFFE9DDF8), fontSize = 9.sp, fontWeight = FontWeight.Bold)
