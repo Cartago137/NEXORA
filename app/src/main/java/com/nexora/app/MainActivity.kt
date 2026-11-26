@@ -1827,7 +1827,7 @@ private fun GbaMenuControl(onClick: () -> Unit, sizeDp: Int = 48, opacity: Float
         NexoraTouchButton(
             normalCell = 5,
             pressedCell = 6,
-            modifier = Modifier.size(sizeDp.dp).alpha(opacity.coerceIn(0.35f, 1f)),
+            modifier = Modifier.size(sizeDp.dp).alpha(opacity.coerceIn(0f, 1f)),
             onClick = onClick
         )
         Text("MENU", color = Color(0xFFE9DDF8), fontSize = 9.sp, fontWeight = FontWeight.Bold)
@@ -2602,7 +2602,7 @@ private fun TouchLayoutEditorScreen(
                     val fittedWidth = minOf(maxWidth, maxHeight * 1.5f) * (settings.gameScreenScalePercent.coerceIn(60,120)/100f)
                     Box(Modifier.width(fittedWidth).aspectRatio(1.5f).background(Color.Black))
                 }
-                NexoraControlShell(Modifier.fillMaxWidth(), transparent = settings.controlsOnGameScreen) {
+                NexoraControlShell(Modifier.fillMaxWidth(), transparent = settings.controlsOnGameScreen || (backgroundSettings.mode != 0 && backgroundBitmap != null)) {
                     Column(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=8.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(6.dp)) {
                         Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
                             EditorControl("L",11,settings.lSizeDp,settings.lOffsetXDp,settings.lOffsetYDp,Modifier,selected=="L",density,settings.opacityPercent/100f,{selected="L"},{showOpacityDialog=true}) {dx,dy,z->transform("L",dx,dy,z)}
