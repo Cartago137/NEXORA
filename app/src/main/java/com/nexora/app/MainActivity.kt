@@ -2567,7 +2567,7 @@ private fun TouchLayoutEditorScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                NexoraControlShell(Modifier.width(224.dp).fillMaxHeight(), transparent = settings.controlsOnGameScreen) {
+                NexoraControlShell(Modifier.width(224.dp).fillMaxHeight(), transparent = settings.controlsOnGameScreen || (backgroundSettings.mode != 0 && backgroundBitmap != null)) {
                     Box(Modifier.fillMaxSize().padding(8.dp)) {
                         EditorControl("L",11,settings.lSizeDp,settings.lOffsetXDp,settings.lOffsetYDp,Modifier.align(Alignment.TopStart),selected=="L",density,settings.opacityPercent/100f,{selected="L"},{showOpacityDialog=true}) {dx,dy,z->transform("L",dx,dy,z)}
                         EditorControl("D-pad",0,settings.dpadSizeDp,settings.dpadOffsetXDp,settings.dpadOffsetYDp,Modifier.align(Alignment.CenterStart),selected=="D-pad",density,settings.opacityPercent/100f,{selected="D-pad"},{showOpacityDialog=true}) {dx,dy,z->transform("D-pad",dx,dy,z)}
@@ -2648,6 +2648,9 @@ private fun TouchLayoutEditorScreen(
                 TextButton(onClick = { onBackgroundSettingsChange(backgroundSettings.copy(mode=0)) }) { Text("Sem foto", color = if(backgroundSettings.mode==0) NexoraPink else NexoraMuted, fontSize = 9.sp) }
                 TextButton(onClick = { onBackgroundSettingsChange(backgroundSettings.copy(mode=1)) }) { Text("Fundo", color = if(backgroundSettings.mode==1) NexoraPink else NexoraMuted, fontSize = 9.sp) }
                 TextButton(onClick = { onBackgroundSettingsChange(backgroundSettings.copy(mode=2)) }) { Text("Laterais", color = if(backgroundSettings.mode==2) NexoraPink else NexoraMuted, fontSize = 9.sp) }
+            }
+            TextButton(onClick = { onBackgroundSettingsChange(backgroundSettings.copy(cropScale=1f,cropOffsetX=0f,cropOffsetY=0f)) }) {
+                Text("Redefinir recorte", color = NexoraMuted, fontSize = 9.sp)
             }
             Text("Pinça para ampliar e arraste para recortar", color = NexoraMuted, fontSize = 9.sp)
             Text("Toque duplo em um botão: transparência", color = NexoraMuted, fontSize = 9.sp)
