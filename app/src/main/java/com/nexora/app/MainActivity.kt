@@ -1094,6 +1094,11 @@ private fun PlayerScreen(
     }
     val isGbFamily = remember(saveStateKey) { NativeBridge.nativeGetPlatform() == 1 }
     val videoAspectRatio = videoWidth.toFloat() / videoHeight.toFloat()
+    val previewContext = LocalContext.current
+    LaunchedEffect(saveStateKey, videoAspectRatio) {
+        previewContext.getSharedPreferences("nexora_display_preview", Context.MODE_PRIVATE)
+            .edit().putFloat("last_video_aspect", videoAspectRatio).apply()
+    }
     val pixelBuffer = remember(saveStateKey) { IntArray(videoWidth * videoHeight) }
     val frameBitmap = remember(saveStateKey) {
         Bitmap.createBitmap(videoWidth, videoHeight, Bitmap.Config.ARGB_8888)
@@ -2508,6 +2513,11 @@ private fun TouchLayoutEditorScreen(
     var selected by remember { mutableStateOf("D-pad") }
     var showOpacityDialog by remember { mutableStateOf(false) }
     val density = LocalDensity.current.density
+    val previewContext = LocalContext.current
+    val previewAspectRatio = remember {
+        previewContext.getSharedPreferences("nexora_display_preview", Context.MODE_PRIVATE)
+            .getFloat("last_video_aspect", 1.5f).coerceIn(1f, 2f)
+    }
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val activeBackgroundPath = backgroundSettings.imagePath(isLandscape)
     val backgroundBitmap = remember(activeBackgroundPath) {
@@ -2575,8 +2585,8 @@ private fun TouchLayoutEditorScreen(
                 }
                 Column(Modifier.weight(1f).fillMaxHeight(),horizontalAlignment=Alignment.CenterHorizontally) {
                     BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
-                        val fittedWidth = minOf(maxWidth, maxHeight * 1.5f) * (settings.gameScreenScalePercent.coerceIn(60,120)/100f)
-                        Box(Modifier.width(fittedWidth).aspectRatio(1.5f).background(Color.Black))
+                        val fittedWidth = minOf(maxWidth, maxHeight * previewAspectRatio) * (settings.gameScreenScalePercent.coerceIn(60,120)/100f)
+                        Box(Modifier.width(fittedWidth).aspectRatio(previewAspectRatio).background(Color.Black))
                     }
                     Row(Modifier.fillMaxWidth().padding(bottom=2.dp),horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically) {
                         EditorControl("MENU",5,settings.menuSizeDp,settings.menuOffsetXDp,settings.menuOffsetYDp,Modifier,selected=="MENU",density,settings.opacityPercent/100f,{selected="MENU"},{showOpacityDialog=true}) {dx,dy,z->transform("MENU",dx,dy,z)}
