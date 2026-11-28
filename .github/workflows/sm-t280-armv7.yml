@@ -43,13 +43,18 @@ jobs:
       - name: Build debug APK (including armeabi-v7a)
         run: gradle --no-daemon :app:assembleDebug
 
-      - name: Verify ARMv7 native libraries are packaged
+      - name: Verify ARMv7 native library and Android minimum SDK
         run: |
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -f "$APK"
           unzip -l "$APK" | tee apk-contents.txt
           grep -q 'lib/armeabi-v7a/libnexora_native.so' apk-contents.txt
-          grep -q 'lib/armeabi-v7a/libmgba.so' apk-contents.txt
+          unzip -p "$APK" lib/armeabi-v7a/libnexora_native.so > "$RUNNER_TEMP/libnexora_native.so"
+          readelf -h "$RUNNER_TEMP/libnexora_native.so" | grep -q 'Class:.*ELF32'
+          readelf -h "$RUNNER_TEMP/libnexora_native.so" | grep -q 'Machine:.*ARM'
+          if readelf -d "$RUNNER_TEMP/libnexora_native.so" | grep -q 'Shared library: \[libmgba.so\]'; then
+            grep -q 'lib/armeabi-v7a/libmgba.so' apk-contents.txt
+          fi
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$APK" | grep "sdkVersion:'25'"
 
       - name: Upload experimental APK
