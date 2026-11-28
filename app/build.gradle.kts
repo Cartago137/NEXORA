@@ -14,7 +14,8 @@ android {
 
     defaultConfig {
         applicationId = "com.nexora.app"
-        minSdk = 26
+        // Android 7.1.2 on the SM-T280 is API 25.
+        minSdk = 25
         targetSdk = 36
         versionCode = 3
         versionName = "0.3.0"
