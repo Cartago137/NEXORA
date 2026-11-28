@@ -38,9 +38,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build debug APK (including armeabi-v7a)
-        run: |
-          chmod +x ./gradlew
-          ./gradlew --no-daemon :app:assembleDebug
+        run: gradle --no-daemon :app:assembleDebug
 
       - name: Verify ARMv7 native libraries are packaged
         run: |
