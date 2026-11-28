@@ -10,7 +10,7 @@ val releaseKeyPassword = providers.gradleProperty("NEXORA_KEY_PASSWORD").orNull
 
 android {
     namespace = "com.nexora.app"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.nexora.app"
