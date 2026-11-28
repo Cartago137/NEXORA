@@ -155,4 +155,9 @@
     <string name="link_network_error">network error</string>
     <string name="link_timeout">timed out</string>
     <string name="link_heartbeat_timeout">The other device stopped responding.</string>
+    <string name="save_state_description">Save the current point in the game to a separate file for this game.</string>
+    <string name="load_state_description">Restore the last saved state; current progress returns to the saved moment.</string>
+    <string name="speed_description">Changes emulation speed while adjusting audio playback.</string>
+    <string name="link_description">Connect another device to play together in supported GBA games.</string>
+    <string name="exit_game_description">Close the current game and return to NEXORA.</string>
 </resources>
