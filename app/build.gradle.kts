@@ -20,8 +20,10 @@ android {
         versionName = "0.3.0"
         ndkVersion = "27.2.12479018"
 
+        // Experimental SM-T280 target: ARMv7/32-bit. This branch is isolated
+        // from main until native compilation and device validation pass.
         ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         }
 
         externalNativeBuild {
