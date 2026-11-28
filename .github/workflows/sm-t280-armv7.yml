@@ -20,22 +20,25 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           packages: platform-tools
 
       - name: Install Android build tools
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+          if [ -d "$ANDROID_HOME/platforms/android-37.0" ] && [ ! -e "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.5.0"
 
       - name: Build debug APK (including armeabi-v7a)
         run: gradle --no-daemon :app:assembleDebug
@@ -47,6 +50,7 @@ jobs:
           unzip -l "$APK" | tee apk-contents.txt
           grep -q 'lib/armeabi-v7a/libnexora_native.so' apk-contents.txt
           grep -q 'lib/armeabi-v7a/libmgba.so' apk-contents.txt
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$APK" | grep "sdkVersion:'25'"
 
       - name: Upload experimental APK
         uses: actions/upload-artifact@v4
