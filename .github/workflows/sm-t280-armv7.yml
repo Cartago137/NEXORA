@@ -1,0 +1,66 @@
+name: SM-T280 ARMv7 compatibility
+
+on:
+  push:
+    branches:
+      - experiment/sm-t280-armv7
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  armv7-debug:
+    name: Build and inspect ARMv7 APK
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+
+      - name: Install Android build tools
+        run: |
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+          if [ -d "$ANDROID_HOME/platforms/android-37.0" ] && [ ! -e "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.5.0"
+
+      - name: Build debug APK (including armeabi-v7a)
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Verify ARMv7 native library and Android minimum SDK
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$APK"
+          unzip -l "$APK" | tee apk-contents.txt
+          grep -q 'lib/armeabi-v7a/libnexora_native.so' apk-contents.txt
+          unzip -p "$APK" lib/armeabi-v7a/libnexora_native.so > "$RUNNER_TEMP/libnexora_native.so"
+          readelf -h "$RUNNER_TEMP/libnexora_native.so" | grep -q 'Class:.*ELF32'
+          readelf -h "$RUNNER_TEMP/libnexora_native.so" | grep -q 'Machine:.*ARM'
+          if readelf -d "$RUNNER_TEMP/libnexora_native.so" | grep -q 'Shared library: \[libmgba.so\]'; then
+            grep -q 'lib/armeabi-v7a/libmgba.so' apk-contents.txt
+          fi
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$APK" | grep "sdkVersion:'25'"
+
+      - name: Upload experimental APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-sm-t280-armv7-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
