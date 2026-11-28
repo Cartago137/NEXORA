@@ -9,6 +9,7 @@ import android.graphics.Typeface
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.media.PlaybackParams
 import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
@@ -1215,9 +1216,22 @@ private fun PlayerScreen(
                 // Keep Android audio consumption in step with emulation speed.
                 // Matching playback rate prevents an ever-growing PCM queue.
                 if (appliedAudioSpeed != emulationSpeed) {
-                    val requestedRate = (outputSampleRate * emulationSpeed).toInt()
-                    createdAudioTrack?.setPlaybackRate(requestedRate)
-                    appliedAudioSpeed = emulationSpeed
+                    // PlaybackParams avoids requesting unusually high PCM sample
+                    // rates from Android when the emulator is accelerated.
+                    val speedApplied = runCatching {
+                        createdAudioTrack?.setPlaybackParams(
+                            PlaybackParams().setSpeed(emulationSpeed)
+                        )
+                        true
+                    }.getOrElse {
+                        runCatching {
+                            createdAudioTrack?.setPlaybackRate(
+                                (outputSampleRate * emulationSpeed).toInt()
+                            )
+                            true
+                        }.getOrDefault(false)
+                    }
+                    if (speedApplied) appliedAudioSpeed = emulationSpeed
                 }
 
                 val frameStartNanos = System.nanoTime()
@@ -1391,92 +1405,93 @@ private fun PlayerScreen(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
-                        TextButton(
-                            onClick = {
-                                NativeBridge.nativeSetKeys(0)
-                                showFunctionsMenu = false
-                                onExit()
-                            },
-                            enabled = !functionsBusy
-                        ) { Text(stringResource(R.string.exit_game), color = NexoraPink) }
+                        FunctionMenuAction(
+                            label = stringResource(R.string.exit_game),
+                            description = stringResource(R.string.exit_game_description),
+                            enabled = !functionsBusy,
+                            tint = NexoraPink
+                        ) {
+                            NativeBridge.nativeSetKeys(0)
+                            showFunctionsMenu = false
+                            onExit()
+                        }
 
-                        TextButton(
-                            onClick = {
-                                functionsBusy = true
-                                functionsScope.launch {
-                                    val saved = withContext(Dispatchers.IO) {
-                                        runCatching {
-                                            stateFile.parentFile?.mkdirs()
-                                            NativeBridge.nativeSaveState(stateFile.absolutePath)
-                                        }.getOrDefault(false)
-                                    }
-                                    functionsBusy = false
-                                    showFunctionsMenu = false
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(
-                                            if (saved) R.string.save_state_success else R.string.save_state_failure
-                                        ),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            },
+                        FunctionMenuAction(
+                            label = stringResource(R.string.save_state),
+                            description = stringResource(R.string.save_state_description),
                             enabled = !functionsBusy && !isLinkConnected
-                        ) { Text(stringResource(R.string.save_state), color = NexoraText) }
-
-                        TextButton(
-                            onClick = {
-                                functionsBusy = true
-                                functionsScope.launch {
-                                    val loaded = withContext(Dispatchers.IO) {
-                                        runCatching {
-                                            NativeBridge.nativeLoadState(stateFile.absolutePath)
-                                        }.getOrDefault(false)
-                                    }
-                                    if (loaded) withContext(Dispatchers.IO) {
-                                        runCatching { NativeBridge.nativeClearAudio() }
-                                    }
-                                    functionsBusy = false
-                                    showFunctionsMenu = false
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(
-                                            if (loaded) R.string.load_state_success else R.string.load_state_failure
-                                        ),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                        ) {
+                            functionsBusy = true
+                            functionsScope.launch {
+                                val saved = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        stateFile.parentFile?.mkdirs()
+                                        NativeBridge.nativeSaveState(stateFile.absolutePath)
+                                    }.getOrDefault(false)
                                 }
-                            },
+                                functionsBusy = false
+                                showFunctionsMenu = false
+                                Toast.makeText(
+                                    context,
+                                    context.getString(
+                                        if (saved) R.string.save_state_success else R.string.save_state_failure
+                                    ),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+
+                        FunctionMenuAction(
+                            label = stringResource(R.string.load_state),
+                            description = stringResource(R.string.load_state_description),
                             enabled = !functionsBusy && !isLinkConnected && stateFile.exists()
-                        ) { Text(stringResource(R.string.load_state), color = NexoraText) }
+                        ) {
+                            functionsBusy = true
+                            functionsScope.launch {
+                                val loaded = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        NativeBridge.nativeLoadState(stateFile.absolutePath)
+                                    }.getOrDefault(false)
+                                }
+                                if (loaded) withContext(Dispatchers.IO) {
+                                    runCatching { NativeBridge.nativeClearAudio() }
+                                }
+                                functionsBusy = false
+                                showFunctionsMenu = false
+                                Toast.makeText(
+                                    context,
+                                    context.getString(
+                                        if (loaded) R.string.load_state_success else R.string.load_state_failure
+                                    ),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
 
                         Text(stringResource(R.string.emulation_speed), color = NexoraMuted, fontSize = 12.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             listOf(1.0f, 1.5f, 2.0f, 3.0f).forEach { speed ->
-                                TextButton(
-                                    onClick = {
-                                        emulationSpeed = speed
-                                        showFunctionsMenu = false
-                                    },
-                                    enabled = !functionsBusy
+                                FunctionMenuAction(
+                                    label = "${speed}x",
+                                    description = stringResource(R.string.speed_description),
+                                    enabled = !functionsBusy,
+                                    tint = if (emulationSpeed == speed) NexoraPink else NexoraMuted,
+                                    compact = true
                                 ) {
-                                    Text(
-                                        "${speed}x",
-                                        color = if (emulationSpeed == speed) NexoraPink else NexoraMuted,
-                                        fontSize = 12.sp,
-                                        fontWeight = if (emulationSpeed == speed) FontWeight.Bold else FontWeight.Medium
-                                    )
+                                    emulationSpeed = speed
+                                    showFunctionsMenu = false
                                 }
                             }
                         }
 
-                        TextButton(
-                            onClick = {
-                                showFunctionsMenu = false
-                                onOpenLink()
-                            },
+                        FunctionMenuAction(
+                            label = stringResource(R.string.link_cable_trade),
+                            description = stringResource(R.string.link_description),
                             enabled = !functionsBusy && !isGbFamily
-                        ) { Text(stringResource(R.string.link_cable_trade), color = NexoraText) }
+                        ) {
+                            showFunctionsMenu = false
+                            onOpenLink()
+                        }
                         if (isGbFamily) {
                             Text(
                                 stringResource(R.string.link_cable_gba_only),
@@ -1505,6 +1520,43 @@ private fun PlayerScreen(
                 textContentColor = NexoraText
             )
         }
+    }
+}
+
+@Composable
+private fun FunctionMenuAction(
+    label: String,
+    description: String,
+    enabled: Boolean = true,
+    tint: Color = NexoraText,
+    compact: Boolean = false,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .then(if (compact) Modifier.width(52.dp) else Modifier.fillMaxWidth())
+            .clip(RoundedCornerShape(10.dp))
+            .pointerInput(enabled, description) {
+                detectTapGestures(
+                    onTap = { if (enabled) onClick() },
+                    onLongPress = {
+                        Toast.makeText(context, description, Toast.LENGTH_LONG).show()
+                    }
+                )
+            }
+            .padding(
+                horizontal = if (compact) 8.dp else 12.dp,
+                vertical = if (compact) 9.dp else 12.dp
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            color = if (enabled) tint else NexoraMuted,
+            fontSize = if (compact) 12.sp else 14.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
